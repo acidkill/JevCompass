@@ -1,0 +1,22 @@
+[
+  {"name":"plan-python-coding","event":{"hook_event_name":"UserPromptSubmit","permission_mode":"plan","prompt":"Plan Python API implementation"},"category":"coding","domain":"python","active":true},
+  {"name":"plan-python-debugging","event":{"hook_event_name":"UserPromptSubmit","permission_mode":"plan","prompt":"Plan to debug a Python error"},"category":"debugging","domain":"python","active":true},
+  {"name":"plan-python-testing","event":{"hook_event_name":"UserPromptSubmit","permission_mode":"plan","prompt":"Plan pytest testing for Python"},"category":"testing","domain":"python","active":true},
+  {"name":"plan-kubernetes-infrastructure","event":{"hook_event_name":"UserPromptSubmit","permission_mode":"plan","prompt":"Plan Kubernetes Helm deployment"},"category":"infrastructure","domain":"kubernetes","active":true},
+  {"name":"plan-web-implementation","event":{"hook_event_name":"UserPromptSubmit","permission_mode":"plan","prompt":"Plan React frontend implementation"},"category":"coding","domain":"web","active":true},
+  {"name":"plan-documentation","event":{"hook_event_name":"UserPromptSubmit","permission_mode":"plan","prompt":"Plan documentation update"},"category":"documentation","domain":"general","active":true},
+  {"name":"plan-research","event":{"hook_event_name":"UserPromptSubmit","permission_mode":"plan","prompt":"Research framework options"},"category":"research","domain":"general","active":true},
+  {"name":"plan-polish-debugging","event":{"hook_event_name":"UserPromptSubmit","permission_mode":"plan","prompt":"Napraw błąd w Pythonie"},"category":"debugging","domain":"software","active":true},
+  {"name":"explorer-role","event":{"hook_event_name":"SubagentStart","agent_type":"explorer"},"category":"codebase","domain":"software","active":true},
+  {"name":"worker-role","event":{"hook_event_name":"SubagentStart","agent_type":"worker"},"category":"coding","domain":"software","active":true},
+  {"name":"luna-worker-role","event":{"hook_event_name":"SubagentStart","agent_type":"luna_worker"},"category":"operations","domain":"general","active":true},
+  {"name":"explorer-role-second","event":{"hook_event_name":"SubagentStart","agent_type":"explorer"},"category":"codebase","domain":"software","active":true},
+  {"name":"worker-role-second","event":{"hook_event_name":"SubagentStart","agent_type":"worker"},"category":"coding","domain":"software","active":true},
+  {"name":"default-mode","event":{"hook_event_name":"UserPromptSubmit","permission_mode":"default","prompt":"Plan Python API implementation"},"active":false},
+  {"name":"accept-edits-mode","event":{"hook_event_name":"UserPromptSubmit","permission_mode":"acceptEdits","prompt":"Plan Python API implementation"},"active":false},
+  {"name":"generic-subagent","event":{"hook_event_name":"SubagentStart","agent_type":"default"},"active":false},
+  {"name":"bypass-mode","event":{"hook_event_name":"UserPromptSubmit","permission_mode":"bypassPermissions","prompt":"Plan Python API implementation"},"active":false},
+  {"name":"non-advisory-event","event":{"hook_event_name":"PreToolUse","tool_name":"Bash"},"active":false},
+  {"name":"ordinary-git","event":{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"git status --short"}},"active":false},
+  {"name":"ordinary-helm","event":{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"helm template demo ./chart"}},"active":false}
+]

@@ -1,0 +1,40 @@
+name: TestPyPI release
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to publish (must match pyproject.toml)
+        required: true
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: testpypi
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check requested version
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+          RELEASE_REF: ${{ github.ref }}
+        run: |
+          python - <<'PY'
+          import os, pathlib, tomllib
+          version = tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version']
+          assert version == os.environ['REQUESTED_VERSION'], 'requested version does not match package'
+          assert os.environ['RELEASE_REF'] == f'refs/tags/v{version}', 'select the matching release tag'
+          PY
+      - run: python -m pip install --upgrade build
+      - run: python -m unittest discover -s tests -v
+        env:
+          PYTHONPATH: src
+      - run: python -m build
+      - run: python tools/check_distribution.py
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
