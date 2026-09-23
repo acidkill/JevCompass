@@ -10,6 +10,12 @@ The installed Python client made one live, synthetic Decisions API request and r
 
 `jevcompass doctor` passed after installation. Direct installed-hook invocation produced advice for both a Plan mode event and an explorer start. A fresh CLI ordinary prompt invoked the prompt hook and correctly received no Jev advice. A new Desktop subagent did not receive SubagentStart advice in its initial context; investigate hook reload, trust, matching, and host delivery before acceptance. In an interactive Codex CLI 0.155.1 Plan mode session, the agent explicitly reported no JevCompass advice in initial context despite the Plan UI; automatic CLI plan delivery remains unverified and the explicit `recommend` command is the supported fallback. The same CLI session reported an unrelated invalid `Stop` hook JSON result from the existing integration.
 
+## Host smoke evidence (2026-09-23)
+
+A read-only Codex CLI 0.155.1 run with `JEV_ADVISOR_DIAGNOSTIC=1` recorded `UserPromptSubmit` as `bypassPermissions` and skipped it, as intended outside confirmed Plan mode. The same run recorded `SubagentStart` for the `explorer` profile as a cache hit in 37.33 ms with diagnostic ID `14f4b002`; the CLI parent response reported that ID and the selected identifiers `serena` and `code-review-excellence`. This corroborates that the hook ran and its advice appeared in model-visible context. The CLI JSON exposed no child thread ID, agent state, or child tool transcript, so this smoke is not counted as a fully verified before-first-tool delivery case and does not count toward the 20 paired cases.
+
+A separate `--ephemeral` attempt logged a `SubagentStart` Jev result but failed to register a child thread; it is excluded from acceptance evidence. No paired or blinded live study has been completed.
+
 ## Required evidence
 
 Run 20 paired, anonymized tasks in randomized order:
