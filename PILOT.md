@@ -4,6 +4,12 @@
 
 **Not yet accepted.** Synthetic contract tests are useful but do not prove advice was delivered to an agent before its first tool choice, nor that advice improves live work.
 
+## Synthetic runtime evidence (2026-09-23)
+
+The installed Python client made one live, synthetic Decisions API request and received the expected `pytest` choice with confidence 1 in 540 ms. In a 20-case fixture run using a fresh cache per case, 12 of 13 eligible cases produced advice, all 7 routine cases stayed silent, and eligible-call p95 was 505 ms (maximum 509 ms). The remaining debugging case returned confidence below the local 0.5 threshold and was intentionally skipped. This is 92.3% synthetic coverage, not host delivery or blinded usefulness evidence.
+
+`jevcompass doctor` passed after installation. Direct installed-hook invocation produced advice for both a Plan mode event and an explorer start. A fresh CLI ordinary prompt invoked the prompt hook and correctly received no Jev advice. A new Desktop subagent did not receive SubagentStart advice in its initial context; investigate hook reload, trust, matching, and host delivery before acceptance. The CLI Plan mode signal is also not confirmed.
+
 ## Required evidence
 
 Run 20 paired, anonymized tasks in randomized order:
