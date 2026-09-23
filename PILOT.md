@@ -8,7 +8,7 @@
 
 The installed Python client made one live, synthetic Decisions API request and received the expected `pytest` choice with confidence 1 in 540 ms. In a 20-case fixture run using a fresh cache per case, 12 of 13 eligible cases produced advice, all 7 routine cases stayed silent, and eligible-call p95 was 505 ms (maximum 509 ms). The remaining debugging case returned confidence below the local 0.5 threshold and was intentionally skipped. This is 92.3% synthetic coverage, not host delivery or blinded usefulness evidence.
 
-`jevcompass doctor` passed after installation. Direct installed-hook invocation produced advice for both a Plan mode event and an explorer start. A fresh CLI ordinary prompt invoked the prompt hook and correctly received no Jev advice. A new Desktop subagent did not receive SubagentStart advice in its initial context; investigate hook reload, trust, matching, and host delivery before acceptance. The CLI Plan mode signal is also not confirmed.
+`jevcompass doctor` passed after installation. Direct installed-hook invocation produced advice for both a Plan mode event and an explorer start. A fresh CLI ordinary prompt invoked the prompt hook and correctly received no Jev advice. A new Desktop subagent did not receive SubagentStart advice in its initial context; investigate hook reload, trust, matching, and host delivery before acceptance. In an interactive Codex CLI 0.155.1 Plan mode session, the agent explicitly reported no JevCompass advice in initial context despite the Plan UI; automatic CLI plan delivery remains unverified and the explicit `recommend` command is the supported fallback. The same CLI session reported an unrelated invalid `Stop` hook JSON result from the existing integration.
 
 ## Required evidence
 
