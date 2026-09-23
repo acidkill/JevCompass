@@ -16,6 +16,13 @@ A read-only Codex CLI 0.155.1 run with `JEV_ADVISOR_DIAGNOSTIC=1` recorded `User
 
 A separate `--ephemeral` attempt logged a `SubagentStart` Jev result but failed to register a child thread; it is excluded from acceptance evidence. No paired or blinded live study has been completed.
 
+## Local validation evidence (2026-09-23)
+
+- The full unittest suite passed on CPython 3.11.15, 3.12.13, and 3.13.13: 37 tests on each version.
+- `uv build` on CPython 3.14.7 produced one wheel and one sdist; the distribution-content checker passed against both archives.
+- The wheel installed into a temporary isolated pipx environment on CPython 3.14.7, and the installed `jevcompass --help` exposed the `hook`, `recommend`, `doctor`, and `install` commands.
+- GitHub Actions run 35897338176 did not start any job steps. Its check annotation reports failed recent payments or an insufficient Actions spending limit; account billing or the limit must be resolved before CI can be rerun.
+
 ## Required evidence
 
 Run 20 paired, anonymized tasks in randomized order:
