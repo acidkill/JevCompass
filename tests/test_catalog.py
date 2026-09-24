@@ -83,6 +83,21 @@ class CatalogTests(unittest.TestCase):
             vanilla_ids = {item["id"] for item in catalog.candidates("source-review", "any", "general", limit=20)}
         self.assertEqual(vanilla_ids, {"exec_command"})
 
+    def test_generic_coding_does_not_remote_rank_memory_or_git_history(self):
+        reviewed = catalog.load_catalog()
+        for entry in reviewed:
+            if entry["id"] in {"exec_command", "smem", "git"}:
+                entry["availability"] = "available"
+        with patch.object(catalog, "load_catalog", return_value=reviewed):
+            coding_ids = {item["id"] for item in catalog.candidates("code", "any", "python", limit=20)}
+            review_ids = {item["id"] for item in catalog.candidates("review", "any", "python", limit=20)}
+            planning_ids = {item["id"] for item in catalog.candidates("planning", "any", "general", limit=20)}
+        self.assertIn("exec_command", coding_ids)
+        self.assertNotIn("smem", coding_ids)
+        self.assertNotIn("git", coding_ids)
+        self.assertIn("git", review_ids)
+        self.assertIn("smem", planning_ids)
+
     def test_candidates_apply_task_role_domain_and_limit(self):
         fake = [
             {"id": "a", "task_kinds": ["code"], "role": "testing", "domains": ["software"], "availability": "available"},
