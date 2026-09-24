@@ -12,6 +12,12 @@ A fresh randomized baseline/treatment pair ran the synthetic P05 package README 
 
 The private, validated diagnostic sidecar correlates the treatment to `package-docs/local` at 3.64 ms and confirms its ID was reported before the first tool. The baseline is `not_applicable`. This verifies delivery in one CLI pair, not causation or a speed gain. Private receipts, quality artifacts, mapping, sidecar, score, and rationale are at `/tmp/jevcompass-vcr64-p05-20260924/`; keep mapping and sidecar away from blind evaluators. Overall automatic-advice acceptance remains **not passed (0/20 complete gate cases)**. A separate post-unblind relevance assessment and Desktop coverage remain necessary.
 
+## VCR-65 fresh P03 Bash repair pair (2026-09-24)
+
+A randomized synthetic CLI P03 baseline/treatment pair completed with identical `gpt-6-sol` medium settings and preflight, no OpenRouter key and no other hooks. Two blind Bash artifacts were evaluated before unblinding. The first score file used an invalid string instead of a boolean; the evaluator corrected only those fields while still blind and committed the valid score SHA-256 `aab2de8a82e8039244a77e35c33fc48bc38d3decb1ef1e8d466a64d346c6a6ad`. Both scripts passed `bash -n`, exited 0 with unset or empty `OUTPUT_PATH`, defaulted to `report.txt`, and created no files in those cases. Quality and required-check ratings tied. Block, privacy, and first productive action were left unknown where evidence was insufficient.
+
+After scoring, the private diagnostic showed the treatment hook invoked, classified `debugging`, and deliberately returned `low-signal-skip` in 5.48 ms. No advice was emitted, so this pair tests low-noise abstention and task quality but provides no recommendation usefulness or delivery evidence. Private evidence is in `/tmp/jevcompass-vcr65-p03-20260924/`. Overall acceptance remains open.
+
 ## Current acceptance gate audit (2026-09-24)
 
 | Gate | Evidence | Decision |
