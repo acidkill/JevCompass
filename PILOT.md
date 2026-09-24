@@ -34,6 +34,10 @@ For P07, the blind answers both covered method/path, JSON input, validation, sta
 
 The [private GitHub prerelease](https://github.com/acidkill/jev-advisor-for-codex/releases/tag/v0.1.0) tags commit `4f83d3dca0cbe881e614ecd575769d9e58436b7a`. Its attached wheel and sdist have verified GitHub SHA-256 digests `64462c751749fb153b470cd4b0330365ee79be8cbd75962d30d99094fa5b0f12` and `39773eae6c00a915b17aeefe39c3aace3a9ad1adaf3900167436eaa3038a38e1`. From that commit, 154 local tests passed; the distribution-content check passed; isolated Linux pipx installation, duplicate installer invocation, and doctor passed, with one registration of each advisory hook and no Jev PreToolUse. The four-pair sample is reported above with its limits. GitHub Actions runners did not start because GitHub reported failed account payments or a spending limit, so hosted CI provides no test result. macOS remains unverified; TestPyPI/PyPI and public visibility are separate decisions. This is a usable private alpha, not accepted efficacy.
 
+## Downloaded release artifact verification (2026-09-24)
+
+An authenticated download of the attached private v0.1.0 wheel matched the GitHub asset API SHA-256 `64462c751749fb153b470cd4b0330365ee79be8cbd75962d30d99094fa5b0f12`. In an isolated Linux profile, `pipx` installed that downloaded wheel; two installer runs kept exactly one `UserPromptSubmit` and one `SubagentStart` registration with no `PreToolUse`. `jevcompass doctor` passed at 0.1.0 and keyless explicit recommendation returned a labeled local fallback. This is distribution-to-install evidence, not host trust, Desktop delivery, macOS runtime, or efficacy evidence.
+
 ## Current acceptance gate audit (2026-09-24)
 
 | Gate | Evidence | Decision |
