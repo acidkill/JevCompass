@@ -42,8 +42,10 @@ CATALOG_TASKS = {
     "planning": "planning",
     "operations": "ops",
     "project-setup": "project",
+    "package-docs": "package-docs",
 }
 TASK_PATTERNS = (
+    ("package-docs", re.compile(r"(?=.*\b(?:python|pyproject\.toml|pipx?)\b)(?=.*\b(?:readme|documentation|docs)\b)(?=.*\b(?:install(?:ation)?|installing)\b)", re.I)),
     ("project-setup", re.compile(r"(?=.*\b(creat\w*|start\w*|bootstrap\w*|scaffold\w*|setup|set up|initialize\w*|initialise\w*|init|utwórz|założ\w*|stwórz|stworze\w*|zainicjaliz\w*)\b)(?=.*\b(repository|repo|repozytorium|package|pakiet|project|projekt)\b)", re.I)),
     ("api-design", re.compile(r"(?=.*\b(?:api|endpoint|openapi|rest|graphql)\b)(?:(?=.*\b(?:design\w*|architect\w*|defin\w*|specif\w*|zaprojekt\w*|projektow\w*)\b)|(?=.*\b(?:review|audit)\b)(?=.*\b(?:contract|schema|specification)\b))", re.I)),
     ("infrastructure", re.compile(r"\b(kubernetes|kubectl|helm|k3s|deploy|deployment|cluster|terraform|infra|wdroż|klaster)\b", re.I)),
@@ -224,6 +226,8 @@ def _context(
         suffix = "\nConfigured MCP entries must be confirmed connected in this session. Read any chosen skill before use. Follow the task brief and required project instructions."
     if category == "source-review":
         suffix += " Verify current authoritative local sources and mark missing facts. Keep drafts unsent unless explicitly authorized."
+    if category == "package-docs":
+        suffix += " For Python package install documentation, verify project metadata, the actual CLI --help output, and the repository test command against the README."
     context = (f"JevCompass advice ID: {trace}\n" if trace else "") + prefix + "\n".join(lines) + suffix
     if len(context) > MAX_CONTEXT_CHARS:
         return None
@@ -255,7 +259,7 @@ def select_advice(name: str, category: str, domain: str, role: str, trace: str |
         return None
     # The built-in shell is a generic capability, not a meaningful singleton
     # recommendation for either a task hook or a role-only subagent hook.
-    if len(items) == 1 and items[0]["id"] == "exec_command":
+    if len(items) == 1 and items[0]["id"] == "exec_command" and category != "package-docs":
         _metric(name, category, "low-signal-skip", started, trace)
         return None
 

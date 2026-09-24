@@ -143,6 +143,77 @@ class AdvisorTests(unittest.TestCase):
             ("debugging", "shell"),
         )
 
+    def test_package_install_documentation_has_a_narrow_local_category(self):
+        self.assertEqual(
+            advisor.classify_task("Update the Python project README install instructions to match the current CLI help and existing test behavior."),
+            ("package-docs", "python"),
+        )
+        self.assertEqual(
+            advisor.classify_task("Write general documentation for a Python application."),
+            ("documentation", "python"),
+        )
+        self.assertEqual(
+            advisor.classify_task("Update the web README installation guide for browser setup and document supported browser behavior."),
+            ("documentation", "web"),
+        )
+
+    def test_package_docs_guidance_is_local_and_prompt_is_not_sent_to_jev(self):
+        secret = "private-package-path-and-token-91aa"
+        prompt = ("Update the Python project README install instructions to match the current CLI help "
+                  f"and existing test behavior for {secret}.")
+        candidates = [
+            {"id": "exec_command", "kind": "tool", "capability": "Bounded local shell commands",
+             "use_when": "inspect project files and run checks", "avoid_when": "unclear mutations",
+             "availability": "available"},
+            {"id": "git", "kind": "tool", "capability": "Inspect repository changes and history",
+             "use_when": "check tracked README and metadata changes", "avoid_when": "forceful history changes",
+             "availability": "available"},
+            {"id": "python-packaging", "kind": "skill", "capability": "Python packaging guidance",
+             "use_when": "Python package distribution and install docs", "avoid_when": "generic documentation",
+             "availability": "available"},
+        ]
+        with mock.patch.object(advisor, "candidates", return_value=candidates), \
+                mock.patch.object(advisor, "_read_cache", return_value=None), \
+                mock.patch.object(advisor, "_write_cache"), \
+                mock.patch.object(advisor, "_metric"), \
+                mock.patch.object(advisor, "DecisionsClient") as client:
+            client.return_value.decide.return_value = {
+                "tool": {"type": "choice", "choice": "exec_command", "confidence": 0.9},
+            }
+            result = advisor.evaluate({
+                "hook_event_name": "UserPromptSubmit",
+                "permission_mode": "default",
+                "prompt": prompt,
+            })
+        request = json.dumps(client.return_value.decide.call_args.args)
+        context = result["hookSpecificOutput"]["additionalContext"]
+        self.assertEqual(advisor.classify_task(prompt), ("package-docs", "python"))
+        self.assertNotIn(prompt, request)
+        self.assertNotIn(secret, request)
+        self.assertNotIn("verify project metadata", request)
+        self.assertIn("verify project metadata", context)
+        self.assertIn("actual CLI --help output", context)
+        self.assertIn("repository test command", context)
+
+    def test_package_docs_single_shell_gets_local_guidance_but_generic_singleton_stays_silent(self):
+        shell = {
+            "id": "exec_command", "kind": "tool", "capability": "Bounded local shell commands",
+            "use_when": "inspect project files and run checks", "avoid_when": "unclear mutations",
+            "availability": "available",
+        }
+        with mock.patch.object(advisor, "candidates", return_value=[shell]), \
+                mock.patch.object(advisor, "_judge") as judge, \
+                mock.patch.object(advisor, "_metric"):
+            result = advisor.select_advice("UserPromptSubmit", "package-docs", "python", "primary")
+            self.assertIsNone(advisor.select_advice(
+                "UserPromptSubmit", "documentation", "python", "primary"
+            ))
+        judge.assert_not_called()
+        context = result["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("exec_command", context)
+        self.assertIn("verify project metadata", context)
+        self.assertIn("Local unranked fallback", context)
+
     def test_plan_review_explanation_and_project_setup_are_classified_locally(self):
         self.assertEqual(advisor.classify_task("Review the Python authentication changes and their callers"), ("review", "python"))
         self.assertEqual(

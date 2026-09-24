@@ -60,6 +60,16 @@ class CatalogTests(unittest.TestCase):
             self.assertEqual(catalog.candidates("api-design", "any", "python"), [])
             self.assertEqual(catalog.candidates("document", "any", "python"), [])
 
+    def test_blank_codex_home_has_no_phantom_packaging_skill(self):
+        with tempfile.TemporaryDirectory() as blank_home, \
+                patch.dict(catalog.os.environ, {"CODEX_HOME": blank_home}, clear=True), \
+                patch.object(catalog, "_configured_mcp_servers", return_value=set()), \
+                patch.object(catalog, "_codex_shell_available", return_value=True), \
+                patch.object(catalog.shutil, "which", return_value=None):
+            candidates = catalog.candidates("package-docs", "any", "python", limit=20)
+        self.assertEqual({item["id"] for item in candidates}, {"exec_command"})
+        self.assertFalse(any(item["id"] == "python-packaging" for item in candidates))
+
     def test_builtin_api_and_documentation_candidate_respects_disabled_shell(self):
         with patch.object(catalog, "discover_installed_skills", return_value={}), \
                 patch.object(catalog, "_configured_mcp_servers", return_value=set()), \
