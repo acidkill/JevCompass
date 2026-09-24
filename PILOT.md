@@ -165,3 +165,7 @@ A blank `CODEX_HOME` fixture with skill and configured-MCP discovery disabled pr
 ## VCR-09 built-in shell availability (2026-09-24)
 
 The curated `exec_command` entry now uses a dedicated Codex shell availability check instead of searching for `bash` on `PATH`. With no config file, the check follows Codex's documented default (`features.shell_tool` enabled); an explicit `[features] shell_tool = false` marks it unavailable. Tests also cover explicit enablement, malformed TOML, the no-`bash` host case, and independent `git` PATH detection. The full suite passed 55 tests and 39 subtests. This local configuration signal does not prove tool exposure in a particular live model/session; the agent must still confirm availability there.
+
+## VCR-08 default-role recommendation audit (2026-09-24)
+
+Serena review confirmed that vanilla `SubagentStart` supplies `agent_type` but no delegated task description. An isolated wildcard-matcher CLI probe showed a `default` child receives `additionalContext` before its first tool, but it carried only a marker and did not call Jev or test advice usefulness. There are no scored mixed-task recommendations for this role. A generic code-oriented profile could recommend shell, Git, or code-navigation tools for unrelated tasks and repeat guidance that is already obvious. Decision: keep `default` and custom roles silent. Revisit only with blinded mixed-task cases scoring recommendation usefulness, first action, candidate availability, and noise; continue to verify no task or private session context enters Jev requests.
