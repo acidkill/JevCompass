@@ -2,6 +2,8 @@ import unittest
 from unittest.mock import patch
 from pathlib import Path
 import tempfile
+import subprocess
+import shutil
 
 from jevcompass import catalog
 
@@ -122,6 +124,33 @@ class CatalogTests(unittest.TestCase):
         self.assertNotIn("git", coding_ids)
         self.assertIn("git", review_ids)
         self.assertIn("smem", planning_ids)
+
+    def test_git_choice_requires_a_local_checkout(self):
+        if shutil.which("git") is None:
+            self.skipTest("git is optional")
+        with tempfile.TemporaryDirectory() as directory:
+            outside = Path(directory)
+            (outside / ".git").mkdir()  # A stray marker is not a repository.
+            checkout = outside / "checkout"
+            subprocess.run(["git", "init", str(checkout)], check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            nested = checkout / "src"
+            nested.mkdir()
+            self.assertFalse(catalog._inside_git_checkout(outside))
+            self.assertTrue(catalog._inside_git_checkout(nested))
+            reviewed = catalog.load_catalog()
+            for entry in reviewed:
+                if entry["id"] in {"git", "exec_command"}:
+                    entry["availability"] = "available"
+            with patch.object(catalog, "load_catalog", return_value=reviewed), \
+                    patch.object(catalog, "_inside_git_checkout", return_value=False):
+                outside_ids = {item["id"] for item in catalog.candidates("review", "any", "python", limit=20)}
+            with patch.object(catalog, "load_catalog", return_value=reviewed), \
+                    patch.object(catalog, "_inside_git_checkout", return_value=True):
+                inside_ids = {item["id"] for item in catalog.candidates("review", "any", "python", limit=20)}
+        self.assertNotIn("git", outside_ids)
+        self.assertIn("git", inside_ids)
+        self.assertIn("exec_command", outside_ids)
 
     def test_candidates_apply_task_role_domain_and_limit(self):
         fake = [

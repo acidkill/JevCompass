@@ -11,6 +11,7 @@ import json
 import hashlib
 import os
 import shutil
+import subprocess
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -206,6 +207,19 @@ def catalog_version() -> str:
     return f"sha256:{digest}"
 
 
+def _inside_git_checkout(start: Path | None = None) -> bool:
+    """Ask Git locally; a stray parent `.git` marker is not a valid checkout."""
+    try:
+        location = (start or Path.cwd()).resolve()
+        result = subprocess.run(
+            ["git", "-C", str(location), "rev-parse", "--is-inside-work-tree"],
+            check=False, capture_output=True, text=True, timeout=0.25,
+        )
+        return result.returncode == 0 and result.stdout.strip() == "true"
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
 def candidates(task_kind: str, role: str, domain: str | None = None, limit: int = 6) -> list[dict[str, Any]]:
     """Return up to ``limit`` available curated choices matching task and role.
 
@@ -222,6 +236,8 @@ def candidates(task_kind: str, role: str, domain: str | None = None, limit: int 
         if entry["availability"] not in {"available", "configured"}:
             continue
         if task not in {_normalize(item) for item in entry.get("task_kinds", [])}:
+            continue
+        if entry["id"] == "git" and not _inside_git_checkout():
             continue
         if requested_role not in {"any", "*"} and _normalize(entry.get("role", "")) != requested_role:
             continue
