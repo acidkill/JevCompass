@@ -79,7 +79,7 @@ jevcompass recommend --category debugging --domain python --role primary
 jevcompass recommend --category project-setup --domain software --role planner
 ~~~
 
-Allowed categories are infrastructure, debugging, testing, research, api-design, documentation, coding, codebase, review, source-review, planning, operations, and project-setup. Allowed domains are general, software, python, web, and kubernetes. The command accepts no raw task prompt.
+Allowed categories are infrastructure, debugging, testing, research, api-design, documentation, coding, codebase, review, source-review, planning, operations, and project-setup. Allowed domains are general, software, python, web, shell, and kubernetes. The command accepts no raw task prompt.
 
 ## Privacy boundaries
 

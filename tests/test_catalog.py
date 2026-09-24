@@ -39,6 +39,19 @@ class CatalogTests(unittest.TestCase):
         self.assertIn("python-testing-patterns", testing_ids)
         self.assertNotIn("code-review-excellence", testing_ids)
 
+    def test_shell_debugging_excludes_git_and_browser_only_guidance(self):
+        with patch.object(catalog, "discover_installed_skills", return_value={
+            "engineering-suite-debug:browser-testing-with-devtools": {},
+            "developer-essentials:debugging-strategies": {},
+        }), patch.object(catalog, "_configured_mcp_servers", return_value=set()), \
+                patch.object(catalog, "_codex_shell_available", return_value=True), \
+                patch.object(catalog.shutil, "which", side_effect=lambda command: "/usr/bin/" + command):
+            shell_ids = {item["id"] for item in catalog.candidates("debug", "any", "shell", limit=20)}
+            web_ids = {item["id"] for item in catalog.candidates("debug", "any", "web", limit=20)}
+        self.assertEqual(shell_ids, {"exec_command"})
+        self.assertIn("browser-testing-with-devtools", web_ids)
+        self.assertNotIn("browser-testing-with-devtools", shell_ids)
+
     def test_vanilla_profile_stays_silent_for_api_and_documentation_without_specific_skill(self):
         with patch.object(catalog, "discover_installed_skills", return_value={}), \
                 patch.object(catalog, "_configured_mcp_servers", return_value=set()), \

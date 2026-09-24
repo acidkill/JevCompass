@@ -126,7 +126,7 @@ class AdvisorTests(unittest.TestCase):
             self.assertIsNone(advisor.classify_task(prompt), prompt)
         self.assertEqual(
             advisor.classify_task("Fix a Bash script defect and run a syntax check."),
-            ("debugging", "software"),
+            ("debugging", "shell"),
         )
 
     def test_classifier_prioritizes_primary_intent_and_handles_shell_failures(self):
@@ -140,7 +140,7 @@ class AdvisorTests(unittest.TestCase):
         )
         self.assertEqual(
             advisor.classify_task("Fix the Bash script's unset-variable defect and run a syntax check."),
-            ("debugging", "software"),
+            ("debugging", "shell"),
         )
 
     def test_plan_review_explanation_and_project_setup_are_classified_locally(self):
