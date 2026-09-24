@@ -24,6 +24,51 @@ class ProductContractTests(unittest.TestCase):
         self.assertEqual(advisor.classify_task(prompt), ("project-setup", "software"))
 
 
+    def test_specialized_task_categories_use_narrow_candidate_pools(self):
+        self.assertEqual(
+            advisor.classify_task("Design the API contract for a new endpoint"),
+            ("api-design", "software"),
+        )
+        self.assertEqual(
+            advisor.classify_task("Review the API contract for a new endpoint"),
+            ("api-design", "software"),
+        )
+        self.assertEqual(
+            advisor.classify_task("Review the new Python package API and its callers"),
+            ("review", "python"),
+        )
+        self.assertEqual(
+            advisor.classify_task("Write documentation for this API"),
+            ("documentation", "general"),
+        )
+        self.assertEqual(advisor.CATALOG_TASKS["documentation"], "document")
+        self.assertIn("api-design", advisor.CATALOG_TASKS)
+
+        entries = {item["id"]: item for item in load_catalog()}
+        self.assertEqual(entries["api-design-principles"]["task_kinds"], ["api-design"])
+        self.assertEqual(entries["documents"]["task_kinds"], ["document"])
+        for skill_id in (
+            "create-plan",
+            "api-design-principles",
+            "kubernetes-gitops-workflow",
+            "helm-chart-scaffolding",
+            "documents",
+            "python-packaging",
+        ):
+            self.assertNotIn("code", entries[skill_id]["task_kinds"])
+
+
+    def test_plan_only_skill_is_excluded_from_generic_coding_candidates(self):
+        plan_skill = next(item for item in load_catalog() if item["id"] == "create-plan")
+        self.assertNotIn("code", plan_skill["task_kinds"])
+        self.assertIn("planning", plan_skill["task_kinds"])
+        self.assertIn("project", plan_skill["task_kinds"])
+        self.assertNotIn(
+            "create-plan",
+            {item["id"] for item in candidates("code", "any", "software", limit=20)},
+        )
+
+
     def test_jev_shortlist_is_small_and_balanced(self):
         pool = [
             {"id": f"tool-{number}", "kind": "tool"} for number in range(5)
