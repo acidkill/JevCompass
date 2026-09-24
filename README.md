@@ -46,7 +46,7 @@ JevCompass can run without extra skills, MCP servers, or an OpenRouter key. A cl
 
 ## Install
 
-Authorized collaborators can download the wheel from the [private v0.1.6 alpha release](https://github.com/acidkill/jev-advisor-for-codex/releases/tag/v0.1.6) and install it with `pipx install ./jevcompass-0.1.6-py3-none-any.whl`. This release includes the VCR-108 planning-intent fix. Run `jevcompass install` and `jevcompass doctor` after installation. The repository and assets are not publicly accessible. Local Linux release checks and platform limitations are recorded in TASKS.md.
+Authorized collaborators can download the wheel from the [private v0.1.7 alpha release](https://github.com/acidkill/JevCompass/releases/tag/v0.1.7) and install it with `pipx install ./jevcompass-0.1.7-py3-none-any.whl`. This release includes the VCR-115 hook startup fast path. On Linux CPython 3.14.7, 30 paired launches showed lower median startup time for both simple skips and eligible keyless hooks; p95 for eligible hooks varied, so this is bounded local timing evidence, not a general latency guarantee. The first alpha’s four fresh synthetic CLI pairs tied on task quality, so improvement remains unproven. Run `jevcompass install` and `jevcompass doctor` after installation. The repository and assets are not publicly accessible. Local Linux release checks and platform limitations are recorded in TASKS.md.
 
 From a local checkout:
 
