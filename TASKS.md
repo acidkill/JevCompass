@@ -23,6 +23,8 @@ Target Codex Desktop and CLI in a vanilla user setup, without relying on this re
 | VCR-07 | Preserve useful local advice on a vanilla profile without an OpenRouter key | Planned | For safe, ambiguous candidate groups, provide a clearly labeled local shortlist rather than silently omitting all advice; keep Jev-selected choices distinct, bounded, privacy-safe, and non-blocking. Cover blank-profile project setup and relevant hook tests. |
 | VCR-08 | Improve useful role-level advice for vanilla default subagents | Planned | Evaluate the built-in `default` role using only `agent_type`; add a concise, broadly useful profile only if evidence supports it, and verify no task text or private context is inferred. |
 | VCR-09 | Make built-in command availability accurate across supported Codex hosts | Planned | Remove false negatives caused by assuming `bash` exists where Codex still exposes its built-in command tool; define and test availability semantics for hook and standalone CLI contexts. |
+| VCR-10 | Review OpenRouter's Jev permission-approval integration pattern | Complete | Record what can transfer safely: permission-time triggering, deterministic local risk exclusions, typed judgments, strict allow threshold, and fail-safe return to Codex's normal prompt. Document raw-data and hook-key limitations. |
+| VCR-11 | Prototype an opt-in Jev-assisted Codex permission flow | Planned | Separately evaluate a disabled-by-default `PermissionRequest` mode with a tested key source, narrow eligible command policy, no raw prompt/code/path disclosure, unchanged host deny rules, and normal approval on every uncertain/error case. Never restore broad `PreToolUse`. |
 
 ## Latest task checkpoint (2026-09-24)
 
@@ -31,6 +33,12 @@ VCR-06A is complete: isolated vanilla CLI local advice ID `c218487d` and `exec_c
 ## Vanilla usability backlog (2026-09-24)
 
 A read-only catalog audit identified three remaining product gaps: keyless profiles silently lose ambiguous multi-candidate recommendations; the built-in `default` subagent role receives no role-level guidance; and shell-based availability probing may hide Codex's built-in command tool on hosts without `bash`. These are tracked as VCR-07 through VCR-09. VCR-06's fresh Desktop prompt test, remote Jev delivery test, and paired acceptance pilot remain separate acceptance work and are not implied complete by these improvements.
+
+## Jev permission-flow article review (2026-09-24)
+
+Reviewed [OpenRouter's Jev permission-approval recipe](https://openrouter.darenbot.com/docs/cookbook/coding-agents/auto-approve-permission-prompts-with-jev) against [Codex hook documentation](https://learn.chatgpt.com/docs/hooks). Transferable pattern: evaluate only a real `PermissionRequest`, run local deterministic exclusions before Jev, use typed bounded judgments, allow only after every required score clears a validated threshold, and leave the original Codex prompt untouched on uncertainty, timeout, or API failure. Codex's `PermissionRequest` runs only when approval is about to be requested; if no hook decides, Codex continues its normal approval flow.
+
+Important limits: the Codex event has no reliable task objective; the article therefore drops task-fit and asks only about reversibility. The recipe sends command text and project path to OpenRouter and reports that its hook did not receive `OPENROUTER_API_KEY` in a CLI 0.155.1 capture; its `.env` workaround is not adopted here. A future permission mode must solve key delivery safely, avoid raw prompts/code/paths, preserve Codex deny rules, keep high-risk actions on the normal prompt, and remain disabled unless a user explicitly enables that distinct capability. Its quoted latency, accuracy, and cost figures are the article author's measurements, not JevCompass results.
 
 ## Acceptance guardrails
 
