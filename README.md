@@ -42,7 +42,7 @@ The local catalog treats `exec_command` as Codex's built-in shell capability, en
 
 ## Install
 
-Authorized collaborators can download the wheel from the [private v0.1.4 alpha release](https://github.com/acidkill/jev-advisor-for-codex/releases/tag/v0.1.4) and install it with `pipx install ./jevcompass-0.1.4-py3-none-any.whl`. Then run `jevcompass install` and `jevcompass doctor`. The isolated wheel install was verified on Linux; macOS remains to be tested on a macOS host. The repository and assets are not publicly accessible.
+Authorized collaborators can download the wheel from the [private v0.1.5 alpha release](https://github.com/acidkill/jev-advisor-for-codex/releases/tag/v0.1.5) and install it with `pipx install ./jevcompass-0.1.5-py3-none-any.whl`. Then run `jevcompass install` and `jevcompass doctor`. The isolated wheel install was verified on Linux; macOS remains to be tested on a macOS host. The repository and assets are not publicly accessible.
 
 From a local checkout:
 
