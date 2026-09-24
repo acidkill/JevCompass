@@ -187,7 +187,13 @@ def _judge(category: str, role: str, domain: str, items: list[dict[str, Any]]) -
         return None
 
 
-def _context(event: str, selected: list[str], items: list[dict[str, Any]], trace: str | None = None) -> dict[str, Any] | None:
+def _context(
+    event: str,
+    selected: list[str],
+    items: list[dict[str, Any]],
+    trace: str | None = None,
+    selection_source: str = "jev",
+) -> dict[str, Any] | None:
     chosen = {item["id"]: item for item in items}
     lines = []
     for identifier in selected:
@@ -198,11 +204,16 @@ def _context(event: str, selected: list[str], items: list[dict[str, Any]], trace
         lines.append(f"- {item['kind']} `{identifier}`: {item['capability']}{suffix}")
     if not lines:
         return None
+
+    source_note = (
+        "Local unranked fallback; Jev did not select these candidates. "
+        if selection_source == "local" else ""
+    )
     if event == "UserPromptSubmit":
-        prefix = "Optional tools and skills for this task; validate against the task and actual availability:\n"
+        prefix = source_note + "Optional tools and skills for this task; validate against the task and actual availability:\n"
         suffix = "\nConfigured MCP entries must be confirmed connected in this session. Read any chosen skill before use and follow required project instructions and tests. If you write a plan, include concise execution recommendations for the primary agent and useful subagents."
     else:
-        prefix = "Optional tools and skills for this agent role; validate them against your actual task and availability:\n"
+        prefix = source_note + "Optional tools and skills for this agent role; validate them against your actual task and availability:\n"
         suffix = "\nConfigured MCP entries must be confirmed connected in this session. Read any chosen skill before use. Follow the task brief and required project instructions."
     context = (f"JevCompass advice ID: {trace}\n" if trace else "") + prefix + "\n".join(lines) + suffix
     if len(context) > MAX_CONTEXT_CHARS:
@@ -241,7 +252,7 @@ def select_advice(name: str, category: str, domain: str, role: str, trace: str |
         if len(group := [item for item in items if item["kind"] == kind]) == 1
     ]
     if not questions:
-        output = _context(name, singleton_ids, items, trace) if singleton_ids else None
+        output = _context(name, singleton_ids, items, trace, selection_source="local") if singleton_ids else None
         _metric(name, category, "local" if output else "insufficient-candidates", started, trace)
         return output
 
@@ -253,10 +264,18 @@ def select_advice(name: str, category: str, domain: str, role: str, trace: str |
         choices = _judge(category, role, domain, items)
         if choices:
             _write_cache(key, choices)
-        elif singleton_ids:
+        else:
             status = "local"
-    selected = list(dict.fromkeys([*singleton_ids, *(choices or [])]))
-    output = _context(name, selected, items, trace) if selected else None
+
+    if status == "local":
+        # If Jev provides no usable choice, show a bounded, explicitly unranked
+        # catalog shortlist instead of implying the model chose a winner.
+        selected = [item["id"] for item in items]
+    else:
+        selected = list(dict.fromkeys([*singleton_ids, *(choices or [])]))
+
+    source = "local" if status == "local" else "jev"
+    output = _context(name, selected, items, trace, selection_source=source) if selected else None
     _metric(name, category, status if output else "skip", started, trace)
     return output
 

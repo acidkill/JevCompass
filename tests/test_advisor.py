@@ -175,14 +175,43 @@ class AdvisorTests(unittest.TestCase):
             second = advisor._cache_key("UserPromptSubmit", "coding", "planner", "python", ITEMS)
         self.assertNotEqual(first, second)
 
-    def test_invalid_confidence_is_skipped(self):
+    def test_ambiguous_candidates_fall_back_to_unranked_local_shortlist_when_jev_fails(self):
+        tools = [
+            {"id": "exec_command", "kind": "tool", "capability": "Run local checks",
+             "use_when": "inspect or test code", "avoid_when": "unreviewed destructive changes",
+             "availability": "available"},
+            {"id": "git", "kind": "tool", "capability": "Inspect repository state",
+             "use_when": "check tracked changes", "avoid_when": "no repository",
+             "availability": "available"},
+        ]
+        with mock.patch.object(advisor, "candidates", return_value=tools), \
+                mock.patch.object(advisor, "DecisionsClient") as client, \
+                mock.patch.object(advisor, "_metric") as metric:
+            client.return_value.decide.side_effect = DecisionsError("no configured key")
+            result = advisor.select_advice("UserPromptSubmit", "project-setup", "software", "primary")
+
+        context = result["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Local unranked fallback; Jev did not select these candidates.", context)
+        self.assertIn("`exec_command`", context)
+        self.assertIn("`git`", context)
+        self.assertNotIn("private-client-secret", context)
+        self.assertNotIn("decision", result)
+        self.assertNotIn("continue", result)
+        metric.assert_called_once_with("UserPromptSubmit", "project-setup", "local", mock.ANY, None)
+
+    def test_low_confidence_uses_local_fallback_instead_of_claiming_jev_selection(self):
         event = {"hook_event_name": "UserPromptSubmit", "permission_mode": "plan", "prompt": "Investigate a Python runtime error"}
         with mock.patch.object(advisor, "DecisionsClient") as client:
             client.return_value.decide.return_value = {
                 "tool": {"type": "choice", "choice": "serena", "confidence": 0.2},
                 "skill": {"type": "choice", "choice": "create-plan", "confidence": 0.2},
             }
-            self.assertIsNone(advisor.evaluate(event))
+            result = advisor.evaluate(event)
+
+        context = result["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Local unranked fallback", context)
+        for item in ITEMS:
+            self.assertIn(item["id"], context)
 
     def test_task_uses_only_sanitized_categories_and_known_ids(self):
         secret = "private-client-secret-123"
@@ -197,13 +226,18 @@ class AdvisorTests(unittest.TestCase):
         self.assertIn("primary agent", output["hookSpecificOutput"]["additionalContext"])
         self.assertNotIn("decision", output)
 
-    def test_cache_avoids_second_jev_call(self):
+    def test_cache_avoids_second_jev_call_and_keeps_jev_source_label(self):
         event = {"hook_event_name": "UserPromptSubmit", "permission_mode": "plan", "prompt": "Investigate a Python runtime error"}
         with mock.patch.object(advisor, "DecisionsClient") as client:
             client.return_value.decide.return_value = answers()
-            self.assertIsNotNone(advisor.evaluate(event))
-            self.assertIsNotNone(advisor.evaluate(event))
+            first = advisor.evaluate(event)
+            second = advisor.evaluate(event)
             self.assertEqual(client.call_count, 1)
+
+        for result in (first, second):
+            context = result["hookSpecificOutput"]["additionalContext"]
+            self.assertNotIn("Local unranked fallback", context)
+            self.assertIn("`serena`", context)
 
     def test_subagent_roles_use_only_supported_metadata_and_skip_custom_roles(self):
         private_transcript_path = "/private/transcripts/subagent-secret-7f39"
@@ -246,19 +280,29 @@ class AdvisorTests(unittest.TestCase):
             self.assertIn("worker", serialized_request)
             self.assertIn("coding", serialized_request)
 
-    def test_failures_are_silent_and_cannot_block(self):
+    def test_jev_failures_fall_back_locally_without_blocking(self):
         event = {"hook_event_name": "UserPromptSubmit", "permission_mode": "plan", "prompt": "Investigate a Python runtime error"}
         for effect in (DecisionsError("unavailable"), ValueError("invalid response")):
             with self.subTest(effect=effect), mock.patch.object(advisor, "DecisionsClient") as client:
                 client.return_value.decide.side_effect = effect
-                self.assertIsNone(advisor.evaluate(event))
+                result = advisor.evaluate(event)
 
-    def test_duplicate_verdict_cannot_replace_missing_choice(self):
+                context = result["hookSpecificOutput"]["additionalContext"]
+                self.assertIn("Local unranked fallback", context)
+                self.assertNotIn("decision", result)
+                self.assertNotIn("continue", result)
+
+    def test_incomplete_jev_answer_falls_back_locally(self):
         event = {"hook_event_name": "UserPromptSubmit", "permission_mode": "plan", "prompt": "Investigate a Python runtime error"}
         duplicate = {"tool": {"type": "choice", "choice": "serena", "confidence": 0.8}}
         with mock.patch.object(advisor, "DecisionsClient") as client:
             client.return_value.decide.return_value = duplicate
-            self.assertIsNone(advisor.evaluate(event))
+            result = advisor.evaluate(event)
+
+        context = result["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Local unranked fallback", context)
+        for item in ITEMS:
+            self.assertIn(item["id"], context)
 
     def test_unknown_task_or_missing_candidate_is_quiet(self):
         self.assertIsNone(advisor.evaluate({"hook_event_name": "UserPromptSubmit", "permission_mode": "plan", "prompt": "Hello"}))

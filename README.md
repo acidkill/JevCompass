@@ -29,7 +29,7 @@ Optional tools and skills for this task; validate against the task and actual av
 Configured MCP entries must be confirmed connected in this session. Read any chosen skill before use and follow required project instructions and tests. If you write a plan, include concise execution recommendations for the primary agent and useful subagents.
 ~~~
 
-For shell work, `exec_command` is the model-facing Codex tool identifier. `Bash` is a separate canonical name used by tool-hook matchers. The exact result depends on the local catalog, the task category, and Jev's validated choice. Without an API key or when Jev cannot decide, the hook stays silent for unresolved multi-candidate groups; it may still return a locally selected sole tool or skill for its kind. It never blocks the session.
+For shell work, `exec_command` is the model-facing Codex tool identifier. `Bash` is a separate canonical name used by tool-hook matchers. The exact result depends on the local catalog, the task category, and Jev's validated choice. When no API key is available or Jev cannot return a sufficiently confident choice, the hook provides an explicitly labeled, unranked local shortlist (up to three tools and three skills) instead of implying that Jev selected a winner. A clear single candidate is also suggested locally without a Jev request. It never blocks the session.
 
 ## Requirements
 
