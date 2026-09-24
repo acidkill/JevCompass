@@ -48,7 +48,7 @@ TASK_PATTERNS = (
     ("infrastructure", re.compile(r"\b(kubernetes|kubectl|helm|k3s|deploy|deployment|cluster|terraform|infra|wdroż|klaster)\b", re.I)),
     ("review", re.compile(r"\b(review|audit|diff|pull request|pr|przegląd|audyt)\b", re.I)),
     ("debugging", re.compile(r"\b(debug|diagnos|bug|error|failure|regress|defect|napraw|błąd|awari)\w*|\bfix(?:es|ed|ing)?\b", re.I)),
-    ("codebase", re.compile(r"\b(inspect|understand|explain|trace|how does|what does|przejrz|zrozum|wyjaśn)\w*", re.I)),
+    ("codebase", re.compile(r"\b(inspect|understand|explain|trace|investigat|how does|what does|przejrz|zrozum|wyjaśn)\w*", re.I)),
     ("planning", re.compile(r"\b(roadmap|task list|task breakdown|list of tasks|prepare.{0,60}task|list[ęa]\s+(?:tasków|taskow|zadań|zadan)|zaplanuj|przygotuj.{0,60}(?:task|zadani|plan)|opracuj\s+plan|priorytetyz\w*|plan\s+(?:a|an|the|this|how|for|to)\b|implementation plan|planowanie|planowania)\b", re.I)),
     ("coding", re.compile(r"\b(implement|refactor|modify|zimplement|modyfik\w*)\w*", re.I)),
     ("documentation", re.compile(r"\b(docs|documentation|readme|instrukcj|dokument)\w*", re.I)),
@@ -64,7 +64,7 @@ DOMAIN_PATTERNS = (
 )
 MIN_TASK_CHARS = 20
 SIMPLE_REQUEST = re.compile(
-    r"^\s*(?:run|execute|show|list|find|search|grep|report|check|display|explain|describe|inspect|read|change|update|edit|adjust|modify|rename|uruchom|pokaż|znajdź|sprawdź|wyjaśnij|opisz|przejrzyj|zmień|zaktualizuj|popraw)\b",
+    r"^\s*(?:run|execute|show|list|find|search|grep|report|check|display|explain|describe|inspect|investigate|read|change|update|edit|adjust|modify|rename|uruchom|pokaż|znajdź|sprawdź|wyjaśnij|opisz|przejrzyj|zmień|zaktualizuj|popraw)\b",
     re.I,
 )
 MULTI_STEP = re.compile(r"\b(?:and|then|plan|design|compare|improve|fix|implement|build|adapt|optimi[sz]\w*|error|failure|fail|bug|debug|diagnos\w*|audit|review|diff|pull request|oraz|następnie|zaplanuj|napraw|wdroż|dostosuj|usprawnij|ulepsz|zaplanuj|zmień|napraw)\b", re.I)

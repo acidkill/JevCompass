@@ -155,6 +155,19 @@ class AdvisorTests(unittest.TestCase):
         self.assertEqual(advisor.classify_task("Build documentation for the Python project"), ("documentation", "python"))
         self.assertIsNone(advisor.classify_task("Explain the timeout handling briefly"))
 
+    def test_investigation_of_code_flow_receives_codebase_advice(self):
+        prompt = "Investigate how the authentication flow crosses modules and where token refresh state is mutated."
+        self.assertEqual(advisor.classify_task(prompt), ("codebase", "general"))
+        self.assertEqual(
+            advisor.classify_task("Investigate a Python runtime error across the authentication modules."),
+            ("debugging", "python"),
+        )
+        self.assertIsNone(advisor.classify_task("Investigate this briefly"))
+        with mock.patch.object(advisor, "select_advice", return_value={"hookSpecificOutput": {"additionalContext": "test"}}) as select:
+            output = advisor.evaluate({"hook_event_name": "UserPromptSubmit", "prompt": prompt})
+        self.assertIsNotNone(output)
+        select.assert_called_once_with("UserPromptSubmit", "codebase", "software", "primary", None)
+
     def test_single_available_candidate_is_recommended_locally_without_jev(self):
         with mock.patch.object(advisor, "candidates", return_value=[ITEMS[1]]) as candidates, \
                 mock.patch.object(advisor, "_judge") as judge, \
