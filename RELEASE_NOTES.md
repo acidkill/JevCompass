@@ -2,7 +2,7 @@
 
 JevCompass provides optional, non-blocking tool and skill advice for Codex Desktop and CLI. This invited-user release updates packaging metadata and release documentation; it makes no claim of stable status or measured productivity gain.
 
-**Application source commit:** `68ca0682edca5cf8f2a799ccaf0f0be4292bc6e0` (the implementation and launch-material baseline for this release).
+**Release tag target SHA:** `5f04e2fbc441464a854cb1df21690672c475f010`. The application implementation and launch-material baseline began at `68ca0682edca5cf8f2a799ccaf0f0be4292bc6e0`.
 
 ## Install for invited users
 
