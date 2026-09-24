@@ -2,7 +2,7 @@
 
 **Choose the right Codex tools and skills for the task, with local discovery and optional Jev ranking.**
 
-JevCompass adds concise, non-blocking advice to Codex Desktop and CLI. It checks a reviewed catalog against your local Codex configuration, installed skills, and available commands. When several useful choices remain, it can ask Jev through OpenRouter to rank their generic descriptions. Your prompt and project files stay local.
+JevCompass adds concise, non-blocking advice to Codex Desktop and CLI. It checks a reviewed catalog against your local Codex configuration, installed skills, and available commands. When several useful choices remain, it can ask Jev through OpenRouter to rank their generic descriptions. JevCompass does not send raw prompts or project files to OpenRouter.
 
 > The GitHub repository and its current release assets are private. Installation from the checkout or a release wheel requires access. Public PyPI installation is not available until a separately verified release.
 
