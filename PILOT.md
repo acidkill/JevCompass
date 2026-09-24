@@ -46,6 +46,10 @@ The wheel downloaded from the private v0.1.0 release was installed into a fresh 
 
 A new native Desktop `explorer` child answered a read-only question about the synthetic whitespace fixture. Its first commentary reported **no JevCompass advice ID or candidate IDs** before its first tool. Local hooks configuration still lists `SubagentStart` for `explorer|worker`, but the available safe metric stream has no identifiable new SubagentStart record for this invocation. Since diagnostic correlation is absent, this run cannot distinguish a hook that did not run from a silent low-signal decision. The prior positive Desktop explorer smoke preceded the current catalog abstention calibration and does not prove current named-role delivery. Record this as no delivery observed, with hook reload/trust/invocation investigation on the roadmap; do not count it as accepted coverage.
 
+## Installed adapter explorer abstention diagnostic (2026-09-24)
+
+The active `SubagentStart` registration targets the pipx JevCompass 0.1.0 Python environment. Its actual safe metric file is `~/.local/state/jevcompass/advisor.jsonl`; the older `~/.codex/log/jev-advisor.jsonl` belongs to a legacy integration and is not evidence of current hook activity. A direct synthetic `SubagentStart` event for `explorer`, with the OpenRouter key absent, exited 0, emitted no context or stderr, and appended `codebase/low-signal-skip` in 48.46 ms. The current vanilla profile has only a generic shell candidate for that role, so silent abstention is consistent with product policy. This direct invocation tests the installed adapter, not Desktop's hook loading or trust. VCR-73 therefore remains ambiguous at the host invocation layer, and no Desktop delivery is credited.
+
 ## Current acceptance gate audit (2026-09-24)
 
 | Gate | Evidence | Decision |
