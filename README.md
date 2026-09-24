@@ -31,6 +31,8 @@ Configured MCP entries must be confirmed connected in this session. Read any cho
 
 For shell work, `exec_command` is the model-facing Codex tool identifier. `Bash` is a separate canonical name used by tool-hook matchers. The exact result depends on the local catalog, the task category, and Jev's validated choice. When no API key is available or Jev cannot return a sufficiently confident choice, the hook provides an explicitly labeled, unranked local shortlist (up to three tools and three skills) instead of implying that Jev selected a winner. A clear single candidate is also suggested locally without a Jev request. It never blocks the session.
 
+The local catalog treats `exec_command` as Codex's built-in shell capability, enabled by default, and honors `[features] shell_tool = false`; it does not require `bash` in `PATH`. This is a configuration-derived signal. Invocation-level overrides, model restrictions, or host policy can still change the active tool set, so the agent confirms actual availability in the current session.
+
 ## Requirements
 
 - Python 3.11 or newer

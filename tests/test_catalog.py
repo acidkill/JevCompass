@@ -56,14 +56,52 @@ class CatalogTests(unittest.TestCase):
         fake_skills = {"jev-use": {"name": "jev-use", "description": "legacy advisory"}}
         with patch.object(catalog, "discover_installed_skills", return_value=fake_skills), \
                 patch.object(catalog, "_configured_mcp_servers", return_value={"serena"}), \
-                patch.object(catalog.shutil, "which", side_effect=lambda command: "/secret/path" if command in {"bash", "git"} else None):
+                patch.object(catalog, "_codex_shell_available", return_value=True), \
+                patch.object(catalog.shutil, "which", side_effect=lambda command: "/secret/path" if command == "git" else None):
             entries = catalog.load_catalog()
         by_id = {item["id"]: item for item in entries}
         self.assertEqual(by_id["serena"]["availability"], "configured")
         self.assertNotIn("jev-use", by_id)
         self.assertEqual(by_id["context7"]["availability"], "unavailable")
+        self.assertEqual(by_id["exec_command"]["availability"], "available")
         self.assertNotIn("/secret/path", repr(entries))
         self.assertNotIn("availability_spec", repr(entries))
+
+    def test_codex_shell_availability_defaults_enabled_without_bash(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory) / "config.toml"
+            with patch.object(catalog, "_CONFIG", config), \
+                    patch.dict(catalog.os.environ, {}, clear=True), \
+                    patch.object(catalog, "discover_installed_skills", return_value={}), \
+                    patch.object(catalog, "_configured_mcp_servers", return_value=set()), \
+                    patch.object(catalog.shutil, "which", return_value=None):
+                entries = catalog.load_catalog()
+        by_id = {entry["id"]: entry for entry in entries}
+        self.assertEqual(by_id["exec_command"]["availability"], "available")
+        self.assertEqual(by_id["git"]["availability"], "unavailable")
+
+    def test_codex_shell_availability_honors_explicit_feature_setting(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory) / "config.toml"
+            cases = (
+                ("""[features]
+shell_tool = true
+""", True),
+                ("""[features]
+shell_tool = false
+""", False),
+                ("""[features
+shell_tool = false
+""", False),
+            )
+            for content, expected in cases:
+                with self.subTest(expected=expected, content=content):
+                    config.write_text(content, encoding="utf-8")
+                    with (
+                        patch.object(catalog, "_CONFIG", config),
+                        patch.dict(catalog.os.environ, {}, clear=True),
+                    ):
+                        self.assertEqual(catalog._codex_shell_available(), expected)
 
     def test_skill_discovery_is_bounded_metadata_only(self):
         with patch.object(catalog, "_SKILL_ROOTS", ()):

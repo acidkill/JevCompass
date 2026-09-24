@@ -161,3 +161,7 @@ Safe manual `recommend` calls used only allowlisted categories, domains, role, a
 ## VCR-07 keyless ambiguous shortlist smoke (2026-09-24)
 
 A blank `CODEX_HOME` fixture with skill and configured-MCP discovery disabled produced the reviewed `project-setup` candidates `exec_command` and `git`. With `OPENROUTER_API_KEY` unset, the real Decisions client stopped before HTTP transport and the advisor returned both IDs under `Local unranked fallback; Jev did not select these candidates.` The local metric was `UserPromptSubmit` / `project-setup` / `local` / 0.42 ms; output contained no `decision` or `continue` field. The full suite passed 53 tests and 36 subtests. This is synthetic in-process contract evidence, not fresh-agent delivery, remote Jev selection, or paired usefulness evidence.
+
+## VCR-09 built-in shell availability (2026-09-24)
+
+The curated `exec_command` entry now uses a dedicated Codex shell availability check instead of searching for `bash` on `PATH`. With no config file, the check follows Codex's documented default (`features.shell_tool` enabled); an explicit `[features] shell_tool = false` marks it unavailable. Tests also cover explicit enablement, malformed TOML, the no-`bash` host case, and independent `git` PATH detection. The full suite passed 55 tests and 39 subtests. This local configuration signal does not prove tool exposure in a particular live model/session; the agent must still confirm availability there.

@@ -129,6 +129,26 @@ def _configured_mcp_servers() -> set[str]:
     return names
 
 
+def _codex_shell_available() -> bool:
+    """Check Codex's built-in shell feature without probing for an OS shell."""
+    config_file = _codex_config_file()
+    try:
+        contents = config_file.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        # Codex enables the built-in shell tool by default.
+        return True
+    except OSError:
+        return False
+
+    try:
+        data = tomllib.loads(contents)
+    except tomllib.TOMLDecodeError:
+        return False
+
+    features = data.get("features")
+    return not (isinstance(features, dict) and features.get("shell_tool") is False)
+
+
 def catalog_snapshot() -> tuple[list[dict[str, Any]], dict[str, int]]:
     """Return the curated catalog plus privacy-safe local availability counts."""
     raw = json.loads((_HERE / "catalog_data.json").read_text(encoding="utf-8"))
@@ -146,6 +166,8 @@ def catalog_snapshot() -> tuple[list[dict[str, Any]], dict[str, int]]:
             item["availability"] = "available" if key in skills else "unavailable"
         elif kind == "command":
             item["availability"] = "available" if shutil.which(spec.get("command", "")) else "unavailable"
+        elif kind == "codex_shell":
+            item["availability"] = "available" if _codex_shell_available() else "unavailable"
         elif kind == "mcp":
             item["availability"] = "configured" if spec.get("server", "").lower() in servers else "unavailable"
         else:
