@@ -2,18 +2,19 @@
 
 ## Status
 
-**Not yet accepted.** Six of the planned 20 live paired cases have been collected as CLI routine negative controls; no substantive-prompt paired usefulness case has been scored. One correlated Desktop `explorer` smoke and one fresh CLI local-fallback prompt smoke prove advice reached the agent before its first tool. A separate fresh CLI 0.155.1 `review/python` run made a remote Jev choice and delivered advice ID `5914ac30` before its first `exec_command`; its matching metric reports `UserPromptSubmit` / `review` / `jev` / 696.03 ms. These are single delivery smokes, not usefulness or paired-study evidence. JevCompass classifies substantive prompts independently of permission mode; Codex does not provide a reliable Plan UI field in the hook event, so Plan-only automatic coverage is not a product requirement. Usefulness, both-host balance, and the full paired study remain open.
+**Not yet accepted.** A previous six-pair CLI routine run exists, but it inspected the private JevCompass repository with custom smem hooks and is excluded from this synthetic acceptance bank. No substantive-prompt paired usefulness case has been scored. One correlated Desktop `explorer` smoke and one fresh CLI local-fallback prompt smoke prove advice reached the agent before its first tool. A separate fresh CLI 0.155.1 `review/python` run made a remote Jev choice and delivered advice ID `5914ac30` before its first `exec_command`; its matching metric reports `UserPromptSubmit` / `review` / `jev` / 696.03 ms. These are single delivery smokes, not usefulness or paired-study evidence. JevCompass classifies substantive prompts independently of permission mode; Codex does not provide a reliable Plan UI field in the hook event, so Plan-only automatic coverage is not a product requirement. Usefulness, both-host balance, and the full paired study remain open.
 
 ## Current acceptance gate audit (2026-09-24)
 
 | Gate | Evidence | Decision |
 |---|---|---|
-| No routine command blocks or data exposure | Six randomized CLI routine pairs, read-only, both smem profiles active, 12 successful final responses; no credential content in reviewed records | Pass for this sample only |
+| Historical routine no-call behavior | Six randomized CLI pairs completed without blocks or credential-like output, but they inspected the private JevCompass repository with custom smem hooks | Historical behavior only; excluded from the synthetic privacy gate |
 | Desktop named-role delivery before first tool | Correlated `SubagentStart` advice ID `968a1d2b` in hook metric and `explorer` first reply | Pass for one smoke, not coverage |
 | CLI default-role advice | CLI `spawn_agent` exposes no `agent_type`; product matcher and policy intentionally skip `default` | Unmet for generic CLI children |
 | Mode-independent substantive prompt advice | Fresh CLI 0.155.1 local-fallback smoke returned ID `bf04acfe` and `exec_command` before the first tool; Plan UI signal remains unavailable | Pass for one local smoke; cross-host and paired coverage remain open |
 | Remote Jev choice through fresh CLI hook | Trace `5914ac30` appeared in the first assistant response before the first tool; matching metric is `UserPromptSubmit` / `review` / `jev` / 696.03 ms, and the response named `git` plus `code-review-excellence` | Pass for one synthetic smoke; p95 and usefulness remain unproven |
-| 20 paired cases and host balance | Six CLI routine cases collected; no eligible Plan/subagent pair and no Desktop routine pair | Incomplete |
+| Synthetic 20-case bank and host balance | Bank prepared with 10 core cases per host; zero arms executed. Three extra Desktop routine controls are specified outside the core count | Incomplete |
+| Live privacy boundary for the synthetic pilot | No fresh arms have run; historical private-repository CLI pairs do not establish the boundary for this synthetic bank | Unproven pending explicit destination/payload approval and live verification |
 | Advice usefulness ≥80%, eligible coverage ≥90%, Jev p95 <2 s, faster first useful action | Desktop and CLI delivery smokes plus a synthetic benchmark do not establish paired usefulness or host-wide coverage | Unproven |
 
 **Release decision: do not mark automatic-advice acceptance as passed.** The explicit recommendation entrypoint remains useful for tasks the local classifier intentionally skips. Continue the live study using substantive prompt intent across ordinary permission modes; do not wait for a Plan UI field that Codex does not expose. SubagentStart supplies `agent_type` but no task text; JevCompass now targets only supported role-level profiles and skips generic or custom roles. This closes the VCR-04 design gap, not live pilot acceptance. Planned surreal-memory benchmarks can affect wall time; keep hook-local Jev durations separate and do not modify that server.
@@ -203,3 +204,9 @@ A local synthetic regression test reproduced review prompts containing bug/regre
 ## Classifier token-boundary regression fix (2026-09-24)
 
 While validating routine-control wording, `fix\w*` was found to match the beginning of `fixture`, routing simple file-listing requests to debugging. The English fix alternatives now require complete action forms, preserving `fix`, `fixed`, `fixes`, and `fixing` while leaving `fixture` unclassified. Regression tests cover two routine fixture prompts and a Bash fix task. The full suite passes (73 tests, 55 subtests); this is still local synthetic evidence, not a live pilot score.
+
+## VCR-06D matched case bank prepared (2026-09-24)
+
+The 20-case synthetic core is recorded in [PILOT_CASES.md](PILOT_CASES.md): eight substantive prompts split evenly between CLI and Desktop, six named-role subagent starts on Desktop, and six CLI routine controls. This makes 10 core cases per host. Three extra Desktop routine pairs are specified outside the core count to test silent behavior there. The earlier six CLI routine pairs inspected the private JevCompass repository with custom smem hooks; they remain historical behavior evidence and are excluded from this synthetic acceptance bank.
+
+Local preflight confirmed all eight prompt texts classify to their expected category/domain and all nine routine prompts return no classification. It made no Codex or OpenRouter request. No matched arms have run; subagent usefulness, fresh Desktop prompt delivery, synthetic privacy, and all acceptance thresholds remain unverified.
