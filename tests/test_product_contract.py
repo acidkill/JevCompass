@@ -76,6 +76,8 @@ class ProductContractTests(unittest.TestCase):
             select.assert_called_once_with("UserPromptSubmit", "project-setup", "software", "primary")
         with self.assertRaises(SystemExit):
             cli.main(["recommend", "--category", "arbitrary-prompt", "--domain", "software"])
+        with self.assertRaises(SystemExit):
+            cli.main(["recommend", "--category", "coding", "--domain", "software", "--role", "luna_worker"])
 
     def test_install_merge_removes_only_known_jev_gate_and_preserves_smem(self):
         data = {"hooks": {
@@ -93,7 +95,7 @@ class ProductContractTests(unittest.TestCase):
         self.assertEqual(hooks["Stop"], data["hooks"]["Stop"])
         self.assertEqual(len(hooks["UserPromptSubmit"]), 1)
         self.assertEqual(len(hooks["SubagentStart"]), 1)
-        self.assertEqual(hooks["SubagentStart"][0]["matcher"], "^(explorer|worker|luna_worker)$")
+        self.assertEqual(hooks["SubagentStart"][0]["matcher"], "^(explorer|worker)$")
 
     def test_clean_profile_install_is_idempotent_and_preserves_smem_hooks(self):
         with tempfile.TemporaryDirectory() as directory:

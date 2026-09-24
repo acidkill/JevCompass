@@ -11,3 +11,4 @@ dist/
 .env
 _install/
 .serena/
+graphify-out/

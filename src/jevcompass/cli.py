@@ -17,7 +17,7 @@ from .installer import install
 
 CATEGORIES = tuple(advisor.CATALOG_TASKS)
 DOMAINS = ("general", "software", "python", "web", "kubernetes")
-ROLES = ("primary", "planner", "explorer", "worker", "luna_worker")
+ROLES = ("primary", "planner", "explorer", "worker")
 
 
 def _recommend(category: str, domain: str, role: str) -> int:

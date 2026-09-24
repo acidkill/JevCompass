@@ -205,12 +205,46 @@ class AdvisorTests(unittest.TestCase):
             self.assertIsNotNone(advisor.evaluate(event))
             self.assertEqual(client.call_count, 1)
 
-    def test_subagent_role_only_and_generic_role_skipped(self):
+    def test_subagent_roles_use_only_supported_metadata_and_skip_custom_roles(self):
+        private_transcript_path = "/private/transcripts/subagent-secret-7f39"
+        private_project_path = "/private/worktrees/project-secret-1c24"
+        vanilla_event = {
+            "session_id": "session-secret-92b1",
+            "turn_id": "turn-secret-831a",
+            "transcript_path": private_transcript_path,
+            "cwd": private_project_path,
+            "hook_event_name": "SubagentStart",
+            "model": "gpt-6-sol",
+            "permission_mode": "default",
+            "agent_id": "agent-secret-12ac",
+        }
         with mock.patch.object(advisor, "DecisionsClient") as client:
             client.return_value.decide.return_value = answers()
-            self.assertIsNone(advisor.evaluate({"hook_event_name": "SubagentStart", "agent_type": "default"}))
-            self.assertIsNotNone(advisor.evaluate({"hook_event_name": "SubagentStart", "agent_type": "explorer"}))
+            for agent_type in ("default", "luna_worker", "custom-auditor"):
+                with self.subTest(agent_type=agent_type):
+                    self.assertIsNone(advisor.evaluate({
+                        **vanilla_event,
+                        "agent_type": agent_type,
+                    }))
+            output = advisor.evaluate({
+                **vanilla_event,
+                "agent_type": "worker",
+            })
+            self.assertIsNotNone(output)
             self.assertEqual(client.call_count, 1)
+            request = client.return_value.decide.call_args.args
+            serialized_request = json.dumps(request)
+            for private_value in (
+                private_transcript_path,
+                private_project_path,
+                "session-secret-92b1",
+                "turn-secret-831a",
+                "agent-secret-12ac",
+            ):
+                self.assertNotIn(private_value, serialized_request)
+                self.assertNotIn(private_value, output["hookSpecificOutput"]["additionalContext"])
+            self.assertIn("worker", serialized_request)
+            self.assertIn("coding", serialized_request)
 
     def test_failures_are_silent_and_cannot_block(self):
         event = {"hook_event_name": "UserPromptSubmit", "permission_mode": "plan", "prompt": "Investigate a Python runtime error"}

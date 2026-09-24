@@ -108,14 +108,14 @@
     "active": true
   },
   {
-    "name": "luna-worker-role",
+    "name": "custom-agent-role",
     "event": {
       "hook_event_name": "SubagentStart",
       "agent_type": "luna_worker"
     },
     "category": "operations",
     "domain": "general",
-    "active": true
+    "active": false
   },
   {
     "name": "generic-subagent",

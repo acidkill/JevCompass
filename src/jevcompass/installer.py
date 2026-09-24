@@ -81,7 +81,7 @@ def merge_hooks(data: dict[str, Any], command: str) -> dict[str, Any]:
     handler = {"type": "command", "command": command, "timeout": 2, "additionalContextLimit": 400}
     hooks.setdefault("UserPromptSubmit", []).append({"hooks": [handler]})
     hooks.setdefault("SubagentStart", []).append({
-        "matcher": "^(explorer|worker|luna_worker)$",
+        "matcher": "^(explorer|worker)$",
         "hooks": [handler],
     })
     return result

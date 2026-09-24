@@ -26,9 +26,9 @@ class AdvisorPilotTests(unittest.TestCase):
     def test_fixture_has_exactly_twenty_named_cases(self):
         self.assertEqual(len(self.cases), 20)
         self.assertEqual(len({case["name"] for case in self.cases}), 20)
-        self.assertEqual(sum(case["event"]["hook_event_name"] == "SubagentStart" and case["active"] for case in self.cases), 3)
+        self.assertEqual(sum(case["event"]["hook_event_name"] == "SubagentStart" and case["active"] for case in self.cases), 2)
         self.assertEqual(sum(case["event"]["hook_event_name"] == "UserPromptSubmit" and case["active"] for case in self.cases), 8)
-        self.assertEqual(sum(not case["active"] for case in self.cases), 9)
+        self.assertEqual(sum(not case["active"] for case in self.cases), 10)
 
     def test_activation_contract_is_deterministic(self):
         for case in self.cases:

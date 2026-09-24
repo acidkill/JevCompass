@@ -27,7 +27,6 @@ LOG_PATH = Path.home() / ".local/state/jevcompass/advisor.jsonl"
 ROLE_CATEGORIES = {
     "explorer": ("codebase", "software"),
     "worker": ("coding", "software"),
-    "luna_worker": ("operations", "general"),
 }
 CATALOG_TASKS = {
     "infrastructure": "ops",
