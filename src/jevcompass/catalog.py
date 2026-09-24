@@ -173,6 +173,7 @@ def catalog_snapshot() -> tuple[list[dict[str, Any]], dict[str, int]]:
             key = _normalize(spec.get("name", ""))
             item["availability"] = "available" if key in skills else "unavailable"
         elif kind == "command":
+            item["invocation"] = "shell_command"
             item["availability"] = "available" if shutil.which(spec.get("command", "")) else "unavailable"
         elif kind == "codex_shell":
             item["availability"] = "available" if _codex_shell_available() else "unavailable"

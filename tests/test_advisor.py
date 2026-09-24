@@ -40,6 +40,17 @@ class AdvisorTests(unittest.TestCase):
             patcher.start()
             self.addCleanup(patcher.stop)
 
+    def test_shell_command_is_not_presented_as_a_codex_tool(self):
+        pytest_command = {
+            "id": "pytest", "kind": "tool", "invocation": "shell_command",
+            "capability": "Run Python tests", "availability": "available",
+        }
+        output = advisor._context("UserPromptSubmit", ["pytest"], [pytest_command], "12345678")
+        context = output["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("local command `pytest`", context)
+        self.assertIn("run through `exec_command`; confirm it is available in this session", context)
+        self.assertNotIn("tool `pytest`", context)
+
     def test_substantive_task_is_advised_across_permission_modes(self):
         with mock.patch.object(advisor, "DecisionsClient") as client:
             client.return_value.decide.return_value = answers()

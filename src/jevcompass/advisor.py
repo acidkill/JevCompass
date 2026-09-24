@@ -211,7 +211,10 @@ def _context(
         if item is None:
             return None
         suffix = " (configured locally; confirm it is connected in this session)" if item.get("availability") == "configured" else ""
-        lines.append(f"- {item['kind']} `{identifier}`: {item['capability']}{suffix}")
+        if item.get("invocation") == "shell_command":
+            lines.append(f"- local command `{identifier}`: {item['capability']} (run through `exec_command`; confirm it is available in this session){suffix}")
+        else:
+            lines.append(f"- {item['kind']} `{identifier}`: {item['capability']}{suffix}")
     if not lines:
         return None
 

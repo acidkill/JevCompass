@@ -20,6 +20,8 @@ class CatalogTests(unittest.TestCase):
         self.assertNotIn("jev-use", ids)
         self.assertTrue({"create-plan", "kubernetes-gitops-workflow", "helm-chart-scaffolding", "python-packaging"} <= ids)
         self.assertFalse(any(identifier.startswith("tonis-") for identifier in ids))
+        command_entries = [entry for entry in entries if entry["id"] in {"git", "pytest"}]
+        self.assertEqual({entry["invocation"] for entry in command_entries}, {"shell_command"})
         version = catalog.catalog_version()
         self.assertRegex(version, r"^sha256:[0-9a-f]{64}$")
         candidates = catalog.candidates("code", "any", limit=20)
