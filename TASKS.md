@@ -20,10 +20,17 @@ Target Codex Desktop and CLI in a vanilla user setup, without relying on this re
 | VCR-06D | Score the 20-case paired pilot and decide acceptance | Planned | Complete randomized matched cases across prompt, subagent, and routine work; assess usefulness, eligible coverage, required-check completion, privacy, blocking, p95 Jev latency, and time to first useful action. |
 | VCR-06E | Evaluate task-aware spawn-hook feasibility for vanilla CLI | Complete | An isolated CLI 0.155.1 PreToolUse probe saw `collaborationspawn_agent`, but the `message` field was a 204-character Fernet-shaped string with no synthetic sentinel. The task cannot be classified safely or inserted into the child context through this hook, so no production PreToolUse hook was added. |
 | VCR-06F | Verify Desktop UserPromptSubmit delivery in a fresh session | Planned | In a newly started Desktop session, capture an agent-visible advice ID and selected IDs before the first tool, then match the ID to a safe local hook metric; record whether selection used local fallback or remote Jev. |
+| VCR-07 | Preserve useful local advice on a vanilla profile without an OpenRouter key | Planned | For safe, ambiguous candidate groups, provide a clearly labeled local shortlist rather than silently omitting all advice; keep Jev-selected choices distinct, bounded, privacy-safe, and non-blocking. Cover blank-profile project setup and relevant hook tests. |
+| VCR-08 | Improve useful role-level advice for vanilla default subagents | Planned | Evaluate the built-in `default` role using only `agent_type`; add a concise, broadly useful profile only if evidence supports it, and verify no task text or private context is inferred. |
+| VCR-09 | Make built-in command availability accurate across supported Codex hosts | Planned | Remove false negatives caused by assuming `bash` exists where Codex still exposes its built-in command tool; define and test availability semantics for hook and standalone CLI contexts. |
 
 ## Latest task checkpoint (2026-09-24)
 
 VCR-06A is complete: isolated vanilla CLI local advice ID `c218487d` and `exec_command` arrived before the first shell tool (6.44 ms). VCR-06C is complete for one correlated Desktop `explorer` smoke: trace `968a1d2b`, `serena`, and `code-review-excellence` were reported before the first tool; a fresh Desktop prompt-hook test is separately tracked as VCR-06F. VCR-06E found no safe task text in the spawn pre-hook, so no third production hook was added. VCR-06B, VCR-06D, and VCR-06F remain planned; remote Jev hook selection, fresh Desktop prompt delivery, and the 20-case acceptance pilot remain open. VCR-05 and Graphify results remain in prior checkpoints. smem checkpoint synchronization is deferred during the planned Surreal-Memory benchmark window; this task list and `PILOT.md` retain the local evidence, and no server investigation or changes were made.
+
+## Vanilla usability backlog (2026-09-24)
+
+A read-only catalog audit identified three remaining product gaps: keyless profiles silently lose ambiguous multi-candidate recommendations; the built-in `default` subagent role receives no role-level guidance; and shell-based availability probing may hide Codex's built-in command tool on hosts without `bash`. These are tracked as VCR-07 through VCR-09. VCR-06's fresh Desktop prompt test, remote Jev delivery test, and paired acceptance pilot remain separate acceptance work and are not implied complete by these improvements.
 
 ## Acceptance guardrails
 
