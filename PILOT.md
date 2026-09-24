@@ -30,6 +30,10 @@ Fresh randomized synthetic CLI pairs P01, P03, P05, and P07 used equal `gpt-6-so
 
 For P07, the blind answers both covered method/path, JSON input, validation, status response, and error cases. The valid score SHA-256 was `84df6c0d038499d7f13ce570bbfe4d119fb87145c370d952adea8424255ea638`; no required test was specified, so the scorer left required-check preservation unknown. The local path redactor permitted the answer artifacts without copying workspace paths. Private evidence is in `/tmp/jevcompass-release-p07-fixed-20260924/`.
 
+## Private v0.1.0 alpha release (2026-09-24)
+
+The [private GitHub prerelease](https://github.com/acidkill/jev-advisor-for-codex/releases/tag/v0.1.0) tags commit `4f83d3dca0cbe881e614ecd575769d9e58436b7a`. Its attached wheel and sdist have verified GitHub SHA-256 digests `64462c751749fb153b470cd4b0330365ee79be8cbd75962d30d99094fa5b0f12` and `39773eae6c00a915b17aeefe39c3aace3a9ad1adaf3900167436eaa3038a38e1`. From that commit, 154 local tests passed; the distribution-content check passed; isolated Linux pipx installation, duplicate installer invocation, and doctor passed, with one registration of each advisory hook and no Jev PreToolUse. The four-pair sample is reported above with its limits. GitHub Actions runners did not start because GitHub reported failed account payments or a spending limit, so hosted CI provides no test result. macOS remains unverified; TestPyPI/PyPI and public visibility are separate decisions. This is a usable private alpha, not accepted efficacy.
+
 ## Current acceptance gate audit (2026-09-24)
 
 | Gate | Evidence | Decision |
