@@ -39,6 +39,17 @@ class CatalogTests(unittest.TestCase):
         self.assertIn("python-testing-patterns", testing_ids)
         self.assertNotIn("code-review-excellence", testing_ids)
 
+    def test_web_testing_excludes_python_only_candidates(self):
+        curated = catalog.load_catalog()
+        for entry in curated:
+            if entry["id"] in {"pytest", "python-testing-patterns"}:
+                entry["availability"] = "available"
+        with patch.object(catalog, "load_catalog", return_value=curated):
+            python_ids = {item["id"] for item in catalog.candidates("testing", "any", "python", limit=20)}
+            web_ids = {item["id"] for item in catalog.candidates("testing", "any", "web", limit=20)}
+        self.assertTrue({"pytest", "python-testing-patterns"} <= python_ids)
+        self.assertFalse({"pytest", "python-testing-patterns"} & web_ids)
+
     def test_candidates_apply_task_role_domain_and_limit(self):
         fake = [
             {"id": "a", "task_kinds": ["code"], "role": "testing", "domains": ["software"], "availability": "available"},
