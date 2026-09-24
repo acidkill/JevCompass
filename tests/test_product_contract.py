@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -11,6 +14,33 @@ from jevcompass.catalog import candidates, load_catalog
 
 
 class ProductContractTests(unittest.TestCase):
+    def test_hook_entrypoint_avoids_cli_import_but_other_commands_keep_it(self):
+        probe = """
+import runpy
+import sys
+sys.argv = ["jevcompass", sys.argv[1]]
+try:
+    runpy.run_module("jevcompass", run_name="__main__")
+except SystemExit:
+    pass
+print("cli-imported" if "jevcompass.cli" in sys.modules else "fast-path")
+"""
+        env = os.environ.copy()
+        source = str(Path(__file__).resolve().parents[1] / "src")
+        env["PYTHONPATH"] = os.pathsep.join(filter(None, (source, env.get("PYTHONPATH"))))
+        hook = subprocess.run(
+            [sys.executable, "-c", probe, "hook"],
+            input='{"hook_event_name":"UserPromptSubmit","prompt":"hi"}',
+            text=True, capture_output=True, env=env, check=True,
+        )
+        self.assertIn("fast-path", hook.stdout)
+
+        other = subprocess.run(
+            [sys.executable, "-c", probe, "--help"],
+            text=True, capture_output=True, env=env, check=True,
+        )
+        self.assertIn("cli-imported", other.stdout)
+
     def test_new_repository_and_package_plan_is_project_setup_not_documents(self):
         prompt = "Plan creating a new private GitHub repository and product package with README"
         self.assertEqual(advisor.classify_task(prompt), ("project-setup", "software"))
