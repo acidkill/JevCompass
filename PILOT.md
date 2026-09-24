@@ -40,6 +40,10 @@ A separate `--ephemeral` attempt logged a `SubagentStart` Jev result but failed 
 
 A fresh Codex CLI 0.155.1 session used a temporary CODEX_HOME, isolated HOME/cache/state, a read-only synthetic fixture, and only JevCompass's two hooks. The OpenRouter key was intentionally absent. One request classified as `project-setup` had no local singleton and correctly produced no advice in 8.67 ms; this verifies fail-open behavior only. A separate `codebase/python` request received local fallback advice ID `c218487d` and the selected identifier `exec_command` in the first agent message, before the first shell tool event. Its matching metric was `UserPromptSubmit` / `codebase` / `local` / 6.44 ms; the CLI exited successfully and made no file changes. This verifies fresh CLI hook delivery for local fallback. It does not verify remote Jev selection, Desktop delivery, or any paired-case usefulness score.
 
+## Isolated vanilla CLI spawn-hook feasibility probe (2026-09-24)
+
+An isolated Codex CLI 0.155.1 profile temporarily used a `PreToolUse` probe solely to inspect the shape of one synthetic native subagent spawn. The event tool name was `collaborationspawn_agent`; `tool_input` had `message` and `task_name` keys, but the 204-character `message` was Fernet-shaped and did not contain the synthetic child-task sentinel. The probe logged only the tool name, field names, type, length, and sentinel/encryption-shape booleans; it never logged the message. The temporary hook also returned only a non-blocking marker. This confirms that the hook can run on the spawn call but cannot safely classify that child task from its encrypted message or tailor the child's initial context. No PreToolUse hook was added to the product or active Codex configuration. Keep named-role SubagentStart advice and skip the generic role unless Codex exposes safe task metadata.
+
 ## Required evidence
 
 Run 20 paired, anonymized tasks in randomized order:
