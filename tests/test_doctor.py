@@ -276,8 +276,14 @@ class DoctorTests(unittest.TestCase):
         examples = cli._selection_capacity(entries)["examples"]
         self.assertEqual(examples["source_review_general"]["mode"], "local_candidates")
         self.assertEqual(examples["source_review_general"]["available_tools"], 1)
-        self.assertEqual(examples["codebase_software"]["mode"], "local_candidates")
-        self.assertEqual(examples["coding_python"]["mode"], "local_candidates")
+        self.assertEqual(examples["codebase_software"]["mode"], "low_signal_skip")
+        self.assertEqual(examples["coding_python"]["mode"], "low_signal_skip")
+        specific_singleton = [{"id": "pytest", "kind": "tool", "availability": "available",
+                               "task_kinds": ["code"], "domains": ["python"]}]
+        self.assertEqual(
+            cli._selection_capacity(specific_singleton)["examples"]["coding_python"]["mode"],
+            "local_candidates",
+        )
         entries.append({"id": "rg", "kind": "tool", "availability": "available",
                         "task_kinds": ["codebase"], "domains": ["software"]})
         examples = cli._selection_capacity(entries)["examples"]

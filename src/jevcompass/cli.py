@@ -43,6 +43,7 @@ def _selection_capacity(entries: list[dict[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for label, task, domain in cases:
         counts = {"tool": 0, "skill": 0}
+        candidate_ids: list[str] = []
         inherited = {"python": "software", "web": "software"}.get(domain)
         for item in entries:
             if item.get("availability") != "available" or task not in item.get("task_kinds", ()):
@@ -53,12 +54,14 @@ def _selection_capacity(entries: list[dict[str, Any]]) -> dict[str, Any]:
             kind = item.get("kind")
             if kind in counts:
                 counts[kind] = min(counts[kind] + 1, 3)
+                candidate_ids.append(item.get("id", ""))
         total = sum(counts.values())
         result[label] = {
             "available_tools": counts["tool"],
             "available_skills": counts["skill"],
             "mode": (
                 "decision_candidates" if max(counts.values()) >= 2
+                else "low_signal_skip" if candidate_ids == ["exec_command"]
                 else "local_candidates" if total else "silent"
             ),
         }
