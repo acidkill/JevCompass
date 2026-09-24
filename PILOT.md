@@ -192,4 +192,6 @@ Transfer assessment:
 
 The useful lesson is to keep Jev's judgments narrow and typed while policy, fallbacks, and evidence stay in local code. No article-derived code change is justified before VCR-06 cross-host delivery and the paired usefulness pilot are complete.
 
+**Current Codex verification surface:** the official [Hooks guide](https://learn.chatgpt.com/docs/hooks) documents that a `Stop` event can include `last_assistant_message` and `stop_hook_active`; returning `decision: "block"` continues the turn with a new prompt. This makes a bounded verifier technically possible in vanilla Codex. The event does not provide stable task criteria or tool evidence, however, and the documented transcript path is explicitly not a stable hook interface. Do not parse transcripts or send final answers to Jev by default. VCR-15 tracks a later, opt-in feasibility test requiring an explicit rubric/evidence source, a strict one-retry cap, and local tests as the authority.
+
 A separate vanilla-onboarding opportunity is VCR-13: Codex's plugin format can package skills, MCP configuration, and lifecycle hooks for Desktop and CLI, but hooks still need an executable in the local environment and explicit trust. Evaluate that distribution layer after core acceptance; it does not make Pi SDK hooks or model-routing controls portable.
