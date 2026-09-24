@@ -66,10 +66,13 @@ QUALITY_FILE_ALLOWLIST = {
     "P05": ("README.md",),
     "P07": (),
 }
+PRIVATE_PATH_RE = re.compile(
+    r"(?<![A-Za-z0-9])/(?:home|Users|root|tmp)/\S+"
+    r"|[A-Z]:" + re.escape("\\") + r"Users" + re.escape("\\") + r"\S+",
+)
 PRIVATE_CONTENT_RE = re.compile(
     r"(?i)(?:authorization\s*:|api[_-]?key\s*[:=]|(?:secret|password|access[_-]?token)\s*[:=]|bearer\s+[A-Za-z0-9._~-]{8,})"
-    r"|(?<![A-Za-z0-9])/(?:home|Users|root|tmp)/\S+"
-    r"|[A-Z]:" + re.escape("\\") + r"Users" + re.escape("\\") + r"\S+",
+    r"|" + PRIVATE_PATH_RE.pattern,
 )
 TRACE_RE = re.compile(r"JevCompass advice ID:\s*([a-f0-9]{8})", re.I)
 SAFE_TOKEN_RE = re.compile(r"[A-Za-z0-9_.-]{1,64}")
@@ -1009,6 +1012,8 @@ def build_quality_artifact(
     }
     if case_id == "P07":
         if final_answer is not None:
+            # Strip incidental workspace paths from the answer before storing a blind artifact.
+            final_answer = PRIVATE_PATH_RE.sub("[local path]", final_answer)
             _validate_quality_text(final_answer, MAX_BLIND_ANSWER_BYTES, "final answer")
             if PROMPTS[case_id] in final_answer or PREFLIGHT_INSTRUCTION in final_answer:
                 raise ValueError("final answer must not include the task prompt or preflight transcript")

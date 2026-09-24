@@ -18,6 +18,12 @@ A randomized synthetic CLI P03 baseline/treatment pair completed with identical 
 
 After scoring, the private diagnostic showed the treatment hook invoked, classified `debugging`, and deliberately returned `low-signal-skip` in 5.48 ms. No advice was emitted, so this pair tests low-noise abstention and task quality but provides no recommendation usefulness or delivery evidence. Private evidence is in `/tmp/jevcompass-vcr65-p03-20260924/`. Overall acceptance remains open.
 
+## First-alpha P01 pair and P07 artifact fix (2026-09-24)
+
+P01 was freshly randomized in isolated CLI with `gpt-6-sol` medium, equal preflight, no OpenRouter key, and no other hooks. Blind task-quality bytes were frozen before unblinding (SHA-256 `534a7df152fb90810c576ba2ac98ac5f4f8c895b52586feef53e2ea9dd032446`). Both whitespace-helper arms met quality and required checks; first productive action, block, and privacy ratings remained unknown. The treatment hook returned `coding/low-signal-skip` in 1.75 ms; it emitted no advice. Private artifacts are in `/tmp/jevcompass-release-p01-20260924/`.
+
+Two initial P07 attempts failed closed before writing blind artifacts because the agent's final answer contained a local absolute path. VCR-68 replaces recognized local paths with a neutral marker in the P07 blind answer before validating and storing it; other private-content and prompt checks remain intact. Those failed attempts are excluded. A fresh P07 pair is needed for the four-pair first-alpha sample.
+
 ## Current acceptance gate audit (2026-09-24)
 
 | Gate | Evidence | Decision |

@@ -803,6 +803,12 @@ class PilotCliCoreTests(unittest.TestCase):
                 runner.build_quality_artifact(
                     "P07", fixture, "Authorization: Bearer super-secret-token-value",
                 )
+            sanitized = runner.build_quality_artifact(
+                "P07", fixture, "API contract from /tmp/synthetic-run/source.py: validate status input.",
+            )
+            self.assertNotIn("/tmp/synthetic-run", json.dumps(sanitized))
+            self.assertIn("[local path]", sanitized["final_answer"])
+            runner._validate_quality_artifact(sanitized, "P07")
             with self.assertRaisesRegex(ValueError, "task prompt"):
                 runner.build_quality_artifact("P07", fixture, runner.PROMPTS["P07"])
             self.assertTrue(source.is_file())
