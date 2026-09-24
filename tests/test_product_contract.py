@@ -129,6 +129,18 @@ class ProductContractTests(unittest.TestCase):
             self.assertFalse((home / ".codex/hooks.json").exists())
             self.assertFalse((home / ".local/share/jevcompass").exists())
 
+    def test_install_uses_custom_codex_home(self):
+        with tempfile.TemporaryDirectory() as directory:
+            codex_home = Path(directory) / "codex-profile"
+            with mock.patch.dict(installer.os.environ, {"CODEX_HOME": str(codex_home)}), \
+                    mock.patch.object(installer.shutil, "which", return_value=None):
+                installer.install()
+            hooks_path = codex_home / "hooks.json"
+            hooks = json.loads(hooks_path.read_text())
+            self.assertTrue(hooks_path.is_file())
+            self.assertEqual(len(hooks["hooks"]["UserPromptSubmit"]), 1)
+            self.assertEqual(len(hooks["hooks"]["SubagentStart"]), 1)
+            self.assertFalse((Path(directory) / ".codex" / "hooks.json").exists())
 
 if __name__ == "__main__":
     unittest.main()

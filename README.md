@@ -10,9 +10,9 @@ JevCompass helps Codex choose a small set of relevant tools and skills from a lo
 
 - **Codex user prompts:** classifies substantive task intent locally in any permission mode, then asks Jev to choose when multiple reviewed candidates remain. A single clear candidate is suggested locally to avoid an unnecessary round trip. Short or single-step requests are skipped quickly; the hook does not infer the Codex Plan UI mode.
 - **Codex subagents:** provides role-level suggestions for explorer, worker, and luna_worker. The SubagentStart event does not include the task prompt, so advice is role-based only.
-- **Local catalog:** discovers installed skill names and configured MCP servers. Only catalog entries with reviewed use_when and avoid_when descriptions can be recommended.
+- **Local catalog:** checks reviewed skills against installed skill names and MCP integrations against local configuration. `CODEX_HOME` selects the active Codex config and skill roots; `~/.agents/skills` remains discoverable. Private skill descriptions, integration names, configuration values, and paths are not sent to Jev.
 - **Manual entry point:** `jevcompass recommend` uses explicit allowlisted metadata when the task is too brief or ambiguous for automatic classification.
-- **Diagnostics:** jevcompass doctor checks local requirements and hook registration without showing configuration values.
+- **Diagnostics:** `jevcompass doctor` reports the active config source, aggregate catalog counts, model/key status, and hook registration without printing local paths or configuration values.
 
 A recommendation is optional guidance. Codex still follows project instructions, reads any selected skill, confirms actual tool availability, and runs required checks.
 
@@ -47,7 +47,7 @@ jevcompass install
 jevcompass doctor
 ~~~
 
-`jevcompass install` creates a timestamped backup before changing an existing `~/.codex/hooks.json` and idempotently adds exactly the JevCompass `UserPromptSubmit` and `SubagentStart` registrations. It removes only known legacy Jev gate commands from `PreToolUse`; unrelated hooks, including smem, are preserved. No Node installation is needed. The installed hook command uses the pipx environment's Python interpreter so it keeps working after a shell restart.
+`jevcompass install` creates a timestamped backup before changing the active `hooks.json` (`$CODEX_HOME/hooks.json` when `CODEX_HOME` is set, otherwise `~/.codex/hooks.json`) and idempotently adds exactly the JevCompass `UserPromptSubmit` and `SubagentStart` registrations. It removes only known legacy Jev gate commands from `PreToolUse`; unrelated hooks, including smem, are preserved. No Node installation is needed. The installed hook command uses the pipx environment's Python interpreter so it keeps working after a shell restart.
 
 Set `OPENROUTER_API_KEY` for the Codex process before starting Desktop or CLI. The default model is `typesafe/jev-1.13`; `JEVCOMPASS_MODEL` overrides it with another Decisions model identifier. After installation, review and trust the hooks in Codex with `/hooks`, then start a fresh session. The installer does not create a credential or send a test request. `doctor` checks public model metadata without a paid decision; `doctor --test-jev` explicitly sends one synthetic, billed request. [OpenRouter Decisions API](https://openrouter.ai/docs/cookbook/building-agents/gate-tool-calls-with-jev).
 
@@ -86,7 +86,7 @@ Jev is an advisory service, not an authorization system or security boundary. Do
 | --- | --- |
 | jevcompass hook | Handle one Codex hook event from stdin; always fail open and exit without blocking. |
 | jevcompass recommend | Request advice using a known category, domain, and role. |
-| jevcompass doctor | Check Python, OpenRouter key presence, public Decisions model metadata, catalog, and hook registration. |
+| jevcompass doctor | Check Python, config source, OpenRouter key presence, public Decisions model metadata, catalog counts, and hook registration. |
 | jevcompass doctor --test-jev | Also send one synthetic, billed Jev decision request. |
 | jevcompass install | Merge the two advisory hooks without installing Node. |
 

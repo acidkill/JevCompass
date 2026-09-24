@@ -78,6 +78,53 @@ class CatalogTests(unittest.TestCase):
             with patch.object(catalog, "_CONFIG", config), patch.dict(catalog.os.environ, {"CTX_TEST_TOKEN": "present"}, clear=True):
                 self.assertEqual(catalog._configured_mcp_servers(), {"serena", "context7"})
 
+    def test_code_home_selects_catalog_sources_without_exposing_private_inventory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            user_home = Path(directory)
+            codex_home = user_home / "codex-profile"
+            skill_file = codex_home / "skills" / "python-testing-patterns" / "SKILL.md"
+            skill_file.parent.mkdir(parents=True)
+            skill_file.write_text(
+                "---\nname: python-testing-patterns\ndescription: private-skill-description-9f2c\n---\n"
+            )
+            codex_home.mkdir(exist_ok=True)
+            (codex_home / "config.toml").write_text(
+                '[mcp_servers.serena]\ncommand = "serena"\nargs = ["private-arg-31a"]\n'
+                '[mcp_servers.private-server-name]\nurl = "https://private.example/token-value-27b"\n'
+            )
+            with patch.dict(catalog.os.environ, {"CODEX_HOME": str(codex_home)}, clear=True), \
+                    patch.object(Path, "home", return_value=user_home):
+                roots = catalog._skill_roots()
+                entries, counts = catalog.catalog_snapshot()
+            self.assertEqual(roots[0], codex_home / "skills")
+            self.assertEqual(roots[-1], codex_home / "plugins" / "cache")
+            self.assertEqual(counts["configured_mcp_servers"], 2)
+            self.assertGreaterEqual(counts["discovered_skills"], 1)
+            by_id = {entry["id"]: entry for entry in entries}
+            self.assertEqual(by_id["python-testing-patterns"]["availability"], "available")
+            rendered = repr(entries) + repr(counts)
+            for private_value in (
+                "private-skill-description-9f2c",
+                "private-server-name",
+                "private.example",
+                "token-value-27b",
+                "private-arg-31a",
+                str(codex_home),
+            ):
+                self.assertNotIn(private_value, rendered)
+
+    def test_skill_directory_budget_is_applied_per_root(self):
+        with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second:
+            first_root, second_root = Path(first), Path(second)
+            (first_root / "consume-budget").mkdir()
+            skill_dir = second_root / "available-skill"
+            skill_dir.mkdir()
+            (skill_dir / "SKILL.md").write_text("---\nname: second-root-skill\n---\n")
+            with patch.object(catalog, "_skill_roots", return_value=(first_root, second_root)):
+                found = catalog.discover_installed_skills(
+                    {"max_directories": 2, "max_depth": 2, "max_skill_files": 10}
+                )
+            self.assertIn("second-root-skill", found)
 
 if __name__ == "__main__":
     unittest.main()

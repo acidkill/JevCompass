@@ -4,14 +4,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from pathlib import Path
 import platform
 import sys
 from typing import Any
 
 from . import __version__, advisor
-from .catalog import catalog_version, load_catalog
-from .decisions import DecisionsClient, DecisionsError, configured_model, model_available
+from .catalog import catalog_snapshot, catalog_version
+from .paths import resolve_codex_home
+from .decisions import DecisionsClient, DecisionsError, model_available
 from .installer import install
 
 
@@ -31,17 +31,19 @@ def _recommend(category: str, domain: str, role: str) -> int:
 
 
 def doctor(*, test_jev: bool = False) -> dict[str, Any]:
-    entries = load_catalog()
-    codex_home = Path.home() / ".codex"
-    hooks_path = codex_home / "hooks.json"
+    entries, catalog_counts = catalog_snapshot()
+    codex_home_source = "environment" if os.environ.get("CODEX_HOME") else "default"
+    hooks_path = resolve_codex_home() / "hooks.json"
     hook_command = advisor.hook_command()
+    key_configured = bool(os.environ.get("OPENROUTER_API_KEY"))
     checks: dict[str, Any] = {
         "python": {"ok": sys.version_info >= (3, 11), "version": platform.python_version(), "required": ">=3.11"},
-        "openrouter_key": {"ok": bool(os.environ.get("OPENROUTER_API_KEY")), "configured": bool(os.environ.get("OPENROUTER_API_KEY"))},
-        "jev_model": {"ok": model_available(), "id": configured_model(), "check": "public model metadata"},
+        "codex_home": {"ok": True, "source": codex_home_source},
+        "openrouter_key": {"ok": key_configured, "configured": key_configured},
+        "jev_model": {"ok": model_available(), "source": "environment" if os.environ.get("JEVCOMPASS_MODEL") else "default", "check": "public model metadata"},
         "catalog": {
             "ok": bool(entries) and not any(item["id"].startswith("tonis-") for item in entries),
-            "curated_entries": len(entries),
+            **catalog_counts,
             "version": catalog_version(),
         },
         "hooks_json": {"ok": False, "registered_advisory_hooks": [], "pretool_jev_gate": False},
@@ -108,10 +110,34 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(result, indent=2))
         else:
             print(f"JevCompass {__version__}: {'PASS' if result['ok'] else 'CHECK REQUIRED'}")
-            for name, check in result.items():
-                if name != "ok":
-                    print(f"- {name}: {'PASS' if check['ok'] else 'CHECK'}")
-            print("Configured MCP names and skill metadata never prove a tool is connected in this session.")
+            home_source = result["codex_home"]["source"]
+            home_label = "CODEX_HOME override" if home_source == "environment" else "default ~/.codex"
+            print(f"- Codex config home: {home_label} (path hidden)")
+            python_check = result["python"]
+            print(f"- Python: {'PASS' if python_check['ok'] else 'CHECK'} {python_check['version']} (requires {python_check['required']})")
+            key_check = result["openrouter_key"]
+            key_status = "configured" if key_check["configured"] else "not configured"
+            print(f"- OpenRouter API key: {key_status}; remote Jev choices need it, while local single-candidate advice can still work without it")
+            model_check = result["jev_model"]
+            model_status = "metadata available" if model_check["ok"] else "metadata unavailable; remote advice will be skipped"
+            model_source = "JEVCOMPASS_MODEL override" if model_check["source"] == "environment" else "default model"
+            print(f"- Jev model metadata: {model_status} ({model_source})")
+            catalog_check = result["catalog"]
+            print(
+                "- Catalog: "
+                f"{catalog_check['curated_entries']} reviewed entries; "
+                f"{catalog_check['available_tools']} local tools; "
+                f"{catalog_check['available_skills']} reviewed skills installed; "
+                f"{catalog_check['configured_mcp_servers']} MCP servers configured; "
+                f"{catalog_check['unavailable_entries']} reviewed entries unavailable"
+            )
+            hooks_check = result["hooks_json"]
+            registered = ", ".join(hooks_check["registered_advisory_hooks"]) or "none"
+            print(f"- Hooks: {registered}; Jev PreToolUse gate {'present' if hooks_check['pretool_jev_gate'] else 'absent'}")
+            if "live_decision" in result:
+                print(f"- Synthetic Jev request: {'PASS' if result['live_decision']['ok'] else 'CHECK'} (billed)")
+            print("MCP configuration and installed skill metadata do not prove tools are callable in this Codex session.")
+            print("Private integration and skill names, configuration values, and local paths are withheld.")
         return 0 if result["ok"] else 1
     if args.command == "install":
         try:

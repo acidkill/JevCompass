@@ -13,6 +13,7 @@ import time
 from typing import Any
 
 from . import advisor
+from .paths import resolve_codex_home
 
 
 LEGACY_GATE_COMMANDS = {"npx -y jev-use hook gate", "jev-use hook gate"}
@@ -112,10 +113,10 @@ def _write_hooks(path: Path, data: dict[str, Any]) -> Path | None:
 
 def install(*, dry_run: bool = False, home: Path | None = None) -> str:
     """Register the packaged Python advisor in two non-blocking Codex hooks."""
-    target_home = home or Path.home()
+    config_home = home / ".codex" if home is not None else resolve_codex_home()
     if sys.version_info < (3, 11):
         raise RuntimeError("Python 3.11 or newer is required")
-    hooks_path = target_home / ".codex" / "hooks.json"
+    hooks_path = config_home / "hooks.json"
     if hooks_path.exists():
         try:
             current = json.loads(hooks_path.read_text(encoding="utf-8"))

@@ -15,9 +15,11 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
+from .paths import resolve_codex_home
+
 
 _HERE = Path(__file__).resolve().parent
-_DEFAULT_LIMITS = {"max_directories": 1200, "max_depth": 5, "max_skill_files": 2500}
+_DEFAULT_LIMITS = {"max_directories": 2000, "max_depth": 6, "max_skill_files": 2500}
 _SKILL_ROOTS = (
     Path.home() / ".codex" / "skills",
     Path.home() / ".agents" / "skills",
@@ -26,19 +28,32 @@ _SKILL_ROOTS = (
 _CONFIG = Path.home() / ".codex" / "config.toml"
 
 
+def _skill_roots() -> tuple[Path, ...]:
+    if not os.environ.get("CODEX_HOME"):
+        return _SKILL_ROOTS
+    home = resolve_codex_home()
+    return (home / "skills", Path.home() / ".agents" / "skills", home / "plugins" / "cache")
+
+
+def _codex_config_file() -> Path:
+    if not os.environ.get("CODEX_HOME"):
+        return _CONFIG
+    return resolve_codex_home() / "config.toml"
+
+
 def discover_installed_skills(limits: dict[str, int] | None = None) -> dict[str, dict[str, str]]:
     """Enumerate bounded SKILL.md metadata, keyed by normalized display name.
 
-    Only frontmatter ``name``/``description`` is retained. Symlinks are skipped,
-    traversal is bounded, and filesystem paths are never returned.
+    Only frontmatter name/description is retained. Symlinks are skipped,
+    traversal is bounded per root, and filesystem paths are never returned.
     """
     bounds = {**_DEFAULT_LIMITS, **(limits or {})}
     found: dict[str, dict[str, str]] = {}
-    dirs_seen = files_seen = 0
-    for root in _SKILL_ROOTS:
+    for root in _skill_roots():
         if not root.is_dir():
             continue
         stack: list[tuple[Path, int]] = [(root, 0)]
+        dirs_seen = files_seen = 0
         while stack and dirs_seen < bounds["max_directories"] and files_seen < bounds["max_skill_files"]:
             directory, depth = stack.pop()
             dirs_seen += 1
@@ -85,7 +100,7 @@ def _normalize(value: str) -> str:
 
 def _configured_mcp_servers() -> set[str]:
     try:
-        data = tomllib.loads(_CONFIG.read_text(encoding="utf-8"))
+        data = tomllib.loads(_codex_config_file().read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError):
         return set()
     names: set[str] = set()
@@ -93,6 +108,8 @@ def _configured_mcp_servers() -> set[str]:
     def ready_names(entries: dict[str, Any]):
         for name, spec in entries.items():
             if isinstance(spec, dict):
+                if spec.get("enabled") is False:
+                    continue
                 bearer_name = spec.get("bearer_token_env_var")
                 if isinstance(bearer_name, str) and bearer_name and not os.environ.get(bearer_name):
                     continue
@@ -112,8 +129,8 @@ def _configured_mcp_servers() -> set[str]:
     return names
 
 
-def load_catalog() -> list[dict[str, Any]]:
-    """Load curated entries and replace availability with a local validation result."""
+def catalog_snapshot() -> tuple[list[dict[str, Any]], dict[str, int]]:
+    """Return the curated catalog plus privacy-safe local availability counts."""
     raw = json.loads((_HERE / "catalog_data.json").read_text(encoding="utf-8"))
     skills = discover_installed_skills(raw.get("discovery_limits"))
     servers = _configured_mcp_servers()
@@ -126,8 +143,7 @@ def load_catalog() -> list[dict[str, Any]]:
         item["kind"] = "skill" if kind == "skill" else "tool"
         if kind == "skill":
             key = _normalize(spec.get("name", "").split(":")[-1])
-            present = key in skills
-            item["availability"] = "available" if present else "unavailable"
+            item["availability"] = "available" if key in skills else "unavailable"
         elif kind == "command":
             item["availability"] = "available" if shutil.which(spec.get("command", "")) else "unavailable"
         elif kind == "mcp":
@@ -135,7 +151,22 @@ def load_catalog() -> list[dict[str, Any]]:
         else:
             item["availability"] = "unavailable"
         clean.append(item)
-    return clean
+
+    summary = {
+        "curated_entries": len(clean),
+        "available_tools": sum(item["kind"] == "tool" and item["availability"] == "available" for item in clean),
+        "available_skills": sum(item["kind"] == "skill" and item["availability"] == "available" for item in clean),
+        "configured_mcp_servers": len(servers),
+        "discovered_skills": len(skills),
+        "unavailable_entries": sum(item["availability"] == "unavailable" for item in clean),
+    }
+    return clean, summary
+
+
+def load_catalog() -> list[dict[str, Any]]:
+    """Load curated entries and replace availability with a local validation result."""
+    entries, _ = catalog_snapshot()
+    return entries
 
 
 def catalog_version() -> str:
