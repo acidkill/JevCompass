@@ -41,6 +41,20 @@ Six earlier CLI routine pairs are retained only as historical behavior evidence.
 | R08 | Supplemental Desktop routine control | Desktop | No classification, no Jev call | Report whether a synthetic `pyproject.toml` file exists. |
 | R09 | Supplemental Desktop routine control | Desktop | No classification, no Jev call | Find the word `timeout` in the synthetic README. |
 
+## Supplemental workflow-shaped pairs (outside the 20-case core)
+
+These three pairs use the task shapes of a real Codex workflow while keeping every prompt and fixture synthetic. Run baseline and treatment under the same pairing, privacy, and host-correlation rules as the core bank. Score them separately; do not increase the 20-case denominator or claim coverage from a preflight classification.
+
+| Case | Host | Local expectation | Synthetic task |
+|---|---|---|---|
+| W01 | CLI | `codebase / software` after event normalization | Investigate how a synthetic workstation setup script reads configuration across modules; identify its entry point, tests, and the smallest safe change without changing the host. |
+| W02 | Desktop | `review / general` | Review a synthetic client proposal draft against the repository map and canonical pricing table. Flag missing facts, keep the draft unsent, and report its intended path and filename. |
+| W03 | CLI | `infrastructure / kubernetes` | Inspect a synthetic Helm deployment configuration and explain rollback steps and required checks without contacting any cluster. |
+
+W01's temporary repository contains two small setup scripts, an inert configuration file, and a focused test. No command may alter a real workstation. W02's fixture includes a minimal repository map, current pricing table, clearly marked legacy price table, naming convention, and a mock proposal with one absent fact; use fictional entities and values. Its expected result chooses the client draft folder, follows the naming rule, cites only the current table, marks the absent fact, and sends nothing. W03 has a local Helm chart, values file, and a mock runbook; no kubeconfig, credentials, or live cluster access is present.
+
+For each pair, record whether the first useful action found the right source, whether the advice was actually available to that agent before its first tool, whether required checks were preserved, and whether the output respected the fixture's path/source/approval constraints. W02 must not count a plausible but invented price as success; W03 must not substitute Jev advice for a Helm render or required repository check. This is a usability stress test for ordinary multi-source work, not evidence of access to this user's private materials.
+
 ## Fixture and scoring rules
 
 - Use an empty temporary project root for P08; use identical fixture snapshots for both arms of every other case.

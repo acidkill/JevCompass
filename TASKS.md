@@ -39,6 +39,7 @@ Target Codex Desktop and CLI in a vanilla user setup, without relying on this re
 | VCR-23 | Recognize substantive code-flow investigation requests | Complete | `investigate`/`investigation` map to codebase intent when no higher-priority bug signal exists; debugging retains priority for errors, and short routine requests still skip. Focused and full 76-test suites pass; Graphify rebuilt. |
 | VCR-24 | Diagnose locally disabled hooks in Codex base config | Complete | `doctor` reports disabled canonical or legacy hooks feature even when both hooks are registered; no config values or paths are printed, and runtime trust remains a separate check. Focused and full 77-test suites pass; Graphify rebuilt. |
 | VCR-25 | Track native Windows hook path quoting as a future idea | Deferred | [Issue #1](https://github.com/acidkill/jev-advisor-for-codex/issues/1) records the POSIX quoting concern and requires native Windows Desktop/CLI runner evidence before implementation. Current work targets macOS and Linux. |
+| VCR-26 | Add synthetic pilot cases shaped like the user's Codex workflow | Complete (design only) | Three supplemental pairs cover local setup-code tracing, canonical-source review of an unsent client draft, and read-only Helm diagnostics, with privacy-safe fixture and scoring constraints. Their local classifier outcomes match the specified categories; no paired arms ran and core 20-case acceptance is unchanged. smem recall failed through MCP and CLI; file memory and repository maps informed the task. |
 
 ## Latest task checkpoint (2026-09-24)
 
