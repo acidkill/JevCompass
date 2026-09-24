@@ -2,7 +2,7 @@
 
 ## Status
 
-**Not yet accepted.** Six of the planned 20 live paired cases have been collected as CLI routine negative controls; no substantive-prompt advice pair has been scored. One correlated Desktop `explorer` smoke and one fresh CLI `UserPromptSubmit` smoke prove that recommendations reached the agent before its first tool. The current-code CLI smoke injected `exec_command` through a local singleton fallback in 36.8 ms; it did not exercise a remote Jev choice. JevCompass classifies substantive prompts independently of permission mode; Codex does not provide a reliable Plan UI field in the hook event, so Plan-only automatic coverage is not a product requirement. Usefulness, both-host balance, and the full paired study remain open.
+**Not yet accepted.** Six of the planned 20 live paired cases have been collected as CLI routine negative controls; no substantive-prompt paired usefulness case has been scored. One correlated Desktop `explorer` smoke and one fresh CLI local-fallback prompt smoke prove advice reached the agent before its first tool. A separate fresh CLI 0.155.1 `review/python` run made a remote Jev choice and delivered advice ID `5914ac30` before its first `exec_command`; its matching metric reports `UserPromptSubmit` / `review` / `jev` / 696.03 ms. These are single delivery smokes, not usefulness or paired-study evidence. JevCompass classifies substantive prompts independently of permission mode; Codex does not provide a reliable Plan UI field in the hook event, so Plan-only automatic coverage is not a product requirement. Usefulness, both-host balance, and the full paired study remain open.
 
 ## Current acceptance gate audit (2026-09-24)
 
@@ -11,9 +11,10 @@
 | No routine command blocks or data exposure | Six randomized CLI routine pairs, read-only, both smem profiles active, 12 successful final responses; no credential content in reviewed records | Pass for this sample only |
 | Desktop named-role delivery before first tool | Correlated `SubagentStart` advice ID `968a1d2b` in hook metric and `explorer` first reply | Pass for one smoke, not coverage |
 | CLI default-role advice | CLI `spawn_agent` exposes no `agent_type`; product matcher and policy intentionally skip `default` | Unmet for generic CLI children |
-| Mode-independent substantive prompt advice | Fresh Codex CLI 0.155.1 returned ID `bf04acfe` with `exec_command` before the first tool; matching local metric is `UserPromptSubmit` / `codebase` / `local` / 36.8 ms | Pass for one synthetic smoke; remote Jev selection and cross-host coverage remain unproven; Plan UI state itself remains unavailable |
+| Mode-independent substantive prompt advice | Fresh CLI 0.155.1 local-fallback smoke returned ID `bf04acfe` and `exec_command` before the first tool; Plan UI signal remains unavailable | Pass for one local smoke; cross-host and paired coverage remain open |
+| Remote Jev choice through fresh CLI hook | Trace `5914ac30` appeared in the first assistant response before the first tool; matching metric is `UserPromptSubmit` / `review` / `jev` / 696.03 ms, and the response named `git` plus `code-review-excellence` | Pass for one synthetic smoke; p95 and usefulness remain unproven |
 | 20 paired cases and host balance | Six CLI routine cases collected; no eligible Plan/subagent pair and no Desktop routine pair | Incomplete |
-| Advice usefulness ≥80%, eligible coverage ≥90%, Jev p95 <2 s, faster first useful action | A Desktop delivery smoke and synthetic benchmark do not establish paired usefulness or host-wide coverage | Unproven |
+| Advice usefulness ≥80%, eligible coverage ≥90%, Jev p95 <2 s, faster first useful action | Desktop and CLI delivery smokes plus a synthetic benchmark do not establish paired usefulness or host-wide coverage | Unproven |
 
 **Release decision: do not mark automatic-advice acceptance as passed.** The explicit recommendation entrypoint remains useful for tasks the local classifier intentionally skips. Continue the live study using substantive prompt intent across ordinary permission modes; do not wait for a Plan UI field that Codex does not expose. SubagentStart supplies `agent_type` but no task text; JevCompass now targets only supported role-level profiles and skips generic or custom roles. This closes the VCR-04 design gap, not live pilot acceptance. Planned surreal-memory benchmarks can affect wall time; keep hook-local Jev durations separate and do not modify that server.
 
@@ -169,3 +170,11 @@ The curated `exec_command` entry now uses a dedicated Codex shell availability c
 ## VCR-08 default-role recommendation audit (2026-09-24)
 
 Serena review confirmed that vanilla `SubagentStart` supplies `agent_type` but no delegated task description. An isolated wildcard-matcher CLI probe showed a `default` child receives `additionalContext` before its first tool, but it carried only a marker and did not call Jev or test advice usefulness. There are no scored mixed-task recommendations for this role. A generic code-oriented profile could recommend shell, Git, or code-navigation tools for unrelated tasks and repeat guidance that is already obvious. Decision: keep `default` and custom roles silent. Revisit only with blinded mixed-task cases scoring recommendation usefulness, first action, candidate availability, and noise; continue to verify no task or private session context enters Jev requests.
+
+## VCR-06B remote Jev selection through a fresh CLI hook (2026-09-24)
+
+A fresh Codex CLI 0.155.1 `codex exec --json --sandbox read-only --ephemeral` session ran in a temporary Git repository containing only a synthetic Python example. Local classification was `review/python`; the Jev request is constructed from coarse category/role/domain and curated catalog candidate metadata, not the user prompt, file contents, or repository path. The review-candidate cache was a miss before the run.
+
+The first assistant response appeared at JSON event index 3, before the first tool event at index 4. It reported fresh advice ID `5914ac30`, mentioned the `git` recommendation and the optional `code-review-excellence` skill, then identified `exec_command` as the one read-only operation it would use. The run exited 0. The matching local metric is `UserPromptSubmit` / `review` / `jev` / 696.03 ms, which distinguishes a live Jev decision from local fallback or a cache hit.
+
+This confirms one remote selection reached a vanilla CLI agent before its first tool. The model chose not to use the optional skill for this tiny check; this smoke does not score advice usefulness, count toward the 20 paired cases, or prove Desktop prompt-hook coverage.
