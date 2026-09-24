@@ -121,7 +121,13 @@ Current local test results must be checked in the working checkout; synthetic te
 
 ## Pilot status
 
-The blinded 20-pair evaluation must be rerun with substantive tasks across normal Codex permission modes; the previous Plan-only gate does not match vanilla Codex hook signals. Fresh-session delivery checks remain separate. Passing deterministic tests does not claim the thresholds have been met. Record host evidence and score paired baseline/Jev tasks in PILOT.md. Acceptance requires zero blocks and data disclosures, no omitted required checks, at least 80% useful advice, at least 90% coverage of eligible events, Jev-call p95 below 2 seconds, and improved time to first productive action. Score manual recommend trials separately.
+The first alpha release uses four fresh synthetic CLI pairs as a bounded release check. The stronger blinded 20-pair evaluation remains on the roadmap and must use substantive tasks across normal Codex permission modes; the previous Plan-only gate does not match vanilla Codex hook signals. Fresh-session delivery checks remain separate. Passing deterministic tests does not claim the thresholds have been met. Record host evidence and score paired baseline/Jev tasks in PILOT.md. Acceptance requires zero blocks and data disclosures, no omitted required checks, at least 80% useful advice, at least 90% coverage of eligible events, Jev-call p95 below 2 seconds, and improved time to first productive action. Score manual recommend trials separately.
+
+## Soon available:
+
+- Broader Desktop and CLI validation with blinded 20-case usefulness and speed measurements.
+- Better task-specific test, error-triage, and priority recommendations after evidence from real workflows.
+- A separate TestPyPI trial and wider distribution after release checks. See [ROADMAP.md](ROADMAP.md).
 
 ## GitHub positioning
 

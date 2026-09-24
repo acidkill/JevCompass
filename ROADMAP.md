@@ -1,0 +1,28 @@
+# JevCompass roadmap
+
+This roadmap separates the first usable alpha from the evidence and features still needed for broad adoption. The initial release targets **macOS and Linux** with Codex Desktop and CLI. It ships the local catalog, optional OpenRouter Decisions selection, two non-blocking advisor hooks, explicit recommendation command, installer, and doctor. The first release report uses **four fresh synthetic matched CLI pairs** (P01, P03, P05, P07). These pairs are a release smoke and quality sample, not a claim that the earlier 20-pair acceptance thresholds have passed. [PILOT.md](PILOT.md) contains observed results and uncertainties; [TASKS.md](TASKS.md) tracks commits.
+
+## First usable release: required evidence
+
+- Build wheel and sdist from the release commit; inspect archive members and contents for private files, credentials, local paths, caches, logs, and client data.
+- Run the product unit suite and install the built wheel with `pipx` in a fresh isolated profile. Verify `jevcompass install`, `doctor`, idempotent hook merging, and an explicit recommendation. Confirm routine shell, Git, Helm, and network commands are never gated.
+- Run four fresh, randomized synthetic CLI baseline/treatment pairs with the same model and settings. Freeze blind task-quality ratings before reading private arm mappings and diagnostic sidecars. Report task checks, hook invocation, agent-visible advice before first tool, latency, and missing evidence per case. Preserve the score commitments and private evidence paths. Do not convert a skipped hook or quality tie into a benefit claim.
+- Confirm at least one fresh prompt advice delivery in CLI and one named-role subagent delivery in Desktop before first tool. Current single-host smokes count only for their specific cases; a Desktop prompt smoke remains open. State explicitly when host trust or active tool availability has not been verified.
+- Document keyless local guidance and optional OpenRouter selection. Verify data minimization with synthetic metadata; never send private code, prompts, paths, memory, or customer content to the backend.
+- Tag the verified source and attach/install release artifacts only after the release record states what was actually tested. Keep repository visibility private until separately changed. Registry publication and public exposure are separate decisions.
+
+## Next: full efficacy and cross-host acceptance
+
+The 20-case study remains the stronger adoption gate: eight planning prompts, six subagent tasks, and six routine controls, balanced across Desktop and CLI where feasible. Randomize equivalent baseline and advisor arms and blind quality scoring. Rate relevance, tool availability, required checks, blocks, privacy, and first **productive** action, not just first tool or source read. Keep advice IDs and safe hook metrics private until blind scores are frozen.
+
+Acceptance targets: zero blocks or disclosures, zero omitted required checks, at least 80% useful advice, at least 90% coverage of eligible events, Jev p95 under 2 seconds, and improvement in time to first productive action. If remote ranking fails to help, leave the reviewed local catalog and explicit command usable while disabling automatic remote selection. CLI default-role subagents lack task metadata; do not fill that gap by reading transcripts or guessing from the prompt. Investigate Desktop prompt-hook trust and delivery in a fresh session, plus worker-role advice, without changing Codex's permission policy.
+
+## Product improvements after evidence
+
+1. **Relevance:** refine category/domain classification and reviewed `use_when`/`avoid_when` descriptions from blinded negative cases. Retain local abstention for generic singleton shell suggestions. Add a safe availability handshake only if the host provides a stable contract; a configured MCP entry is not evidence that a tool is callable.
+2. **Developer workflow:** evaluate optional recommendations for test ordering, error triage, and task priority using coarse metadata and explicit criteria. Keep repository-required tests and exit codes authoritative. Measure impact against matched tasks before enabling a new hook or sending more data.
+3. **Host support:** verify Codex Desktop and CLI on recent macOS and Linux versions, including keyring behavior, permissions, hook trust, restart, and isolated installation. Document version-specific event schemas. Native Windows support is deferred; track it in the existing idea issue.
+4. **Packaging:** check distribution-name availability and version collisions, reproducible wheel/sdist builds, CI on supported Python versions, and `pipx` install/upgrade. Prepare a distinct approved public TestPyPI trial with Trusted Publishing, then consider PyPI and a public repository/license as separate release decisions. Do not copy personal skills, diagnostics, or credentials into artifacts.
+5. **Integration options:** evaluate narrow permission-request decision support or native Codex plugin packaging only after the advisor is useful. Any permission feature must be explicitly enabled, preserve Codex's approval flow, and undergo independent privacy and regression tests. Avoid broad `PreToolUse` gating.
+
+Each item moves to a release only after its own tests and host-visible evidence. JevCompass recommendations remain optional advice; they never grant permissions or replace project instructions, skills, or required validation.
