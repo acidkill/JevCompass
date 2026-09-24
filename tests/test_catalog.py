@@ -9,14 +9,14 @@ from jevcompass import catalog
 class CatalogTests(unittest.TestCase):
     def test_catalog_is_curated_and_has_required_metadata(self):
         entries = catalog.load_catalog()
-        self.assertGreaterEqual(len(entries), 19)
+        self.assertGreaterEqual(len(entries), 20)
         required = {"id", "capability", "use_when", "avoid_when", "role", "cost", "privacy", "availability"}
         for entry in entries:
             self.assertTrue(required <= entry.keys(), entry["id"])
             self.assertTrue(entry["use_when"])
             self.assertTrue(entry["avoid_when"])
         ids = {entry["id"] for entry in entries}
-        self.assertTrue({"serena", "smem", "sequential-thinking", "context7", "perplexity", "exec_command"} <= ids)
+        self.assertTrue({"serena", "smem", "sequential-thinking", "context7", "perplexity", "exec_command", "openai-docs"} <= ids)
         self.assertNotIn("jev-use", ids)
         self.assertTrue({"create-plan", "kubernetes-gitops-workflow", "helm-chart-scaffolding", "python-packaging"} <= ids)
         self.assertFalse(any(identifier.startswith("tonis-") for identifier in ids))
@@ -178,6 +178,46 @@ shell_tool = false
     def test_skill_discovery_is_bounded_metadata_only(self):
         with patch.object(catalog, "_SKILL_ROOTS", ()):
             self.assertEqual(catalog.discover_installed_skills(), {})
+
+    def test_openai_docs_is_scoped_to_codex_documentation_and_debugging(self):
+        curated = catalog.load_catalog()
+        for entry in curated:
+            if entry["id"] == "openai-docs":
+                entry["availability"] = "available"
+        with patch.object(catalog, "load_catalog", return_value=curated):
+            debug_ids = {item["id"] for item in catalog.candidates("debug", "any", "codex", limit=20)}
+            docs_ids = {item["id"] for item in catalog.candidates("document", "any", "codex", limit=20)}
+            python_ids = {item["id"] for item in catalog.candidates("document", "any", "python", limit=20)}
+            coding_ids = {item["id"] for item in catalog.candidates("code", "any", "codex", limit=20)}
+        self.assertIn("openai-docs", debug_ids)
+        self.assertIn("openai-docs", docs_ids)
+        self.assertNotIn("openai-docs", python_ids)
+        self.assertNotIn("openai-docs", coding_ids)
+
+    def test_blank_profile_does_not_create_a_phantom_openai_docs_candidate(self):
+        with patch.object(catalog, "discover_installed_skills", return_value={}), \
+                patch.object(catalog, "_configured_mcp_servers", return_value=set()), \
+                patch.object(catalog, "_codex_shell_available", return_value=False), \
+                patch.object(catalog.shutil, "which", return_value=None):
+            self.assertEqual(catalog.candidates("document", "any", "codex", limit=20), [])
+            by_id = {item["id"]: item for item in catalog.load_catalog()}
+        self.assertEqual(by_id["openai-docs"]["availability"], "unavailable")
+
+    def test_codex_home_discovers_stock_skill_from_hidden_system_directory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            user_home = Path(directory)
+            codex_home = user_home / "codex-profile"
+            skill_file = codex_home / "skills" / ".system" / "openai-docs" / "SKILL.md"
+            skill_file.parent.mkdir(parents=True)
+            skill_file.write_text(chr(10).join(("---", "name: openai-docs", "description: Codex documentation guidance", "---", "")))
+            with (
+                patch.dict(catalog.os.environ, {"CODEX_HOME": str(codex_home)}, clear=True),
+                patch.object(Path, "home", return_value=user_home),
+            ):
+                by_id = {item["id"]: item for item in catalog.load_catalog()}
+                skills = catalog.discover_installed_skills()
+            self.assertIn("openai-docs", skills)
+            self.assertEqual(by_id["openai-docs"]["availability"], "available")
 
     def test_missing_bearer_token_marks_configured_mcp_unavailable(self):
         with tempfile.TemporaryDirectory() as directory:

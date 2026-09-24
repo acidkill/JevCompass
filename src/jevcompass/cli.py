@@ -18,7 +18,7 @@ from .credentials import auth_main, credential_status
 
 
 CATEGORIES = tuple(advisor.CATALOG_TASKS)
-DOMAINS = ("general", "software", "python", "web", "shell", "kubernetes")
+DOMAINS = ("general", "software", "python", "web", "shell", "kubernetes", "codex")
 ROLES = ("primary", "planner", "explorer", "worker")
 
 

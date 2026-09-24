@@ -205,6 +205,44 @@ class AdvisorTests(unittest.TestCase):
         self.assertNotIn("client proposal draft", context)
         self.assertNotIn("pricing table", context)
 
+    def test_codex_docs_and_troubleshooting_classify_narrowly(self):
+        self.assertEqual(
+            advisor.classify_task("Debug why Codex Desktop ignores the UserPromptSubmit hook after changing settings; explain the fix from the official docs."),
+            ("debugging", "codex"),
+        )
+        self.assertEqual(
+            advisor.classify_task("Update the documentation for Codex CLI skills setup and how CODEX_HOME discovers stock skills."),
+            ("documentation", "codex"),
+        )
+        self.assertEqual(
+            advisor.classify_task("Implement a Python API used alongside Codex and add focused request validation tests."),
+            ("coding", "python"),
+        )
+        self.assertEqual(
+            advisor.classify_task("Build a React web dashboard for Codex users and add tests for saved workspace preferences."),
+            ("testing", "web"),
+        )
+
+    def test_codex_troubleshooting_sends_only_allowlisted_metadata_to_jev(self):
+        secret = "private-codex-config-value-7b31"
+        prompt = ("Debug why Codex Desktop ignores the UserPromptSubmit hook after changing settings; "
+                  f"explain the official documentation fix without exposing {secret}.")
+        items = [*ITEMS, {
+            "id": "openai-docs", "kind": "skill", "capability": "Official Codex and OpenAI documentation",
+            "use_when": "Codex Desktop or CLI docs and troubleshooting", "avoid_when": "generic coding",
+            "availability": "available",
+        }]
+        with mock.patch.object(advisor, "candidates", return_value=items), \
+                mock.patch.object(advisor, "DecisionsClient") as client:
+            client.return_value.decide.return_value = answers()
+            result = advisor.evaluate({"hook_event_name": "UserPromptSubmit", "permission_mode": "plan", "prompt": prompt})
+        request = client.return_value.decide.call_args.args[0]
+        self.assertEqual(request["task_kind"], "debugging")
+        self.assertEqual(request["domain"], "codex")
+        self.assertNotIn(prompt, json.dumps(request))
+        self.assertNotIn(secret, json.dumps(request))
+        self.assertNotIn(secret, result["hookSpecificOutput"]["additionalContext"])
+
     def test_single_specific_candidate_is_recommended_locally_without_jev(self):
         specific = {**ITEMS[1], "id": "specific-tool", "capability": "Specific repository inspection"}
         with mock.patch.object(advisor, "candidates", return_value=[specific]) as candidates, \

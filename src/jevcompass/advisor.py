@@ -60,6 +60,7 @@ TASK_PATTERNS = (
 )
 DOMAIN_PATTERNS = (
     ("kubernetes", re.compile(r"\b(kubernetes|kubectl|helm|k3s|cluster|klaster)\b", re.I)),
+    ("codex", re.compile(r"\b(?:codex(?:'s)?\s+(?:desktop|cli|hooks?|settings|skills?|models?|setup|configuration|troubleshooting|customization)|(?:desktop|cli|hooks?|settings|skills?|models?|setup|configuration|troubleshooting|customization)\s+(?:in|for|with|on)\s+codex)\b", re.I)),
     ("python", re.compile(r"\b(python|pytest|django|fastapi)\b", re.I)),
     ("web", re.compile(r"\b(web|frontend|browser|react|typescript|javascript)\b", re.I)),
     ("shell", re.compile(r"\b(bash|shell)\b", re.I)),
@@ -82,6 +83,8 @@ def classify_task(prompt: str) -> tuple[str, str] | None:
     if task_kind is None:
         return None
     domain = next((name for name, pattern in DOMAIN_PATTERNS if pattern.search(prompt)), "general")
+    if domain == "codex" and task_kind not in {"documentation", "debugging"}:
+        domain = next((name for name, pattern in DOMAIN_PATTERNS if name != "codex" and pattern.search(prompt)), "general")
     if task_kind in {"project-setup", "api-design"} and domain == "general":
         domain = "software"
     return task_kind, domain
