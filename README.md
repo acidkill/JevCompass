@@ -51,6 +51,8 @@ jevcompass install
 jevcompass doctor
 ~~~
 
+When replacing a wheel installed through `pipx` with a newer downloaded wheel, use `pipx uninstall jevcompass`, then `pipx install ./jevcompass-NEW_VERSION-py3-none-any.whl`. Reinject any optional extras (for example, `pipx inject jevcompass "keyring>=25"`), run `jevcompass doctor`, review changed hooks in `/hooks`, and start a fresh Codex session. This local wheel path was verified for v0.1.1: using `pipx runpip ... install --upgrade` changed the environment's Python package but left `pipx list` metadata on v0.1.0; `pipx install --force` also failed to replace that existing uv-managed environment. The uninstall/install path kept the separate Codex `hooks.json` unchanged and made runtime and pipx metadata both report v0.1.1.
+
 `jevcompass install` creates a timestamped backup before changing the active `hooks.json` (`$CODEX_HOME/hooks.json` when `CODEX_HOME` is set, otherwise `~/.codex/hooks.json`) and idempotently adds exactly the JevCompass `UserPromptSubmit` and `SubagentStart` registrations. It removes only known legacy Jev gate commands from `PreToolUse`; unrelated hooks, including smem, are preserved. No Node installation is needed. The installed hook command uses the pipx environment's Python interpreter so it keeps working after a shell restart.
 
 Remote Jev selection uses `OPENROUTER_API_KEY` when present. For GUI-launched Desktop sessions that do not inherit a shell environment, install the optional secure-store extra and add the key interactively:
