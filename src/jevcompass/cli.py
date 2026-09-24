@@ -6,6 +6,7 @@ import json
 import os
 import platform
 import sys
+import time
 import tomllib
 from typing import Any
 
@@ -65,6 +66,42 @@ def _selection_capacity(entries: list[dict[str, Any]]) -> dict[str, Any]:
             "note": "Local availability only; active-session tool access and advice usefulness are unverified."}
 
 
+def _hook_observation() -> dict[str, Any]:
+    """Return a bounded, redacted summary of the most recent local hook metric."""
+    allowed_events = {"UserPromptSubmit", "SubagentStart"}
+    allowed_statuses = {
+        "cache", "jev", "local", "skip", "insufficient-candidates", "low-signal-skip",
+        "classification-skip", "role-skip", "collab-plan", "collab-unavailable",
+    }
+    try:
+        stat = advisor.LOG_PATH.stat()
+        with advisor.LOG_PATH.open("rb") as stream:
+            stream.seek(max(0, stat.st_size - 65536))
+            lines = stream.read(65536).splitlines()
+    except OSError:
+        return {"observed": False, "event": None, "log_modified_age_seconds": None, "status": "unavailable"}
+
+    latest: dict[str, Any] | None = None
+    for line in reversed(lines):
+        try:
+            record = json.loads(line)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            continue
+        if (isinstance(record, dict) and isinstance(record.get("event"), str)
+                and record.get("event") in allowed_events and isinstance(record.get("status"), str)
+                and record.get("status") in allowed_statuses):
+            latest = record
+            break
+    if latest is None:
+        return {"observed": False, "event": None, "log_modified_age_seconds": None, "status": "unavailable"}
+    return {
+        "observed": True,
+        "event": latest["event"],
+        "log_modified_age_seconds": max(0, int(time.time() - stat.st_mtime)),
+        "status": latest["status"],
+    }
+
+
 def doctor(*, test_jev: bool = False) -> dict[str, Any]:
     entries, catalog_counts = catalog_snapshot()
     codex_home_source = "environment" if os.environ.get("CODEX_HOME") else "default"
@@ -95,6 +132,7 @@ def doctor(*, test_jev: bool = False) -> dict[str, Any]:
         },
         "selection_capacity": _selection_capacity(entries),
         "hooks_json": {"ok": False, "registered_advisory_hooks": [], "pretool_jev_gate": False},
+        "hook_observation": _hook_observation(),
     }
     try:
         config = json.loads(hooks_path.read_text(encoding="utf-8"))
@@ -201,7 +239,12 @@ def main(argv: list[str] | None = None) -> int:
             print("  This reflects discovered candidates, not active-session access or measured usefulness.")
             hooks_check = result["hooks_json"]
             registered = ", ".join(hooks_check["registered_advisory_hooks"]) or "none"
-            print(f"- Hooks: {registered}; Jev PreToolUse gate {'present' if hooks_check['pretool_jev_gate'] else 'absent'}")
+            print(f"- Hooks registered: {registered}; Jev PreToolUse gate {'present' if hooks_check['pretool_jev_gate'] else 'absent'}")
+            observation = result["hook_observation"]
+            if observation["observed"]:
+                print(f"- Hook invocation metric: {observation['event']}; log modified {observation['log_modified_age_seconds']}s ago; status {observation['status']}")
+            else:
+                print("- Hook invocation metric: no safe record observed; status unavailable")
             print(f"- Hooks feature in base config: {result['hooks_feature']['base_config']} (active host policy and trust need separate verification)")
             if "live_decision" in result:
                 print(f"- Synthetic Jev request: {'PASS' if result['live_decision']['ok'] else 'CHECK'} (billed)")

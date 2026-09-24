@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -14,6 +15,75 @@ from jevcompass.installer import SUBAGENT_MATCHER
 
 
 class DoctorTests(unittest.TestCase):
+    def test_doctor_separates_registered_hooks_from_safe_observed_metric(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            codex_home = root / "codex"
+            codex_home.mkdir()
+            (codex_home / "hooks.json").write_text(json.dumps({"hooks": {
+                "UserPromptSubmit": [{"hooks": [{"command": advisor.hook_command()}]}],
+                "SubagentStart": [{"matcher": SUBAGENT_MATCHER, "hooks": [{"command": advisor.hook_command()}]}],
+            }}))
+            metric = root / "advisor.jsonl"
+            metric.write_text(json.dumps({
+                "event": "UserPromptSubmit",
+                "category": "coding",
+                "status": "low-signal-skip",
+                "duration_ms": 12,
+                "trace": "private-trace-token",
+                "prompt": "private prompt text",
+                "path": "/private/worktree",
+                "secret": "private-secret",
+            }) + "\n")
+            os.utime(metric, (time.time() - 37, time.time() - 37))
+            with mock.patch.dict(os.environ, {"CODEX_HOME": str(codex_home)}), \
+                    mock.patch.object(advisor, "LOG_PATH", metric), \
+                    mock.patch.object(cli, "model_available", return_value=True), \
+                    mock.patch.object(cli, "catalog_snapshot", return_value=([{"id": "exec_command"}], {"curated_entries": 1, "available_tools": 1, "available_skills": 0,
+                        "configured_mcp_servers": 0, "discovered_skills": 0, "unavailable_entries": 0})):
+                result = cli.doctor()
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output):
+                    exit_code = cli.main(["doctor", "--json"])
+                text_output = io.StringIO()
+                with contextlib.redirect_stdout(text_output):
+                    cli.main(["doctor"])
+        observation = result["hook_observation"]
+        self.assertEqual(result["hooks_json"]["registered_advisory_hooks"], ["UserPromptSubmit", "SubagentStart"])
+        self.assertTrue(observation["observed"])
+        self.assertEqual(observation["event"], "UserPromptSubmit")
+        self.assertEqual(observation["status"], "low-signal-skip")
+        self.assertGreaterEqual(observation["log_modified_age_seconds"], 37)
+        self.assertLessEqual(observation["log_modified_age_seconds"], 40)
+        self.assertEqual(exit_code, 0)
+        self.assertIn("Hooks registered: UserPromptSubmit, SubagentStart", text_output.getvalue())
+        self.assertIn("Hook invocation metric: UserPromptSubmit;", text_output.getvalue())
+        self.assertIn("log modified", text_output.getvalue())
+        self.assertIn("status low-signal-skip", text_output.getvalue())
+        serialized = json.dumps(result) + output.getvalue() + text_output.getvalue()
+        for private_value in ("private-trace-token", "private prompt text", "/private/worktree", "private-secret"):
+            self.assertNotIn(private_value, serialized)
+
+    def test_doctor_reports_registered_hooks_without_claiming_observed_invocation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            codex_home = root / "codex"
+            codex_home.mkdir()
+            (codex_home / "hooks.json").write_text(json.dumps({"hooks": {
+                "UserPromptSubmit": [{"hooks": [{"command": advisor.hook_command()}]}],
+                "SubagentStart": [{"matcher": SUBAGENT_MATCHER, "hooks": [{"command": advisor.hook_command()}]}],
+            }}))
+            with mock.patch.dict(os.environ, {"CODEX_HOME": str(codex_home)}), \
+                    mock.patch.object(advisor, "LOG_PATH", root / "missing.jsonl"), \
+                    mock.patch.object(cli, "model_available", return_value=True), \
+                    mock.patch.object(cli, "catalog_snapshot", return_value=([{"id": "exec_command"}], {"curated_entries": 1, "available_tools": 1, "available_skills": 0,
+                        "configured_mcp_servers": 0, "discovered_skills": 0, "unavailable_entries": 0})):
+                result = cli.doctor()
+        self.assertEqual(result["hooks_json"]["registered_advisory_hooks"], ["UserPromptSubmit", "SubagentStart"])
+        self.assertFalse(result["hook_observation"]["observed"])
+        self.assertIsNone(result["hook_observation"]["event"])
+        self.assertEqual(result["hook_observation"]["status"], "unavailable")
+
     def test_doctor_uses_codex_home_and_reports_only_safe_status(self):
         with tempfile.TemporaryDirectory() as directory:
             codex_home = Path(directory) / "codex-profile"
@@ -65,7 +135,8 @@ class DoctorTests(unittest.TestCase):
             }}))
             with mock.patch.dict(os.environ, {"CODEX_HOME": str(codex_home)}), \
                     mock.patch.object(cli, "model_available", return_value=True), \
-                    mock.patch.object(cli, "catalog_snapshot", return_value=([{"id": "exec_command"}], {})):
+                    mock.patch.object(cli, "catalog_snapshot", return_value=([{"id": "exec_command"}], {"curated_entries": 1, "available_tools": 1, "available_skills": 0,
+                        "configured_mcp_servers": 0, "discovered_skills": 0, "unavailable_entries": 0})):
                 result = cli.doctor()
         self.assertFalse(result["hooks_json"]["ok"])
         self.assertEqual(result["hooks_json"]["registered_advisory_hooks"], ["UserPromptSubmit"])
@@ -82,7 +153,8 @@ class DoctorTests(unittest.TestCase):
                     (codex_home / "config.toml").write_text(f"[features]\n{setting} = false\n")
                     with mock.patch.dict(os.environ, {"CODEX_HOME": str(codex_home)}), \
                             mock.patch.object(cli, "model_available", return_value=True), \
-                            mock.patch.object(cli, "catalog_snapshot", return_value=([{"id": "exec_command"}], {})):
+                            mock.patch.object(cli, "catalog_snapshot", return_value=([{"id": "exec_command"}], {"curated_entries": 1, "available_tools": 1, "available_skills": 0,
+                        "configured_mcp_servers": 0, "discovered_skills": 0, "unavailable_entries": 0})):
                         result = cli.doctor()
                     self.assertTrue(result["hooks_json"]["ok"])
                     self.assertEqual(result["hooks_feature"], {"ok": False, "base_config": "disabled"})
