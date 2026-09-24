@@ -204,7 +204,8 @@ def read_safe_metrics(path: Path) -> list[dict[str, Any]]:
 def correlate_advice(parsed: dict[str, Any], metrics: list[dict[str, Any]]) -> dict[str, Any]:
     advice_id = parsed.get("advice_id")
     match = next(
-        (m for m in metrics if advice_id and m.get("trace") == advice_id),
+        (m for m in metrics if advice_id and m.get("trace") == advice_id
+         and m.get("status") in {"local", "jev", "cache"}),
         None,
     )
     return {

@@ -60,6 +60,15 @@ class W02PairRunnerTests(unittest.TestCase):
         self.assertTrue(parsed["advice_id_before_first_tool"])
         self.assertEqual(parsed["advice_id"], "abcdef12")
 
+    def test_diagnostic_metric_is_not_the_advice_decision(self):
+        parsed = {"advice_id": "abcdef12", "advice_id_before_first_tool": True}
+        metrics = [
+            {"trace": "abcdef12", "category": "bypassPermissions", "status": "collab-unavailable"},
+            {"trace": "abcdef12", "category": "source-review", "status": "local"},
+        ]
+        correlated = runner.correlate_advice(parsed, metrics)
+        self.assertEqual(correlated["metric"]["category"], "source-review")
+
     def test_live_jsonl_collector_splits_lines_and_records_order(self):
         payload = "import sys; print('{\"type\":\"thread.started\"}'); print('{\"type\":\"turn.completed\"}'); sys.stdout.flush()"
         started = time.monotonic()
