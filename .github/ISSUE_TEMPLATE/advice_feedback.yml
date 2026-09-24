@@ -1,0 +1,52 @@
+name: Advice feedback
+description: Tell us whether a recommendation helped or added noise
+title: "[feedback] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A synthetic task summary is enough. Do not paste raw prompts, private code,
+        API keys, memory contents, or unredacted hook logs.
+  - type: dropdown
+    id: host
+    attributes:
+      label: Codex host
+      options:
+        - Desktop on Linux
+        - Desktop on macOS
+        - CLI on Linux
+        - CLI on macOS
+    validations:
+      required: true
+  - type: dropdown
+    id: outcome
+    attributes:
+      label: Outcome
+      options:
+        - Useful first action
+        - Relevant but no observable gain
+        - Advice added noise
+        - No advice appeared
+    validations:
+      required: true
+  - type: input
+    id: category
+    attributes:
+      label: Task category and domain
+      placeholder: "review / python"
+  - type: input
+    id: advice-id
+    attributes:
+      label: Advice ID if visible before first tool
+      placeholder: "Eight-character local diagnostic ID"
+  - type: textarea
+    id: task
+    attributes:
+      label: Synthetic task and first productive action
+      description: Describe what happened without copying the original prompt.
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: What should JevCompass suggest or skip next time?
