@@ -36,6 +36,10 @@ A separate `--ephemeral` attempt logged a `SubagentStart` Jev result but failed 
 - The wheel installed into a temporary isolated pipx environment on CPython 3.14.7, and the installed `jevcompass --help` exposed the `hook`, `recommend`, `doctor`, and `install` commands.
 - GitHub Actions run 35897338176 did not start any job steps. Its check annotation reports failed recent payments or an insufficient Actions spending limit; account billing or the limit must be resolved before CI can be rerun.
 
+## Fresh isolated vanilla CLI prompt delivery (2026-09-24)
+
+A fresh Codex CLI 0.155.1 session used a temporary CODEX_HOME, isolated HOME/cache/state, a read-only synthetic fixture, and only JevCompass's two hooks. The OpenRouter key was intentionally absent. One request classified as `project-setup` had no local singleton and correctly produced no advice in 8.67 ms; this verifies fail-open behavior only. A separate `codebase/python` request received local fallback advice ID `c218487d` and the selected identifier `exec_command` in the first agent message, before the first shell tool event. Its matching metric was `UserPromptSubmit` / `codebase` / `local` / 6.44 ms; the CLI exited successfully and made no file changes. This verifies fresh CLI hook delivery for local fallback. It does not verify remote Jev selection, Desktop delivery, or any paired-case usefulness score.
+
 ## Required evidence
 
 Run 20 paired, anonymized tasks in randomized order:
