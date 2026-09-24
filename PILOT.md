@@ -2,6 +2,10 @@
 
 ## Status
 
+### Desktop credential inheritance check (2026-09-24)
+
+A read-only inspection of the running Linux Desktop process checked environment variable **names only**: `OPENROUTER_API_KEY` was absent, while the terminal had it. Thus terminal `doctor` success did not establish remote Jev access from this GUI-launched Desktop process. The active pipx JevCompass 0.1.6 initially lacked optional `keyring`; `pipx inject jevcompass 'keyring>=25'` succeeded, and `env -u OPENROUTER_API_KEY jevcompass auth status` confirmed a usable native system keyring with **no OpenRouter key stored**. No credential was copied, printed, or persisted by this task. The Desktop remote-choice path remains unverified until the user interactively sets a credential with `jevcompass auth set` or launches Desktop with an appropriate environment, then restarts the host and tests agent-visible advice before its first tool. Local-only advice remains available.
+
 ### Installed v0.1.6 current Desktop explorer abstention (2026-09-24)
 
 A read-only `explorer` subagent in the currently running Linux Desktop host was asked to report its initial JevCompass context before any tool. It reported `NO JEVCOMPASS ADVISORY`; the new safe metric was `SubagentStart/codebase/low-signal-skip` in 63.45 ms (trace `5f4fc8f2`). In this role-only event the available generic shell was not a specific enough recommendation, so no advice context was expected. The agent then answered a codebase question: curated MCP entries that are merely configured are removed in the actual `select_advice` path before ranking; configuration alone does not establish a live connection. This confirms a live hook invocation and deliberate abstention on the current host process, not a fresh Desktop prompt delivery, active MCP availability, or an improvement in task quality. The Desktop app process predates the latest hook configuration and is not the fresh-host acceptance run.
