@@ -38,6 +38,7 @@ Target Codex Desktop and CLI in a vanilla user setup, without relying on this re
 | VCR-22 | Align onboarding example and manual category list with runtime | Complete | README shows the actual locally selected shortlist syntax and explicitly labels its illustrative ID; the allowed category list includes `api-design`. Reviewed against `_context`, catalog entries, CLI choices, and existing local-fallback tests; 21 focused tests pass. |
 | VCR-23 | Recognize substantive code-flow investigation requests | Complete | `investigate`/`investigation` map to codebase intent when no higher-priority bug signal exists; debugging retains priority for errors, and short routine requests still skip. Focused and full 76-test suites pass; Graphify rebuilt. |
 | VCR-24 | Diagnose locally disabled hooks in Codex base config | Complete | `doctor` reports disabled canonical or legacy hooks feature even when both hooks are registered; no config values or paths are printed, and runtime trust remains a separate check. Focused and full 77-test suites pass; Graphify rebuilt. |
+| VCR-25 | Track native Windows hook path quoting as a future idea | Deferred | [Issue #1](https://github.com/acidkill/jev-advisor-for-codex/issues/1) records the POSIX quoting concern and requires native Windows Desktop/CLI runner evidence before implementation. Current work targets macOS and Linux. |
 
 ## Latest task checkpoint (2026-09-24)
 
