@@ -41,7 +41,7 @@ The local catalog treats `exec_command` as Codex's built-in shell capability, en
 
 ## Install
 
-Authorized collaborators can download the wheel from the [private v0.1.1 alpha release](https://github.com/acidkill/jev-advisor-for-codex/releases/tag/v0.1.1) and install it with `pipx install ./jevcompass-0.1.1-py3-none-any.whl`. Then run `jevcompass install` and `jevcompass doctor`. The wheel install was verified on Linux; macOS remains to be tested on a macOS host. The repository and assets are not publicly accessible.
+Authorized collaborators can download the wheel from the [private v0.1.2 alpha release](https://github.com/acidkill/jev-advisor-for-codex/releases/tag/v0.1.2) and install it with `pipx install ./jevcompass-0.1.2-py3-none-any.whl`. Then run `jevcompass install` and `jevcompass doctor`. The isolated wheel install was verified on Linux; macOS remains to be tested on a macOS host. The repository and assets are not publicly accessible.
 
 From a local checkout:
 
@@ -51,7 +51,7 @@ jevcompass install
 jevcompass doctor
 ~~~
 
-When replacing a wheel installed through `pipx` with a newer downloaded wheel, use `pipx uninstall jevcompass`, then `pipx install ./jevcompass-NEW_VERSION-py3-none-any.whl`. Reinject any optional extras (for example, `pipx inject jevcompass "keyring>=25"`), run `jevcompass doctor`, review changed hooks in `/hooks`, and start a fresh Codex session. This local wheel path was verified for v0.1.1: using `pipx runpip ... install --upgrade` changed the environment's Python package but left `pipx list` metadata on v0.1.0; `pipx install --force` also failed to replace that existing uv-managed environment. The uninstall/install path kept the separate Codex `hooks.json` unchanged and made runtime and pipx metadata both report v0.1.1.
+When replacing a wheel installed through `pipx` with a newer downloaded wheel, use `pipx uninstall jevcompass`, then `pipx install ./jevcompass-NEW_VERSION-py3-none-any.whl`. Reinject any optional extras (for example, `pipx inject jevcompass "keyring>=25"`), run `jevcompass doctor`, review changed hooks in `/hooks`, and start a fresh Codex session. This local wheel path was verified for v0.1.2 in an isolated pipx home: uninstalling the previous environment and installing the downloaded wheel made runtime and pipx metadata both report v0.1.2. No active global hooks or pipx runtime were changed.
 
 `jevcompass install` creates a timestamped backup before changing the active `hooks.json` (`$CODEX_HOME/hooks.json` when `CODEX_HOME` is set, otherwise `~/.codex/hooks.json`) and idempotently adds exactly the JevCompass `UserPromptSubmit` and `SubagentStart` registrations. It removes only known legacy Jev gate commands from `PreToolUse`; unrelated hooks, including smem, are preserved. No Node installation is needed. The installed hook command uses the pipx environment's Python interpreter so it keeps working after a shell restart.
 
