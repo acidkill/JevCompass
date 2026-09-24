@@ -354,6 +354,26 @@ class AdvisorTests(unittest.TestCase):
             self.assertIn("worker", serialized_request)
             self.assertIn("coding", serialized_request)
 
+    def test_generic_subagent_shell_singleton_is_quiet_but_specific_candidate_remains(self):
+        shell = next(item for item in ITEMS if item["id"] == "exec_command")
+        event = {"hook_event_name": "SubagentStart", "agent_type": "explorer"}
+        with mock.patch.object(advisor, "candidates", return_value=[shell]), \
+                mock.patch.object(advisor, "DecisionsClient") as client:
+            self.assertIsNone(advisor.evaluate(event, trace="abc12345"))
+            client.assert_not_called()
+        record = json.loads(advisor.LOG_PATH.read_text().splitlines()[-1])
+        self.assertEqual(record["status"], "low-signal-skip")
+        self.assertEqual(record["category"], "codebase")
+        with mock.patch.object(advisor, "candidates", return_value=[shell]):
+            prompt_output = advisor.select_advice(
+                "UserPromptSubmit", "source-review", "general", "primary",
+            )
+        self.assertIn("exec_command", prompt_output["hookSpecificOutput"]["additionalContext"])
+        specific = {**shell, "id": "specific-tool", "capability": "specific role tool"}
+        with mock.patch.object(advisor, "candidates", return_value=[specific]):
+            role_output = advisor.evaluate(event)
+        self.assertIn("specific-tool", role_output["hookSpecificOutput"]["additionalContext"])
+
     def test_jev_failures_fall_back_locally_without_blocking(self):
         event = {"hook_event_name": "UserPromptSubmit", "permission_mode": "plan", "prompt": "Investigate a Python runtime error"}
         for effect in (DecisionsError("unavailable"), ValueError("invalid response")):
