@@ -111,6 +111,30 @@ class DoctorTests(unittest.TestCase):
         self.assertIn("metadata unavailable; remote advice will be skipped", output.getvalue())
         self.assertIn("path hidden", output.getvalue())
 
+    def test_doctor_passes_local_setup_without_optional_openrouter_key(self):
+        with tempfile.TemporaryDirectory() as directory:
+            codex_home = Path(directory)
+            (codex_home / "hooks.json").write_text(json.dumps({"hooks": {
+                "UserPromptSubmit": [{"hooks": [{"command": advisor.hook_command()}]}],
+                "SubagentStart": [{"matcher": SUBAGENT_MATCHER, "hooks": [{"command": advisor.hook_command()}]}],
+            }}))
+            with mock.patch.dict(os.environ, {"CODEX_HOME": str(codex_home)}, clear=True), \
+                    mock.patch.object(cli, "credential_status", return_value={
+                        "configured": False, "source": "none", "secure_store_available": False,
+                    }), \
+                    mock.patch.object(cli, "model_available", return_value=True), \
+                    mock.patch.object(cli, "catalog_snapshot", return_value=([{"id": "exec_command"}], {
+                        "curated_entries": 1, "available_tools": 1, "available_skills": 0,
+                        "configured_mcp_servers": 0, "discovered_skills": 0, "unavailable_entries": 0,
+                    })):
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output):
+                    exit_code = cli.main(["doctor", "--json"])
+        result = json.loads(output.getvalue())
+        self.assertEqual(exit_code, 0)
+        self.assertFalse(result["openrouter_key"]["ok"])
+        self.assertTrue(result["ok"])
+
     def test_doctor_uses_redacted_system_keyring_status(self):
         with contextlib.ExitStack() as stack:
             stack.enter_context(mock.patch.dict(

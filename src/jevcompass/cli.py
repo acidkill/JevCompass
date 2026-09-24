@@ -131,7 +131,11 @@ def doctor(*, test_jev: bool = False) -> dict[str, Any]:
                                         "billed_request": True}
         except DecisionsError:
             checks["live_decision"] = {"ok": False, "billed_request": True}
-    checks["ok"] = all(check["ok"] for check in checks.values() if isinstance(check, dict) and "ok" in check)
+    # Remote selection credentials are optional; their status is diagnostic only.
+    checks["ok"] = all(
+        check["ok"] for name, check in checks.items()
+        if name != "openrouter_key" and isinstance(check, dict) and "ok" in check
+    )
     return checks
 
 
