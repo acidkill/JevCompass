@@ -140,6 +140,28 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(result["openrouter_key"]["source"], "system-keyring")
         self.assertTrue(result["openrouter_key"]["secure_store_available"])
 
+    def test_selection_capacity_distinguishes_singleton_from_real_choice(self):
+        entries = [
+            {"id": "exec_command", "kind": "tool", "availability": "available",
+             "task_kinds": ["source-review", "codebase", "code"],
+             "domains": ["general", "software"]},
+            {"id": "configured-mcp", "kind": "tool", "availability": "configured",
+             "task_kinds": ["source-review"], "domains": ["general"]},
+            {"id": "review-skill", "kind": "skill", "availability": "available",
+             "task_kinds": ["source-review"], "domains": ["general"]},
+        ]
+        examples = cli._selection_capacity(entries)["examples"]
+        self.assertEqual(examples["source_review_general"]["mode"], "local_candidates")
+        self.assertEqual(examples["source_review_general"]["available_tools"], 1)
+        self.assertEqual(examples["codebase_software"]["mode"], "local_candidates")
+        self.assertEqual(examples["coding_python"]["mode"], "local_candidates")
+        entries.append({"id": "rg", "kind": "tool", "availability": "available",
+                        "task_kinds": ["codebase"], "domains": ["software"]})
+        examples = cli._selection_capacity(entries)["examples"]
+        self.assertEqual(examples["codebase_software"]["mode"], "decision_candidates")
+        self.assertEqual(examples["source_review_general"]["available_tools"], 1)
+        self.assertEqual(cli._selection_capacity([])["examples"]["coding_python"]["mode"], "silent")
+
 
 if __name__ == "__main__":
     unittest.main()

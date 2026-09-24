@@ -32,6 +32,39 @@ def _recommend(category: str, domain: str, role: str) -> int:
     return 0
 
 
+def _selection_capacity(entries: list[dict[str, Any]]) -> dict[str, Any]:
+    """Report local catalog choice capacity for representative vanilla tasks."""
+    cases = (
+        ("source_review_general", "source-review", "general"),
+        ("codebase_software", "codebase", "software"),
+        ("coding_python", "code", "python"),
+    )
+    result: dict[str, Any] = {}
+    for label, task, domain in cases:
+        counts = {"tool": 0, "skill": 0}
+        inherited = {"python": "software", "web": "software"}.get(domain)
+        for item in entries:
+            if item.get("availability") != "available" or task not in item.get("task_kinds", ()):
+                continue
+            domains = item.get("domains", ())
+            if not any(value in domains for value in (domain, "general", inherited) if value):
+                continue
+            kind = item.get("kind")
+            if kind in counts:
+                counts[kind] = min(counts[kind] + 1, 3)
+        total = sum(counts.values())
+        result[label] = {
+            "available_tools": counts["tool"],
+            "available_skills": counts["skill"],
+            "mode": (
+                "decision_candidates" if max(counts.values()) >= 2
+                else "local_candidates" if total else "silent"
+            ),
+        }
+    return {"ok": True, "examples": result,
+            "note": "Local availability only; active-session tool access and advice usefulness are unverified."}
+
+
 def doctor(*, test_jev: bool = False) -> dict[str, Any]:
     entries, catalog_counts = catalog_snapshot()
     codex_home_source = "environment" if os.environ.get("CODEX_HOME") else "default"
@@ -60,6 +93,7 @@ def doctor(*, test_jev: bool = False) -> dict[str, Any]:
             **catalog_counts,
             "version": catalog_version(),
         },
+        "selection_capacity": _selection_capacity(entries),
         "hooks_json": {"ok": False, "registered_advisory_hooks": [], "pretool_jev_gate": False},
     }
     try:
@@ -156,6 +190,11 @@ def main(argv: list[str] | None = None) -> int:
                 f"{catalog_check['configured_mcp_servers']} MCP servers configured; "
                 f"{catalog_check['unavailable_entries']} reviewed entries unavailable"
             )
+            capacity = result["selection_capacity"]["examples"]
+            modes = ", ".join(f"{label}: {item['mode'].replace('_', ' ')}"
+                              for label, item in capacity.items())
+            print(f"- Local choice capacity: {modes}")
+            print("  This reflects discovered candidates, not active-session access or measured usefulness.")
             hooks_check = result["hooks_json"]
             registered = ", ".join(hooks_check["registered_advisory_hooks"]) or "none"
             print(f"- Hooks: {registered}; Jev PreToolUse gate {'present' if hooks_check['pretool_jev_gate'] else 'absent'}")

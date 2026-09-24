@@ -13,7 +13,7 @@ JevCompass helps Codex choose a small set of relevant tools and skills from a lo
 - **Source reviews:** proposals and offers receive a separate local review path that reminds the agent to check authoritative sources, mark missing facts, and leave drafts unsent until explicitly authorized. Code reviews keep their own candidate pool. Jev sees only the generic task category and reviewed candidate metadata.
 - **Local catalog:** checks reviewed skills against installed skill names and MCP integrations against local configuration. `CODEX_HOME` selects the active Codex config and skill roots; `~/.agents/skills` remains discoverable. Private skill descriptions, integration names, configuration values, and paths are not sent to Jev.
 - **Manual entry point:** `jevcompass recommend` uses explicit allowlisted metadata when the task is too brief or ambiguous for automatic classification.
-- **Diagnostics:** `jevcompass doctor` reports the active config source, aggregate catalog counts, model/key status, hook registration, and whether hooks are explicitly disabled in the base Codex config, without printing local paths or configuration values. A passing registration check does not prove hook trust or agent-visible delivery.
+- **Diagnostics:** `jevcompass doctor` reports the active config source, aggregate catalog counts, model/key status, hook registration, and whether hooks are explicitly disabled in the base Codex config, without printing local paths or configuration values. A passing registration check does not prove hook trust or agent-visible delivery. The local choice-capacity examples show whether source review, codebase navigation, and Python coding have no candidate, a local shortlist, or at least two candidates of one kind that Jev could rank. Counts reflect the installed profile and PATH, including shell commands; they do not prove a candidate is callable in the active Codex session or that the advice helps.
 
 A recommendation is optional guidance. Codex still follows project instructions, reads any selected skill, confirms actual tool availability, and runs required checks.
 
@@ -98,7 +98,7 @@ Jev is an advisory service, not an authorization system or security boundary. Do
 | --- | --- |
 | jevcompass hook | Handle one Codex hook event from stdin; always fail open and exit without blocking. |
 | jevcompass recommend | Request advice using a known category, domain, and role. |
-| jevcompass doctor | Check Python, config source, OpenRouter key presence, public Decisions model metadata, catalog counts, and hook registration. |
+| jevcompass doctor | Check Python, config source, OpenRouter key presence, public Decisions model metadata, catalog counts, local choice capacity, and hook registration. |
 | jevcompass doctor --test-jev | Also send one synthetic, billed Jev decision request. |
 | jevcompass install | Merge the two advisory hooks without installing Node. |
 | jevcompass auth status | Show redacted environment/keyring credential status. |
