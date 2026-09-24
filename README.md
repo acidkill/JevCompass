@@ -19,13 +19,14 @@ A recommendation is optional guidance. Codex still follows project instructions,
 
 ## Example
 
-For a substantive repository setup task without an OpenRouter key, the prompt hook may add this locally selected shortlist (the ID is illustrative):
+For a substantive repository setup task in an existing Git checkout with the `create-plan` skill installed, and without an OpenRouter key, the prompt hook may add this local shortlist (the ID is illustrative):
 
 ~~~text
 JevCompass advice ID: 0123abcd
 Local unranked fallback; Jev did not select these candidates. Optional tools and skills for this task; validate against the task and actual availability:
 - tool `exec_command`: Codex built-in exec_command for bounded local shell commands
-- tool `git`: Inspect repository changes and history
+- local command `git`: Inspect repository changes and history (run through `exec_command`; confirm it is available in this session)
+- skill `create-plan`: Create an implementation plan grounded in repository context
 Configured MCP entries must be confirmed connected in this session. Read any chosen skill before use and follow required project instructions and tests. If you write a plan, include concise execution recommendations for the primary agent and useful subagents.
 ~~~
 
