@@ -42,7 +42,7 @@ The local catalog treats `exec_command` as Codex's built-in shell capability, en
 
 ## Install
 
-Authorized collaborators can download the wheel from the [private v0.1.5 alpha release](https://github.com/acidkill/jev-advisor-for-codex/releases/tag/v0.1.5) and install it with `pipx install ./jevcompass-0.1.5-py3-none-any.whl`. Then run `jevcompass install` and `jevcompass doctor`. The isolated wheel install was verified on Linux. The 169-test source suite also passed locally on Linux CPython 3.11, 3.12, 3.13, and 3.14; macOS remains to be tested on a macOS host. The repository and assets are not publicly accessible.
+Authorized collaborators can download the wheel from the [private v0.1.6 alpha release](https://github.com/acidkill/jev-advisor-for-codex/releases/tag/v0.1.6) and install it with `pipx install ./jevcompass-0.1.6-py3-none-any.whl`. This release includes the VCR-108 planning-intent fix. Run `jevcompass install` and `jevcompass doctor` after installation. The repository and assets are not publicly accessible. Local Linux release checks and platform limitations are recorded in TASKS.md.
 
 From a local checkout:
 
