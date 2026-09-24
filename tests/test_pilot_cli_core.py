@@ -42,7 +42,11 @@ def make_fake_codex(path: Path) -> Path:
         "    metric = home.parent / '.local/state/jevcompass/advisor.jsonl'\n"
         "    metric.parent.mkdir(parents=True, exist_ok=True)\n"
         "    status = 'local' if 'OPENROUTER_API_KEY' not in os.environ else 'key_leaked'\n"
-        "    metric.write_text(json.dumps({'event':'UserPromptSubmit','category':'coding','status':status,'duration_ms':1.25,'trace':'abcdef12','prompt':'must-not-escape'}) + '\\n', encoding='utf-8')\n"
+        "    records = []\n"
+        "    if os.environ.get('JEV_ADVISOR_DIAGNOSTIC') == '1':\n"
+        "        records.append({'event':'UserPromptSubmit','category':'default','status':'collab-unavailable','duration_ms':0.25,'trace':'abcdef12','command':'must-not-escape'})\n"
+        "    records.append({'event':'UserPromptSubmit','category':'coding','status':status,'duration_ms':1.25,'trace':'abcdef12','prompt':'must-not-escape'})\n"
+        "    metric.write_text(''.join(json.dumps(record) + '\\n' for record in records), encoding='utf-8')\n"
         "message = 'JevCompass advice ID: abcdef12\\nCandidate: pytest\\nSynthetic completion.' if treatment else 'Synthetic completion.'\n"
         "print(json.dumps({'type':'item.completed','item':{'type':'agent_message','text':message}}), flush=True)\n"
         "print(json.dumps({'type':'item.started','item':{'type':'command_execution','name':'exec_command','command':'DO NOT RETAIN'}}), flush=True)\n"
@@ -83,7 +87,7 @@ print(json.dumps({"type":"turn.completed"}), flush=True)
     return path
 
 
-def make_scoring_inputs(root: Path, case_ids=("P01",)):
+def make_scoring_inputs(root: Path, case_ids=("P01",), *, diagnostics=False):
     cases = {}
     for case_id in case_ids:
         arms = {}
@@ -99,7 +103,16 @@ def make_scoring_inputs(root: Path, case_ids=("P01",)):
             }
         cases[case_id] = {"arms": arms}
     blind_dir = root / "blind"
-    runner.write_blind_receipts(cases, blind_dir)
+    pilot_diagnostics = None
+    if diagnostics:
+        pilot_diagnostics = {
+            (case_id, arm): ({
+                "category": "coding", "status": "local", "latency_ms": 1.25,
+                "trace_reported_before_first_tool": True,
+            } if arm == "treatment" else runner._empty_pilot_diagnostic("not_applicable"))
+            for case_id in case_ids for arm in ("baseline", "treatment")
+        }
+    runner.write_blind_receipts(cases, blind_dir, pilot_diagnostics=pilot_diagnostics)
     mapping_path = blind_dir / "mapping.json"
     mapping = json.loads(mapping_path.read_text(encoding="utf-8"))
     scores = []
@@ -145,6 +158,70 @@ class PilotCliCoreTests(unittest.TestCase):
         self.assertTrue(any("latency" in item for item in result["missing_evidence"]))
         self.assertTrue(any("delivery" in item for item in result["missing_evidence"]))
         self.assertTrue(any("post-unblind" in item for item in result["missing_evidence"]))
+
+    def test_scorer_validates_private_hook_diagnostics_and_summarizes_after_unblinding(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            receipts, mapping, scores, digest = make_scoring_inputs(root, diagnostics=True)
+            diagnostics_path = mapping.parent / "pilot-diagnostics.json"
+            diagnostics = json.loads(diagnostics_path.read_text(encoding="utf-8"))
+            self.assertNotIn("baseline", diagnostics_path.read_text(encoding="utf-8"))
+            self.assertNotIn("treatment", diagnostics_path.read_text(encoding="utf-8"))
+            result = runner.score_blind_pilot(receipts, mapping, scores, digest)
+            self.assertEqual(result["pilot_hook_diagnostics"]["advice_emitted"], 1)
+            self.assertEqual(result["pilot_hook_diagnostics"]["advice_emitted_with_pretool_trace"], 1)
+            self.assertEqual(result["pilot_hook_diagnostics"]["median_hook_latency_ms"], 1.25)
+            self.assertEqual(result["pilot_hook_diagnostics"]["categories"], {"coding": 1})
+
+            diagnostics["arms"][0]["category"] = []
+            diagnostics_path.write_text(json.dumps(diagnostics), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "unknown category"):
+                runner.score_blind_pilot(receipts, mapping, scores, digest)
+            diagnostics["arms"][0]["category"] = None
+            diagnostics["unexpected"] = "must-be-rejected"
+            diagnostics_path.write_text(json.dumps(diagnostics), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "unknown schema or fields"):
+                runner.score_blind_pilot(receipts, mapping, scores, digest)
+
+    def test_private_hook_diagnostic_distinguishes_invocation_skip_and_unreported_advice(self):
+        parsed = {
+            "advice_id_before_first_tool": False,
+            "first_assistant": {"advice_id": "abcdef12"},
+        }
+        diagnostic = {"event": "UserPromptSubmit", "category": "default", "status": "collab-unavailable",
+                      "trace": "abcdef12", "duration_ms": 0.1}
+        emitted = {"event": "UserPromptSubmit", "category": "coding", "status": "local",
+                   "trace": "abcdef12", "duration_ms": 3.5}
+        self.assertEqual(runner._pilot_hook_diagnostic(parsed, [])["status"], "not_invoked")
+        skipped = {**emitted, "status": "classification-skip", "category": "none"}
+        skip_result = runner._pilot_hook_diagnostic(parsed, [diagnostic, skipped])
+        self.assertEqual(skip_result["status"], "classification-skip")
+        self.assertFalse(skip_result["trace_reported_before_first_tool"])
+        result = runner._pilot_hook_diagnostic(parsed, [diagnostic, emitted])
+        self.assertEqual(result["status"], "local")
+        self.assertFalse(result["trace_reported_before_first_tool"])
+        self.assertNotIn("trace", result)
+        parsed["advice_id_before_first_tool"] = True
+        self.assertTrue(runner._pilot_hook_diagnostic(parsed, [diagnostic, emitted])[
+            "trace_reported_before_first_tool"
+        ])
+
+    def test_safe_hook_metric_reader_bounds_and_omits_secret_fields(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "advisor.jsonl"
+            path.write_text(json.dumps({
+                "event": "UserPromptSubmit", "category": "api_key=private-value",
+                "status": "password=private-value", "duration_ms": float("nan"),
+                "trace": "abcdef12", "prompt": "private prompt", "command": "private command",
+            }) + "\n", encoding="utf-8")
+            records = runner.read_safe_metrics(path)
+        self.assertEqual(records[0]["category"], "unknown")
+        self.assertEqual(records[0]["status"], "unknown")
+        self.assertIsNone(records[0]["duration_ms"])
+        self.assertIn("abcdef12", json.dumps(records))  # transient input for correlation only
+        self.assertNotIn("private-value", json.dumps(records))
+        self.assertNotIn("private prompt", json.dumps(records))
+        self.assertNotIn("private command", json.dumps(records))
 
     def test_score_blind_pilot_rejects_missing_and_duplicate_tokens(self):
         for duplicate in (False, True):
@@ -318,7 +395,7 @@ class PilotCliCoreTests(unittest.TestCase):
             self.assertEqual(stat.S_IMODE(blind_dir.stat().st_mode), 0o700)
             evaluator_dir = blind_dir / "receipts"
             self.assertEqual(stat.S_IMODE(evaluator_dir.stat().st_mode), 0o700)
-            self.assertEqual({path.name for path in blind_dir.iterdir()}, {"receipts", "mapping.json"})
+            self.assertEqual({path.name for path in blind_dir.iterdir()}, {"receipts", "mapping.json", "pilot-diagnostics.json"})
             self.assertNotIn("mapping.json", {path.name for path in evaluator_dir.iterdir()})
             mapping = json.loads((blind_dir / "mapping.json").read_text(encoding="utf-8"))
             self.assertEqual(stat.S_IMODE((blind_dir / "mapping.json").stat().st_mode), 0o600)
@@ -327,6 +404,22 @@ class PilotCliCoreTests(unittest.TestCase):
             self.assertEqual({item["case_id"] for item in mapping["arms"]}, {"P01"})
             tokens = {item["arm_token"] for item in mapping["arms"]}
             self.assertEqual(len(tokens), 2)
+            diagnostics_path = blind_dir / "pilot-diagnostics.json"
+            self.assertEqual(stat.S_IMODE(diagnostics_path.stat().st_mode), 0o600)
+            diagnostics_text = diagnostics_path.read_text(encoding="utf-8")
+            diagnostics = json.loads(diagnostics_text)
+            self.assertEqual(diagnostics["schema"], "jevcompass-private-hook-diagnostics-v1")
+            self.assertEqual({row["arm_token"] for row in diagnostics["arms"]}, tokens)
+            by_token = {row["arm_token"]: row for row in diagnostics["arms"]}
+            treatment_token = next(item["arm_token"] for item in mapping["arms"] if item["arm"] == "treatment")
+            baseline_token = next(item["arm_token"] for item in mapping["arms"] if item["arm"] == "baseline")
+            self.assertEqual(by_token[treatment_token]["status"], "local")
+            self.assertEqual(by_token[treatment_token]["category"], "coding")
+            self.assertEqual(by_token[treatment_token]["latency_ms"], 1.25)
+            self.assertTrue(by_token[treatment_token]["trace_reported_before_first_tool"])
+            self.assertEqual(by_token[baseline_token]["status"], "not_applicable")
+            for forbidden in ("baseline", "treatment", "abcdef12", "must-not-escape", "command", "prompt"):
+                self.assertNotIn(forbidden, diagnostics_text)
             evaluator_files = list(evaluator_dir.glob("*.json"))
             self.assertEqual({path.stem for path in evaluator_files}, tokens)
             receipts = [json.loads(path.read_text(encoding="utf-8")) for path in evaluator_files]
@@ -385,6 +478,7 @@ class PilotCliCoreTests(unittest.TestCase):
                 for path in (blind_dir / "receipts").iterdir()
             }
             before["mapping.json"] = (blind_dir / "mapping.json").read_bytes()
+            before["pilot-diagnostics.json"] = (blind_dir / "pilot-diagnostics.json").read_bytes()
             self.assertEqual(result["blind_receipts"]["receipt_count"], 2)
             with self.assertRaises(FileExistsError):
                 runner.write_blind_receipts({}, blind_dir)
@@ -393,6 +487,7 @@ class PilotCliCoreTests(unittest.TestCase):
                 for path in (blind_dir / "receipts").iterdir()
             }
             after["mapping.json"] = (blind_dir / "mapping.json").read_bytes()
+            after["pilot-diagnostics.json"] = (blind_dir / "pilot-diagnostics.json").read_bytes()
             self.assertEqual(after, before)
 
     def test_first_action_classes_are_coarse_and_allowlisted(self):
@@ -631,7 +726,7 @@ class PilotCliCoreTests(unittest.TestCase):
             artifact_paths = list(quality_dir.glob("*.json"))
             self.assertEqual({path.stem for path in artifact_paths}, tokens)
             self.assertEqual({path.name for path in (blind_dir / "receipts").iterdir()}, {f"{token}.json" for token in tokens})
-            self.assertEqual({path.name for path in blind_dir.iterdir()}, {"receipts", "quality_artifacts", "mapping.json"})
+            self.assertEqual({path.name for path in blind_dir.iterdir()}, {"receipts", "quality_artifacts", "mapping.json", "pilot-diagnostics.json"})
             artifacts = [json.loads(path.read_text(encoding="utf-8")) for path in artifact_paths]
             self.assertEqual({item["case_id"] for item in artifacts}, {"P01", "P03", "P05", "P07"})
             for path, artifact in zip(artifact_paths, artifacts):

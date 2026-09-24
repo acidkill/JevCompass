@@ -58,6 +58,8 @@ MAX_BLIND_MAPPING_BYTES = 32 * 1024
 MAX_BLIND_ARTIFACT_BYTES = 512 * 1024
 MAX_BLIND_FILE_BYTES = 64 * 1024
 MAX_BLIND_ANSWER_BYTES = 8 * 1024
+MAX_PILOT_DIAGNOSTICS_BYTES = 16 * 1024
+MAX_PILOT_METRIC_BYTES = 64 * 1024
 QUALITY_FILE_ALLOWLIST = {
     "P01": ("tinytext/text.py", "tests/test_text.py"),
     "P03": ("scripts/render_report.sh",),
@@ -81,6 +83,23 @@ BLIND_OUTCOME_KEYS = frozenset({
     "install_instruction_coherent", "help_instruction_coherent",
     "help_command_exit", "test_instruction_exit", "contract_indicators",
     "answer_indicator",
+})
+PILOT_DIAGNOSTIC_CATEGORIES = frozenset({
+    "api-design", "codebase", "coding", "debugging", "documentation",
+    "infrastructure", "operations", "package-docs", "planning",
+    "project-setup", "research", "review", "source-review", "testing",
+})
+PILOT_DIAGNOSTIC_STATUSES = frozenset({
+    "not_applicable", "not_run", "setup_failed", "not_invoked",
+    "invoked_no_result", "unknown", "local", "jev", "cache", "skip",
+    "classification-skip", "role-skip", "low-signal-skip",
+    "insufficient-candidates",
+})
+PILOT_INVOCATION_STATUSES = frozenset({"collab-plan", "collab-unavailable"})
+PILOT_ADVICE_STATUSES = frozenset({"local", "jev", "cache"})
+PILOT_SKIP_STATUSES = frozenset({
+    "skip", "classification-skip", "role-skip", "low-signal-skip",
+    "insufficient-candidates",
 })
 
 
@@ -378,36 +397,88 @@ def _fixture_outcome_checks(
 
 
 def read_safe_metrics(path: Path) -> list[dict[str, Any]]:
-    """Return only allowlisted advisor metric fields."""
+    """Return bounded, allowlisted advisor metric fields for private correlation."""
     safe: list[dict[str, Any]] = []
-    if not path.is_file():
+    try:
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > MAX_PILOT_METRIC_BYTES:
+            return safe
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()[:512]
+    except OSError:
         return safe
-    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+    allowed_categories = PILOT_DIAGNOSTIC_CATEGORIES | {"none"}
+    allowed_statuses = PILOT_ADVICE_STATUSES | PILOT_SKIP_STATUSES | PILOT_INVOCATION_STATUSES
+    for line in lines:
         try:
             record = json.loads(line)
         except json.JSONDecodeError:
             continue
         if not isinstance(record, dict) or record.get("event") != "UserPromptSubmit":
             continue
-        event = record.get("event")
         category = record.get("category")
         status = record.get("status")
         trace = record.get("trace")
         duration = record.get("duration_ms")
         safe.append({
-            "event": event if event == "UserPromptSubmit" else "unknown",
-            "category": category if isinstance(category, str) and SAFE_TOKEN_RE.fullmatch(category) else "unknown",
-            "status": status if isinstance(status, str) and SAFE_TOKEN_RE.fullmatch(status) else "unknown",
-            "duration_ms": duration if isinstance(duration, (int, float)) and not isinstance(duration, bool) else None,
+            "event": "UserPromptSubmit",
+            "category": category if isinstance(category, str) and category in allowed_categories else "unknown",
+            "status": status if isinstance(status, str) and status in allowed_statuses else "unknown",
+            "duration_ms": (duration if isinstance(duration, (int, float)) and not isinstance(duration, bool)
+                            and 0 <= duration <= MAX_TIMEOUT * 1000 and math.isfinite(duration) else None),
             "trace": trace if isinstance(trace, str) and re.fullmatch(r"[a-f0-9]{8}", trace) else None,
         })
     return safe
 
 
+def _empty_pilot_diagnostic(status: str) -> dict[str, Any]:
+    return {
+        "category": None,
+        "status": status if status in PILOT_DIAGNOSTIC_STATUSES else "unknown",
+        "latency_ms": None,
+        "trace_reported_before_first_tool": False,
+    }
+
+
+def _pilot_hook_diagnostic(parsed: dict[str, Any], metrics: list[dict[str, Any]]) -> dict[str, Any]:
+    """Correlate private safe hook metrics without retaining trace identifiers."""
+    invocations = [
+        item for item in metrics
+        if item.get("status") in PILOT_INVOCATION_STATUSES and item.get("trace")
+    ]
+    if not invocations:
+        return _empty_pilot_diagnostic("not_invoked")
+    invocation_trace = invocations[-1]["trace"]
+    outcome = next((
+        item for item in reversed(metrics)
+        if item.get("trace") == invocation_trace
+        and item.get("status") not in PILOT_INVOCATION_STATUSES
+    ), None)
+    if outcome is None:
+        return _empty_pilot_diagnostic("invoked_no_result")
+    status = outcome.get("status")
+    if status not in PILOT_ADVICE_STATUSES | PILOT_SKIP_STATUSES:
+        status = "unknown"
+    category = outcome.get("category")
+    if category not in PILOT_DIAGNOSTIC_CATEGORIES:
+        category = None
+    latency = outcome.get("duration_ms")
+    first_assistant = parsed.get("first_assistant")
+    reported = bool(
+        parsed.get("advice_id_before_first_tool")
+        and isinstance(first_assistant, dict)
+        and first_assistant.get("advice_id") == invocation_trace
+    )
+    return {
+        "category": category,
+        "status": status,
+        "latency_ms": latency,
+        "trace_reported_before_first_tool": reported,
+    }
+
+
 def correlate_advice(parsed: dict[str, Any], metrics: list[dict[str, Any]]) -> dict[str, Any]:
     advice_id = parsed.get("advice_id")
     match = next((metric for metric in metrics if advice_id and metric.get("trace") == advice_id
-                  and metric.get("status") in {"local", "jev", "cache"}), None)
+                  and metric.get("status") in PILOT_ADVICE_STATUSES), None)
     return {
         "advice_id_before_first_tool": bool(parsed.get("advice_id_before_first_tool")),
         "metric_correlated": match is not None,
@@ -572,6 +643,8 @@ def _run_arm(
             return {"status": "failed", "failure": "hooks_setup_failed"}
     settings = _case_settings(case_id)
     env = _isolated_environment(home=home, isolated_python=isolated_python)
+    if treatment:
+        env["JEV_ADVISOR_DIAGNOSTIC"] = "1"
     command = _build_command(
         codex=codex, model=model, reasoning_effort=reasoning_effort,
         case_id=case_id, preflight=preflight,
@@ -618,6 +691,7 @@ def _run_arm(
         metrics = read_safe_metrics(home / ".local" / "state" / "jevcompass" / "advisor.jsonl")
         result["advisor_metrics"] = metrics
         result["advice_metric"] = correlate_advice(parsed, metrics)
+        result["_pilot_diagnostic"] = _pilot_hook_diagnostic(parsed, metrics)
     if process.returncode != 0:
         result["failure"] = "codex_nonzero_exit"
     return result
@@ -711,6 +785,7 @@ def write_blind_receipts(
     cases: dict[str, Any], blind_dir: str | Path,
     advice_reviews: dict[tuple[str, str], list[str] | None] | None = None,
     quality_artifacts: dict[tuple[str, str], dict[str, Any]] | None = None,
+    pilot_diagnostics: dict[tuple[str, str], dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Write scorer-visible receipts separately from the private mapping and review."""
     directory_fd, directory_path = _private_directory_fd(blind_dir)
@@ -731,6 +806,7 @@ def write_blind_receipts(
         quality_receipts: list[tuple[str, bytes]] = []
         mapping: list[dict[str, str]] = []
         advice_review: list[dict[str, Any]] = []
+        pilot_diagnostic_rows: list[dict[str, Any]] = []
         for case_id, case in cases.items():
             for arm_label, arm in case["arms"].items():
                 token = secrets.token_urlsafe(24)
@@ -796,6 +872,24 @@ def write_blind_receipts(
                     "arm_token": token,
                     "agent_reported_candidate_ids": safe_reported_ids,
                 })
+                if pilot_diagnostics is not None:
+                    diagnostic = pilot_diagnostics.get((case_id, arm_label), {})
+                    if not isinstance(diagnostic, dict):
+                        diagnostic = {}
+                    category = diagnostic.get("category")
+                    status = diagnostic.get("status")
+                    latency = diagnostic.get("latency_ms")
+                    pilot_diagnostic_rows.append({
+                        "arm_token": token,
+                        "category": (category if isinstance(category, str)
+                                     and category in PILOT_DIAGNOSTIC_CATEGORIES else None),
+                        "status": (status if isinstance(status, str)
+                                   and status in PILOT_DIAGNOSTIC_STATUSES else "unknown"),
+                        "latency_ms": (latency if isinstance(latency, (int, float))
+                                       and not isinstance(latency, bool) and 0 <= latency <= MAX_TIMEOUT * 1000
+                                       and math.isfinite(latency) else None),
+                        "trace_reported_before_first_tool": diagnostic.get("trace_reported_before_first_tool") is True,
+                    })
         encoded_mapping = json.dumps(
             {
                 "schema": "jevcompass-blind-cli-core-map-v1",
@@ -810,6 +904,14 @@ def write_blind_receipts(
         ).encode("utf-8")
         if len(encoded_mapping) > MAX_BLIND_MAPPING_BYTES:
             raise ValueError("blind receipt mapping exceeds its size limit")
+        encoded_diagnostics: bytes | None = None
+        if pilot_diagnostics is not None:
+            encoded_diagnostics = json.dumps(
+                {"schema": "jevcompass-private-hook-diagnostics-v1", "arms": pilot_diagnostic_rows},
+                sort_keys=True, separators=(",", ":"), allow_nan=False,
+            ).encode("utf-8")
+            if len(encoded_diagnostics) > MAX_PILOT_DIAGNOSTICS_BYTES:
+                raise ValueError("private pilot diagnostics exceed their size limit")
         expected_quality_count = (
             sum(len(case["arms"]) for case_id, case in cases.items()
                 if case_id in QUALITY_FILE_ALLOWLIST)
@@ -823,6 +925,8 @@ def write_blind_receipts(
             for name, encoded in quality_receipts:
                 _write_new_file_at(quality_fd, name, encoded, 0o600)
         _write_new_file_at(directory_fd, "mapping.json", encoded_mapping, 0o600)
+        if encoded_diagnostics is not None:
+            _write_new_file_at(directory_fd, "pilot-diagnostics.json", encoded_diagnostics, 0o600)
         return {
             "directory": str(directory_path / "receipts"),
             "receipt_count": len(receipts),
@@ -1023,6 +1127,49 @@ def score_blind_pilot(
     if advice_tokens != set(mapped):
         raise ValueError("private mapping advice token set does not match arms")
 
+    pilot_diagnostic_rows: dict[str, dict[str, Any]] | None = None
+    diagnostics_path = Path(mapping_path).parent / "pilot-diagnostics.json"
+    if diagnostics_path.exists() or diagnostics_path.is_symlink():
+        _, diagnostics_doc = _read_limited_json(
+            diagnostics_path, MAX_PILOT_DIAGNOSTICS_BYTES, "private pilot diagnostics",
+        )
+        if set(diagnostics_doc) != {"schema", "arms"} or diagnostics_doc.get("schema") != "jevcompass-private-hook-diagnostics-v1":
+            raise ValueError("private pilot diagnostics have an unknown schema or fields")
+        if not isinstance(diagnostics_doc["arms"], list):
+            raise ValueError("private pilot diagnostics arms must be a list")
+        pilot_diagnostic_rows = {}
+        for entry in diagnostics_doc["arms"]:
+            expected_fields = {
+                "arm_token", "category", "status", "latency_ms",
+                "trace_reported_before_first_tool",
+            }
+            if not isinstance(entry, dict) or set(entry) != expected_fields:
+                raise ValueError("private pilot diagnostic row has unknown or missing fields")
+            token = entry["arm_token"]
+            if not isinstance(token, str) or token not in mapped or token in pilot_diagnostic_rows:
+                raise ValueError("private pilot diagnostics contain an unknown or duplicate token")
+            category = entry["category"]
+            if category is not None and (
+                not isinstance(category, str) or category not in PILOT_DIAGNOSTIC_CATEGORIES
+            ):
+                raise ValueError("private pilot diagnostics contain an unknown category")
+            status = entry["status"]
+            if not isinstance(status, str) or status not in PILOT_DIAGNOSTIC_STATUSES:
+                raise ValueError("private pilot diagnostics contain an unknown status")
+            latency = entry["latency_ms"]
+            if latency is not None and (
+                not isinstance(latency, (int, float)) or isinstance(latency, bool)
+                or latency < 0 or latency > MAX_TIMEOUT * 1000 or not math.isfinite(latency)
+            ):
+                raise ValueError("private pilot diagnostics contain invalid latency")
+            if not isinstance(entry["trace_reported_before_first_tool"], bool):
+                raise ValueError("private pilot diagnostic trace report flag must be boolean")
+            if entry["trace_reported_before_first_tool"] and status not in PILOT_ADVICE_STATUSES:
+                raise ValueError("private pilot diagnostic reports a trace without emitted advice")
+            pilot_diagnostic_rows[token] = entry
+        if set(pilot_diagnostic_rows) != set(mapped):
+            raise ValueError("private pilot diagnostic token set does not match mapping")
+
     receipts_root = Path(receipts_dir)
     if receipts_root.is_symlink() or not receipts_root.is_dir():
         raise ValueError("receipts path must be a non-symlink directory")
@@ -1139,13 +1286,45 @@ def score_blind_pilot(
     privacy_ratings = [score["privacy_disclosure"] for score in scores.values()]
     all_blocks_rated = bool(block_ratings) and all(value is not None for value in block_ratings)
     all_privacy_rated = bool(privacy_ratings) and all(value is not None for value in privacy_ratings)
+    hook_diagnostic_summary = None
+    if pilot_diagnostic_rows is not None:
+        treatment_diagnostics = [
+            pilot_diagnostic_rows[token] for token, link in mapped.items()
+            if link["arm"] == "treatment"
+        ]
+        emitted = [item for item in treatment_diagnostics if item["status"] in PILOT_ADVICE_STATUSES]
+        categories: dict[str, int] = {}
+        for item in treatment_diagnostics:
+            if item["category"] is not None:
+                categories[item["category"]] = categories.get(item["category"], 0) + 1
+        hook_diagnostic_summary = {
+            "validated": True,
+            "treatment_arms": len(treatment_diagnostics),
+            "hook_not_invoked": sum(item["status"] == "not_invoked" for item in treatment_diagnostics),
+            "deliberate_skips": sum(item["status"] in PILOT_SKIP_STATUSES for item in treatment_diagnostics),
+            "advice_emitted": len(emitted),
+            "advice_emitted_with_pretool_trace": sum(
+                item["trace_reported_before_first_tool"] for item in emitted
+            ),
+            "advice_emitted_without_pretool_trace": sum(
+                not item["trace_reported_before_first_tool"] for item in emitted
+            ),
+            "median_hook_latency_ms": _median([
+                item["latency_ms"] for item in treatment_diagnostics
+                if isinstance(item["latency_ms"], (int, float))
+            ]),
+            "categories": categories,
+        }
     missing_evidence = [
         "Host-wide eligible-event coverage is absent from the receipt and score schemas.",
-        "Correlated advice delivery before first tool is absent from the receipt and score schemas.",
         "Jev remote-call latency and p95 are absent from the receipt and score schemas.",
         "Routine-case advisor silence/request evidence is absent from the receipt and score schemas.",
         "Desktop prompt and supported-subagent pairs are outside this CLI receipt set.",
     ]
+    if pilot_diagnostic_rows is None:
+        missing_evidence.append("Correlated advice delivery before first tool is absent from the receipt and score schemas.")
+    elif hook_diagnostic_summary["advice_emitted_without_pretool_trace"]:
+        missing_evidence.append("At least one emitted advice ID was not reported before the first tool.")
     missing_evidence.append(
         "Recommendation usefulness remains unscored; it requires a separate post-unblind relevance review with advice evidence."
     )
@@ -1200,6 +1379,7 @@ def score_blind_pilot(
         "block_ratings": {"rated": sum(value is not None for value in block_ratings), "total": len(block_ratings)},
         "privacy_disclosures": sum(value is True for value in privacy_ratings),
         "privacy_ratings": {"rated": sum(value is not None for value in privacy_ratings), "total": len(privacy_ratings)},
+        "pilot_hook_diagnostics": hook_diagnostic_summary,
         "gate_summary": {
             "zero_blocks_passed": not any(block_ratings) if all_blocks_rated else None,
             "zero_privacy_disclosures_passed": not any(privacy_ratings) if all_privacy_rated else None,
@@ -1208,7 +1388,7 @@ def score_blind_pilot(
             "recommendation_usefulness_assessed": False,
         },
         "missing_evidence": missing_evidence,
-        "acceptance_note": "This CLI-only scorer never infers recommendation usefulness from receipts and cannot pass overall acceptance while required host, coverage, delivery, and latency evidence is absent.",
+        "acceptance_note": "This CLI-only scorer never infers recommendation usefulness from receipts and cannot pass overall acceptance while host-wide coverage, Desktop coverage, and recommendation usefulness evidence is absent.",
     }
 
 
@@ -1244,6 +1424,7 @@ def run_pilot(
     cases_summary: dict[str, Any] = {}
     advice_reviews: dict[tuple[str, str], list[str] | None] = {}
     quality_artifacts: dict[tuple[str, str], dict[str, Any]] = {}
+    pilot_diagnostics: dict[tuple[str, str], dict[str, Any]] = {}
     for case_id in case_list:
         arm_order = ["baseline", "treatment"]
         rng.shuffle(arm_order)
@@ -1286,6 +1467,19 @@ def run_pilot(
                         treatment=treatment, require_auth=True, preflight=preflight,
                     )
                 advice_reviews[(case_id, label)] = arm_result.pop("_agent_reported_candidate_ids", None)
+                diagnostic = arm_result.pop("_pilot_diagnostic", None)
+                if diagnostic is None:
+                    if not treatment:
+                        diagnostic = _empty_pilot_diagnostic("not_applicable")
+                    elif mode == "dry-run":
+                        diagnostic = _empty_pilot_diagnostic("not_run")
+                    elif arm_result.get("failure") == "hooks_setup_failed":
+                        diagnostic = _empty_pilot_diagnostic("setup_failed")
+                    elif arm_result.get("failure") == "auth_unavailable":
+                        diagnostic = _empty_pilot_diagnostic("not_run")
+                    else:
+                        diagnostic = _empty_pilot_diagnostic("not_invoked")
+                pilot_diagnostics[(case_id, label)] = diagnostic
                 final_answer = arm_result.pop("_blind_final_answer", None)
                 if blind_quality_artifacts and case_id in QUALITY_FILE_ALLOWLIST:
                     quality_artifacts[(case_id, label)] = build_quality_artifact(
@@ -1325,11 +1519,13 @@ def run_pilot(
         receipt_summary = write_blind_receipts(
             cases_summary, blind_dir, advice_reviews,
             quality_artifacts if blind_quality_artifacts else None,
+            pilot_diagnostics,
         )
         result.pop("cases", None)
         result["blind_receipts"] = {
             "receipt_count": receipt_summary["receipt_count"],
             "mapping_file": receipt_summary["mapping"],
+            "pilot_diagnostics_file": "pilot-diagnostics.json" if pilot_diagnostics is not None else None,
             "limitation": BLIND_LIMITATION,
         }
         if blind_quality_artifacts:

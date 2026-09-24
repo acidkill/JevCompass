@@ -2,6 +2,8 @@
 
 ## Status
 
+The private CLI pilot can now produce `pilot-diagnostics.json` alongside the mapping. It records an allowlisted hook category, status, bounded latency, and whether the matching advice ID was reported before the first tool; no prompt, command, path, memory text, backend response, or raw trace is copied into that sidecar. Keep it with the private mapping, outside evaluator-visible receipts. Missing trace reports remain missing delivery evidence; the sidecar cannot prove the agent used the recommendation or establish cross-host acceptance. VCR-63 local tests pass (154 tests), but a fresh host run with this instrumentation is still required.
+
 **Not yet accepted.** A previous six-pair CLI routine run exists, but it inspected the private JevCompass repository with custom smem hooks and is excluded from this synthetic acceptance bank. No substantive-prompt paired usefulness case has been scored. One correlated Desktop `explorer` smoke and one fresh CLI local-fallback prompt smoke prove advice reached the agent before its first tool. A separate fresh CLI 0.155.1 `review/python` run made a remote Jev choice and delivered advice ID `5914ac30` before its first `exec_command`; its matching metric reports `UserPromptSubmit` / `review` / `jev` / 696.03 ms. These are single delivery smokes, not usefulness or paired-study evidence. JevCompass classifies substantive prompts independently of permission mode; Codex does not provide a reliable Plan UI field in the hook event, so Plan-only automatic coverage is not a product requirement. Usefulness, both-host balance, and the full paired study remain open.
 
 ## Current acceptance gate audit (2026-09-24)
