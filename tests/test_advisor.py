@@ -233,6 +233,12 @@ class AdvisorTests(unittest.TestCase):
             ("codebase", "python"),
         )
         self.assertEqual(advisor.classify_task("Prepare a task list to adapt a Python package"), ("planning", "python"))
+        self.assertEqual(
+            advisor.classify_task("Prepare a task list for packaging this CLI. Then inspect the install flow and explain any gaps."),
+            ("planning", "general"),
+        )
+        self.assertEqual(advisor.classify_task("Review the task list and inspect the proposed implementation."), ("review", "general"))
+        self.assertEqual(advisor.classify_task("Inspect the Python authentication call graph and explain timeout behavior."), ("codebase", "python"))
         self.assertEqual(advisor.classify_task("Create a new private repository and Python package"), ("project-setup", "python"))
         self.assertEqual(advisor.classify_task("Create a new Python package project and add tests."), ("project-setup", "python"))
         self.assertEqual(advisor.classify_task("Create Python tests for this project and run them."), ("testing", "python"))
