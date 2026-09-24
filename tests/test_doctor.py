@@ -70,6 +70,24 @@ class DoctorTests(unittest.TestCase):
         self.assertFalse(result["hooks_json"]["ok"])
         self.assertEqual(result["hooks_json"]["registered_advisory_hooks"], ["UserPromptSubmit"])
 
+    def test_doctor_reports_hooks_disabled_in_base_config(self):
+        with tempfile.TemporaryDirectory() as directory:
+            codex_home = Path(directory)
+            (codex_home / "hooks.json").write_text(json.dumps({"hooks": {
+                "UserPromptSubmit": [{"hooks": [{"command": advisor.hook_command()}]}],
+                "SubagentStart": [{"matcher": SUBAGENT_MATCHER, "hooks": [{"command": advisor.hook_command()}]}],
+            }}))
+            for setting in ("hooks", "codex_hooks"):
+                with self.subTest(setting=setting):
+                    (codex_home / "config.toml").write_text(f"[features]\n{setting} = false\n")
+                    with mock.patch.dict(os.environ, {"CODEX_HOME": str(codex_home)}), \
+                            mock.patch.object(cli, "model_available", return_value=True), \
+                            mock.patch.object(cli, "catalog_snapshot", return_value=([{"id": "exec_command"}], {})):
+                        result = cli.doctor()
+                    self.assertTrue(result["hooks_json"]["ok"])
+                    self.assertEqual(result["hooks_feature"], {"ok": False, "base_config": "disabled"})
+                    self.assertFalse(result["ok"])
+
     def test_doctor_without_openrouter_key_explains_local_fallback(self):
         with mock.patch.dict(os.environ, {"CODEX_HOME": "/tmp/jevcompass-doctor-profile"}, clear=True), \
                 mock.patch.object(cli, "model_available", return_value=False), \

@@ -6,6 +6,7 @@ import json
 import os
 import platform
 import sys
+import tomllib
 from typing import Any
 
 from . import __version__, advisor
@@ -36,11 +37,22 @@ def doctor(*, test_jev: bool = False) -> dict[str, Any]:
     codex_home_source = "environment" if os.environ.get("CODEX_HOME") else "default"
     hooks_path = resolve_codex_home() / "hooks.json"
     hook_command = advisor.hook_command()
+    hooks_feature = {"ok": True, "base_config": "not-disabled"}
+    try:
+        config_data = tomllib.loads((resolve_codex_home() / "config.toml").read_text(encoding="utf-8"))
+        features = config_data.get("features", {})
+        if isinstance(features, dict) and features.get("hooks", features.get("codex_hooks")) is False:
+            hooks_feature = {"ok": False, "base_config": "disabled"}
+    except FileNotFoundError:
+        pass
+    except (OSError, tomllib.TOMLDecodeError, TypeError, AttributeError):
+        hooks_feature = {"ok": False, "base_config": "unreadable"}
     key_status = credential_status()
     key_configured = key_status["configured"]
     checks: dict[str, Any] = {
         "python": {"ok": sys.version_info >= (3, 11), "version": platform.python_version(), "required": ">=3.11"},
         "codex_home": {"ok": True, "source": codex_home_source},
+        "hooks_feature": hooks_feature,
         "openrouter_key": {"ok": key_configured, **key_status},
         "jev_model": {"ok": model_available(), "source": "environment" if os.environ.get("JEVCOMPASS_MODEL") else "default", "check": "public model metadata"},
         "catalog": {
@@ -147,6 +159,7 @@ def main(argv: list[str] | None = None) -> int:
             hooks_check = result["hooks_json"]
             registered = ", ".join(hooks_check["registered_advisory_hooks"]) or "none"
             print(f"- Hooks: {registered}; Jev PreToolUse gate {'present' if hooks_check['pretool_jev_gate'] else 'absent'}")
+            print(f"- Hooks feature in base config: {result['hooks_feature']['base_config']} (active host policy and trust need separate verification)")
             if "live_decision" in result:
                 print(f"- Synthetic Jev request: {'PASS' if result['live_decision']['ok'] else 'CHECK'} (billed)")
             print("MCP configuration and installed skill metadata do not prove tools are callable in this Codex session.")

@@ -12,7 +12,7 @@ JevCompass helps Codex choose a small set of relevant tools and skills from a lo
 - **Codex subagents:** provides role-level suggestions for the built-in `explorer` and `worker` agents. The generic `default` role and custom agent types are skipped. The [SubagentStart event](https://learn.chatgpt.com/docs/hooks) includes the agent type but not its task, so advice stays role-level and never reads a transcript.
 - **Local catalog:** checks reviewed skills against installed skill names and MCP integrations against local configuration. `CODEX_HOME` selects the active Codex config and skill roots; `~/.agents/skills` remains discoverable. Private skill descriptions, integration names, configuration values, and paths are not sent to Jev.
 - **Manual entry point:** `jevcompass recommend` uses explicit allowlisted metadata when the task is too brief or ambiguous for automatic classification.
-- **Diagnostics:** `jevcompass doctor` reports the active config source, aggregate catalog counts, model/key status, and hook registration without printing local paths or configuration values.
+- **Diagnostics:** `jevcompass doctor` reports the active config source, aggregate catalog counts, model/key status, hook registration, and whether hooks are explicitly disabled in the base Codex config, without printing local paths or configuration values. A passing registration check does not prove hook trust or agent-visible delivery.
 
 A recommendation is optional guidance. Codex still follows project instructions, reads any selected skill, confirms actual tool availability, and runs required checks.
 
