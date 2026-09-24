@@ -53,6 +53,36 @@ def make_fake_codex(path: Path) -> Path:
     return path
 
 
+def make_quality_fake_codex(path: Path) -> Path:
+    path.write_text(
+        """#!/usr/bin/env python3
+import json, pathlib, sys
+task = sys.argv[-1]
+root = pathlib.Path.cwd()
+nl = chr(10)
+if "normalizes whitespace" in task:
+    (root / "tinytext" / "text.py").write_text("def normalize(value):" + nl + "    return ' '.join(value.split())" + nl, encoding="utf-8")
+    (root / "tests" / "test_text.py").write_text("def test_normalize():" + nl + "    assert normalize('a  b') == 'a b'" + nl, encoding="utf-8")
+    answer = "Implemented the normalizer and focused test."
+elif "unset-variable defect" in task:
+    script = ["#!/usr/bin/env bash", "set -euo pipefail", ': "${OUTPUT_PATH:?required}"', "printf done"]
+    (root / "scripts" / "render_report.sh").write_text(nl.join(script) + nl, encoding="utf-8")
+    answer = "Fixed the unset output guard and syntax checked it."
+elif "install instructions" in task:
+    readme = ["Install with python -m pip install .", "Run python -m tinytext --help.", "Run python -m unittest discover -s tests."]
+    (root / "README.md").write_text(nl.join(readme) + nl, encoding="utf-8")
+    answer = "Updated the install, help, and test instructions."
+else:
+    answer = "POST /status accepts required and optional inputs, validates the status response, returns documented fields, and describes invalid input and server error responses."
+print(json.dumps({"type":"item.completed","item":{"type":"agent_message","text":answer}}), flush=True)
+print(json.dumps({"type":"turn.completed"}), flush=True)
+""",
+        encoding="utf-8",
+    )
+    path.chmod(0o700)
+    return path
+
+
 def make_scoring_inputs(root: Path, case_ids=("P01",)):
     cases = {}
     for case_id in case_ids:
@@ -580,6 +610,107 @@ class PilotCliCoreTests(unittest.TestCase):
         lines, times, failure = runner._collect_events(process, started=time.monotonic(), timeout=1)
         self.assertEqual((lines, times, failure), ([], [], "timeout"))
         self.assertIsNotNone(process.poll())
+
+    def test_opt_in_quality_artifacts_capture_only_bounded_blind_fixture_outputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            blind_dir = root / "blind"
+            fake = make_quality_fake_codex(root / "quality-codex")
+            result = runner.run_pilot(
+                mode="mock", model="synthetic", timeout=4,
+                cases=("P01", "P03", "P05", "P07"), codex=str(fake),
+                rng=OrderedRandom(), blind_dir=blind_dir,
+                blind_quality_artifacts=True,
+            )
+            self.assertEqual(result["status"], "completed")
+            self.assertEqual(result["blind_receipts"]["receipt_count"], 8)
+            self.assertEqual(result["blind_receipts"]["quality_artifact_count"], 8)
+            quality_dir = blind_dir / "quality_artifacts"
+            mapping = json.loads((blind_dir / "mapping.json").read_text(encoding="utf-8"))
+            tokens = {entry["arm_token"] for entry in mapping["arms"]}
+            artifact_paths = list(quality_dir.glob("*.json"))
+            self.assertEqual({path.stem for path in artifact_paths}, tokens)
+            self.assertEqual({path.name for path in (blind_dir / "receipts").iterdir()}, {f"{token}.json" for token in tokens})
+            self.assertEqual({path.name for path in blind_dir.iterdir()}, {"receipts", "quality_artifacts", "mapping.json"})
+            artifacts = [json.loads(path.read_text(encoding="utf-8")) for path in artifact_paths]
+            self.assertEqual({item["case_id"] for item in artifacts}, {"P01", "P03", "P05", "P07"})
+            for path, artifact in zip(artifact_paths, artifacts):
+                rendered = path.read_text(encoding="utf-8")
+                self.assertNotIn("baseline", rendered)
+                self.assertNotIn("treatment", rendered)
+                self.assertNotIn(str(root), rendered)
+                self.assertNotIn(str(runner.FIXTURE), rendered)
+                self.assertEqual(artifact["schema"], "jevcompass-blind-cli-quality-v1")
+                self.assertLessEqual(path.stat().st_size, runner.MAX_BLIND_ARTIFACT_BYTES)
+            p01 = next(item for item in artifacts if item["case_id"] == "P01")
+            self.assertEqual({item["path"] for item in p01["files"]}, {"tinytext/text.py", "tests/test_text.py"})
+            p03 = next(item for item in artifacts if item["case_id"] == "P03")
+            self.assertEqual([item["path"] for item in p03["files"]], ["scripts/render_report.sh"])
+            p05 = next(item for item in artifacts if item["case_id"] == "P05")
+            self.assertEqual([item["path"] for item in p05["files"]], ["README.md"])
+            p07 = next(item for item in artifacts if item["case_id"] == "P07")
+            self.assertIn("invalid input", p07["final_answer"])
+            self.assertNotIn("files", p07)
+
+            scores_path = root / "scores.json"
+            scores = [
+                {
+                    "arm_token": token, "first_productive_action_ms": 1000,
+                    "task_quality": True, "required_checks_preserved": True,
+                    "blocked": False, "privacy_disclosure": False,
+                }
+                for token in tokens
+            ]
+            score_bytes = json.dumps(
+                {"schema": "jevcompass-blind-human-scores-v1", "scores": scores},
+                sort_keys=True, separators=(",", ":"),
+            ).encode("utf-8")
+            scores_path.write_bytes(score_bytes)
+            scored = runner.score_blind_pilot(
+                blind_dir / "receipts", blind_dir / "mapping.json",
+                scores_path, hashlib.sha256(score_bytes).hexdigest(),
+            )
+            self.assertTrue(scored["commitment_verified"])
+            self.assertEqual(scored["task_quality"]["paired_rated"], 4)
+
+    def test_quality_artifacts_reject_unallowlisted_paths_symlinks_sizes_and_private_data(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fixture = root / "fixture"
+            (fixture / "tinytext").mkdir(parents=True)
+            source = runner.FIXTURE / "tinytext" / "text.py"
+            outside = root / "outside.txt"
+            outside.write_text("safe", encoding="utf-8")
+            (fixture / "tinytext" / "text.py").symlink_to(outside)
+            with self.assertRaises(OSError):
+                runner.build_quality_artifact("P01", fixture)
+
+            (fixture / "tinytext" / "text.py").unlink()
+            (fixture / "tinytext" / "text.py").write_text("new output\\n", encoding="utf-8")
+            oversized = runner.MAX_BLIND_FILE_BYTES + 1
+            (fixture / "tinytext" / "text.py").write_text("x" * oversized, encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "size limit"):
+                runner.build_quality_artifact("P01", fixture)
+
+            (fixture / "tinytext" / "text.py").write_text("output = '/home/toni/private.txt'\\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "private data"):
+                runner.build_quality_artifact("P01", fixture)
+
+            with self.assertRaisesRegex(ValueError, "fixed allowlist"):
+                runner._validate_quality_artifact(
+                    {
+                        "schema": "jevcompass-blind-cli-quality-v1", "case_id": "P01",
+                        "files": [{"path": "../outside.txt", "content": "safe"}],
+                    },
+                    "P01",
+                )
+            with self.assertRaisesRegex(ValueError, "private data"):
+                runner.build_quality_artifact(
+                    "P07", fixture, "Authorization: Bearer super-secret-token-value",
+                )
+            with self.assertRaisesRegex(ValueError, "task prompt"):
+                runner.build_quality_artifact("P07", fixture, runner.PROMPTS["P07"])
+            self.assertTrue(source.is_file())
 
 
 if __name__ == "__main__":

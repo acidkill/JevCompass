@@ -55,6 +55,20 @@ MAX_TIMEOUT = 300
 MAX_EVENT_BYTES = 4 * 1024 * 1024
 MAX_BLIND_RECEIPT_BYTES = 16 * 1024
 MAX_BLIND_MAPPING_BYTES = 32 * 1024
+MAX_BLIND_ARTIFACT_BYTES = 512 * 1024
+MAX_BLIND_FILE_BYTES = 64 * 1024
+MAX_BLIND_ANSWER_BYTES = 8 * 1024
+QUALITY_FILE_ALLOWLIST = {
+    "P01": ("tinytext/text.py", "tests/test_text.py"),
+    "P03": ("scripts/render_report.sh",),
+    "P05": ("README.md",),
+    "P07": (),
+}
+PRIVATE_CONTENT_RE = re.compile(
+    r"(?i)(?:authorization\s*:|api[_-]?key\s*[:=]|(?:secret|password|access[_-]?token)\s*[:=]|bearer\s+[A-Za-z0-9._~-]{8,})"
+    r"|(?<![A-Za-z0-9])/(?:home|Users|root|tmp)/\S+"
+    r"|[A-Z]:" + re.escape("\\") + r"Users" + re.escape("\\") + r"\S+",
+)
 TRACE_RE = re.compile(r"JevCompass advice ID:\s*([a-f0-9]{8})", re.I)
 SAFE_TOKEN_RE = re.compile(r"[A-Za-z0-9_.-]{1,64}")
 SOURCE_READ_COMMAND_RE = re.compile(r"\b(?:cat|sed|head|tail|less|nl|grep|rg)\b", re.I)
@@ -594,6 +608,7 @@ def _run_arm(
         "first_useful_action_ms": None,
         "first_useful_action_assessment": "pending blinded evaluator",
         "outcome_checks": outcome_checks,
+        "_blind_final_answer": final_assistant_text,
         "outcome_check_scope": "fixture-specific deterministic checks and simple final-answer indicators; heuristic evidence only, not task acceptance",
         "advice_id_before_first_tool": parsed["advice_id_before_first_tool"],
         "_agent_reported_candidate_ids": parsed["agent_reported_candidate_ids"],
@@ -659,13 +674,48 @@ def _write_new_file_at(directory_fd: int, name: str, payload: bytes, mode: int) 
         os.unlink(temporary_name, dir_fd=directory_fd)
 
 
+def _validate_quality_artifact(artifact: dict[str, Any], case_id: str) -> dict[str, Any]:
+    if not isinstance(artifact, dict) or artifact.get("schema") != "jevcompass-blind-cli-quality-v1" or artifact.get("case_id") != case_id:
+        raise ValueError("quality artifact has an unknown schema or case")
+    if case_id == "P07":
+        if set(artifact) != {"schema", "case_id", "final_answer"}:
+            raise ValueError("P07 quality artifact has unknown or missing fields")
+        answer = artifact["final_answer"]
+        if answer is not None:
+            _validate_quality_text(answer, MAX_BLIND_ANSWER_BYTES, "final answer")
+            if PROMPTS[case_id] in answer or PREFLIGHT_INSTRUCTION in answer:
+                raise ValueError("final answer must not include the task prompt or preflight transcript")
+        return {"schema": artifact["schema"], "case_id": case_id, "final_answer": answer}
+    if set(artifact) != {"schema", "case_id", "files"} or not isinstance(artifact["files"], list):
+        raise ValueError("quality artifact has unknown or missing fields")
+    allowed = set(QUALITY_FILE_ALLOWLIST[case_id])
+    seen: set[str] = set()
+    files = []
+    for item in artifact["files"]:
+        if not isinstance(item, dict) or set(item) != {"path", "content"}:
+            raise ValueError("quality artifact file has unknown or missing fields")
+        relative, content = item["path"], item["content"]
+        if not isinstance(relative, str) or relative not in allowed or relative in seen:
+            raise ValueError("quality artifact contains a path outside its fixed allowlist")
+        _validate_quality_text(content, MAX_BLIND_FILE_BYTES, "quality artifact file")
+        seen.add(relative)
+        files.append({"path": relative, "content": content})
+    normalized = {"schema": artifact["schema"], "case_id": case_id, "files": files}
+    encoded = json.dumps(normalized, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    if len(encoded) > MAX_BLIND_ARTIFACT_BYTES:
+        raise ValueError("quality artifact exceeds its total size limit")
+    return normalized
+
+
 def write_blind_receipts(
     cases: dict[str, Any], blind_dir: str | Path,
     advice_reviews: dict[tuple[str, str], list[str] | None] | None = None,
+    quality_artifacts: dict[tuple[str, str], dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Write scorer-visible receipts separately from the private mapping and review."""
     directory_fd, directory_path = _private_directory_fd(blind_dir)
     receipts_fd: int | None = None
+    quality_fd: int | None = None
     try:
         if os.listdir(directory_fd):
             raise FileExistsError("blind receipt directory must be empty")
@@ -673,7 +723,12 @@ def write_blind_receipts(
         directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
         receipts_fd = os.open("receipts", directory_flags, dir_fd=directory_fd)
         os.fchmod(receipts_fd, 0o700)
+        if quality_artifacts is not None:
+            os.mkdir("quality_artifacts", mode=0o700, dir_fd=directory_fd)
+            quality_fd = os.open("quality_artifacts", directory_flags, dir_fd=directory_fd)
+            os.fchmod(quality_fd, 0o700)
         receipts: list[tuple[str, bytes]] = []
+        quality_receipts: list[tuple[str, bytes]] = []
         mapping: list[dict[str, str]] = []
         advice_review: list[dict[str, Any]] = []
         for case_id, case in cases.items():
@@ -718,6 +773,18 @@ def write_blind_receipts(
                 if len(encoded) > MAX_BLIND_RECEIPT_BYTES:
                     raise ValueError("blind evaluator receipt exceeds its size limit")
                 receipts.append((f"{token}.json", encoded))
+                if quality_artifacts is not None and case_id in QUALITY_FILE_ALLOWLIST:
+                    raw_artifact = quality_artifacts.get((case_id, arm_label))
+                    if raw_artifact is None:
+                        raise ValueError("quality artifacts must cover every eligible arm receipt")
+                    artifact = _validate_quality_artifact(raw_artifact, case_id)
+                    artifact["arm_token"] = token
+                    encoded_artifact = json.dumps(
+                        artifact, sort_keys=True, separators=(",", ":"), allow_nan=False,
+                    ).encode("utf-8")
+                    if len(encoded_artifact) > MAX_BLIND_ARTIFACT_BYTES:
+                        raise ValueError("quality artifact exceeds its total size limit")
+                    quality_receipts.append((f"{token}.json", encoded_artifact))
                 mapping.append({"arm_token": token, "case_id": case_id, "arm": arm_label})
                 reported_ids = (advice_reviews or {}).get((case_id, arm_label))
                 safe_reported_ids = (
@@ -743,18 +810,125 @@ def write_blind_receipts(
         ).encode("utf-8")
         if len(encoded_mapping) > MAX_BLIND_MAPPING_BYTES:
             raise ValueError("blind receipt mapping exceeds its size limit")
+        expected_quality_count = (
+            sum(len(case["arms"]) for case_id, case in cases.items()
+                if case_id in QUALITY_FILE_ALLOWLIST)
+            if quality_artifacts is not None else 0
+        )
+        if len(quality_receipts) != expected_quality_count:
+            raise ValueError("quality artifacts must cover every eligible arm receipt")
         for name, encoded in receipts:
             _write_new_file_at(receipts_fd, name, encoded, 0o600)
+        if quality_fd is not None:
+            for name, encoded in quality_receipts:
+                _write_new_file_at(quality_fd, name, encoded, 0o600)
         _write_new_file_at(directory_fd, "mapping.json", encoded_mapping, 0o600)
         return {
             "directory": str(directory_path / "receipts"),
             "receipt_count": len(receipts),
+            "quality_artifact_count": len(quality_receipts),
+            "quality_directory": str(directory_path / "quality_artifacts") if quality_artifacts is not None else None,
             "mapping": "mapping.json",
         }
     finally:
+        if quality_fd is not None:
+            os.close(quality_fd)
         if receipts_fd is not None:
             os.close(receipts_fd)
         os.close(directory_fd)
+
+
+def _read_fixture_relative(root: Path, relative: str, limit: int) -> bytes | None:
+    """Read one allowlisted regular file without following fixture symlinks."""
+    parts = Path(relative).parts
+    if not parts or Path(relative).is_absolute() or any(part in {"", ".", ".."} for part in parts):
+        raise ValueError("quality artifact path is not fixture-relative")
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    directory_fd = os.open(root, flags)
+    file_fd: int | None = None
+    try:
+        for component in parts[:-1]:
+            next_fd = os.open(component, flags, dir_fd=directory_fd)
+            os.close(directory_fd)
+            directory_fd = next_fd
+        try:
+            file_fd = os.open(
+                parts[-1], os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=directory_fd,
+            )
+        except FileNotFoundError:
+            return None
+        if not stat.S_ISREG(os.fstat(file_fd).st_mode):
+            raise ValueError("quality artifact path must be a regular file")
+        chunks: list[bytes] = []
+        total = 0
+        while True:
+            chunk = os.read(file_fd, min(8192, limit + 1 - total))
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > limit:
+                raise ValueError("quality artifact file exceeds its size limit")
+            chunks.append(chunk)
+        return b"".join(chunks)
+    finally:
+        if file_fd is not None:
+            os.close(file_fd)
+        os.close(directory_fd)
+
+
+def _validate_quality_text(value: str, limit: int, label: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{label} must be UTF-8 text")
+    try:
+        encoded = value.encode("utf-8", errors="strict")
+    except UnicodeEncodeError as error:
+        raise ValueError(f"{label} must be UTF-8 text") from error
+    if len(encoded) > limit:
+        raise ValueError(f"{label} exceeds its size limit")
+    if any(ord(character) < 32 and character not in "\n\r\t" for character in value):
+        raise ValueError(f"{label} contains unsupported control characters")
+    if PRIVATE_CONTENT_RE.search(value):
+        raise ValueError(f"{label} appears to contain private data")
+    return value
+
+
+def build_quality_artifact(
+    case_id: str, fixture: Path, final_answer: str | None = None,
+) -> dict[str, Any]:
+    """Create a bounded artifact from fixed synthetic-fixture outputs only."""
+    if case_id not in QUALITY_FILE_ALLOWLIST:
+        raise ValueError("quality artifacts are limited to P01/P03/P05/P07")
+    artifact: dict[str, Any] = {
+        "schema": "jevcompass-blind-cli-quality-v1",
+        "case_id": case_id,
+    }
+    if case_id == "P07":
+        if final_answer is not None:
+            _validate_quality_text(final_answer, MAX_BLIND_ANSWER_BYTES, "final answer")
+            if PROMPTS[case_id] in final_answer or PREFLIGHT_INSTRUCTION in final_answer:
+                raise ValueError("final answer must not include the task prompt or preflight transcript")
+        artifact["final_answer"] = final_answer
+    else:
+        files: list[dict[str, str]] = []
+        for relative in QUALITY_FILE_ALLOWLIST[case_id]:
+            updated = _read_fixture_relative(fixture, relative, MAX_BLIND_FILE_BYTES)
+            if updated is None:
+                continue
+            original = _read_fixture_relative(FIXTURE, relative, MAX_BLIND_FILE_BYTES)
+            if updated == original:
+                continue
+            try:
+                content = updated.decode("utf-8", errors="strict")
+            except UnicodeDecodeError as error:
+                raise ValueError("quality artifact file must contain UTF-8 text") from error
+            _validate_quality_text(content, MAX_BLIND_FILE_BYTES, "quality artifact file")
+            files.append({"path": relative, "content": content})
+        artifact["files"] = files
+    encoded = json.dumps(artifact, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    if len(encoded) > MAX_BLIND_ARTIFACT_BYTES:
+        raise ValueError("quality artifact exceeds its total size limit")
+    return artifact
 
 
 def _median(values: list[float]) -> float | None:
@@ -1042,7 +1216,7 @@ def run_pilot(
     *, mode: str, model: str | None, reasoning_effort: str = "medium",
     timeout: int = DEFAULT_TIMEOUT, cases: Iterable[str] = CASE_IDS,
     codex: str | None = None, rng: Any = None, preflight: bool = False,
-    blind_dir: str | Path | None = None,
+    blind_dir: str | Path | None = None, blind_quality_artifacts: bool = False,
 ) -> dict[str, Any]:
     if timeout < 1 or timeout > MAX_TIMEOUT:
         raise ValueError(f"timeout must be between 1 and {MAX_TIMEOUT} seconds")
@@ -1053,6 +1227,8 @@ def run_pilot(
         raise ValueError("mode must be mock, dry-run, or run")
     if mode == "run" and not model:
         raise ValueError("an explicit Codex model is required")
+    if blind_quality_artifacts and blind_dir is None:
+        raise ValueError("blind quality artifacts require --blind-dir")
     if reasoning_effort not in {"low", "medium", "high", "xhigh"}:
         raise ValueError("reasoning effort must be low, medium, high, or xhigh")
     if not FIXTURE.is_dir():
@@ -1067,6 +1243,7 @@ def run_pilot(
     rng.shuffle(case_list)
     cases_summary: dict[str, Any] = {}
     advice_reviews: dict[tuple[str, str], list[str] | None] = {}
+    quality_artifacts: dict[tuple[str, str], dict[str, Any]] = {}
     for case_id in case_list:
         arm_order = ["baseline", "treatment"]
         rng.shuffle(arm_order)
@@ -1109,6 +1286,11 @@ def run_pilot(
                         treatment=treatment, require_auth=True, preflight=preflight,
                     )
                 advice_reviews[(case_id, label)] = arm_result.pop("_agent_reported_candidate_ids", None)
+                final_answer = arm_result.pop("_blind_final_answer", None)
+                if blind_quality_artifacts and case_id in QUALITY_FILE_ALLOWLIST:
+                    quality_artifacts[(case_id, label)] = build_quality_artifact(
+                        case_id, arms[label][1], final_answer,
+                    )
                 result_arms[label] = arm_result
             cases_summary[case_id] = {
                 "arm_order": arm_order,
@@ -1140,13 +1322,19 @@ def run_pilot(
         "cases": cases_summary,
     }
     if blind_dir is not None:
-        receipt_summary = write_blind_receipts(cases_summary, blind_dir, advice_reviews)
+        receipt_summary = write_blind_receipts(
+            cases_summary, blind_dir, advice_reviews,
+            quality_artifacts if blind_quality_artifacts else None,
+        )
         result.pop("cases", None)
         result["blind_receipts"] = {
             "receipt_count": receipt_summary["receipt_count"],
             "mapping_file": receipt_summary["mapping"],
             "limitation": BLIND_LIMITATION,
         }
+        if blind_quality_artifacts:
+            result["blind_receipts"]["quality_artifact_count"] = receipt_summary["quality_artifact_count"]
+            result["blind_receipts"]["quality_artifacts_dir"] = "quality_artifacts"
     return result
 
 
@@ -1160,6 +1348,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT, help=f"per-arm timeout, maximum {MAX_TIMEOUT}s")
     parser.add_argument("--preflight", action="store_true", help="ask both arms to report pre-tool JevCompass advice evidence")
     parser.add_argument("--blind-dir", type=Path, help="write private, opaque per-arm evaluator receipts and separate mapping")
+    parser.add_argument(
+        "--blind-quality-artifacts", action="store_true",
+        help="also write bounded, opaque fixture-output artifacts for P01/P03/P05/P07",
+    )
     parser.add_argument("--score-receipts", type=Path, help="score an existing blind receipt directory")
     parser.add_argument("--score-mapping", type=Path, help="private arm mapping for offline blind scoring")
     parser.add_argument("--score-file", type=Path, help="blind human score JSON with task_quality bool/null for each opaque arm token")
@@ -1180,6 +1372,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(result, sort_keys=True))
         return 0
     selected_mode = "dry-run" if args.dry_run else "mock" if args.mock else "run"
+    if args.blind_quality_artifacts and args.blind_dir is None:
+        parser.error("--blind-quality-artifacts requires --blind-dir")
     if selected_mode == "run" and not args.model:
         parser.error("--model is required for a live pair")
     try:
@@ -1188,6 +1382,7 @@ def main(argv: list[str] | None = None) -> int:
             reasoning_effort=args.reasoning_effort,
             timeout=args.timeout, cases=args.cases,
             preflight=args.preflight, blind_dir=args.blind_dir,
+            blind_quality_artifacts=args.blind_quality_artifacts,
         )
     except (OSError, RuntimeError, ValueError) as error:
         print(json.dumps({"pilot": "jevcompass-cli-core", "status": "failed", "failure": str(error)}))
