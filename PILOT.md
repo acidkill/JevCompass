@@ -24,6 +24,12 @@ P01 was freshly randomized in isolated CLI with `gpt-6-sol` medium, equal prefli
 
 Two initial P07 attempts failed closed before writing blind artifacts because the agent's final answer contained a local absolute path. VCR-68 replaces recognized local paths with a neutral marker in the P07 blind answer before validating and storing it; other private-content and prompt checks remain intact. Those failed attempts are excluded. A fresh P07 pair is needed for the four-pair first-alpha sample.
 
+## Four-pair first-alpha sample complete (2026-09-24)
+
+Fresh randomized synthetic CLI pairs P01, P03, P05, and P07 used equal `gpt-6-sol` medium settings, equal preflight per arm, no OpenRouter key, and no other hooks. Each blind score was frozen before opening the private mapping and diagnostic sidecar; score SHA-256 values are recorded in the case sections and task list. All four pairs are task-quality ties. P05 received `package-docs/local` advice with a correlated ID before first tool (3.64 ms); P01 and P03 deliberately returned `low-signal-skip` (1.75 and 5.48 ms); P07 returned `insufficient-candidates` (3.73 ms). Three skips are not eligible advice deliveries or evidence of improvement. No pair has a human-rated first productive action, and full interaction-level privacy evidence is absent. The four-pair alpha sample demonstrates installable non-blocking guidance and abstention, not efficacy, remote Jev performance, Desktop prompt coverage, or the stronger 20-case acceptance gate.
+
+For P07, the blind answers both covered method/path, JSON input, validation, status response, and error cases. The valid score SHA-256 was `84df6c0d038499d7f13ce570bbfe4d119fb87145c370d952adea8424255ea638`; no required test was specified, so the scorer left required-check preservation unknown. The local path redactor permitted the answer artifacts without copying workspace paths. Private evidence is in `/tmp/jevcompass-release-p07-fixed-20260924/`.
+
 ## Current acceptance gate audit (2026-09-24)
 
 | Gate | Evidence | Decision |
