@@ -19,6 +19,12 @@
 
 **Release decision: do not mark automatic-advice acceptance as passed.** The explicit recommendation entrypoint remains useful for tasks the local classifier intentionally skips. Continue the live study using substantive prompt intent across ordinary permission modes; do not wait for a Plan UI field that Codex does not expose. SubagentStart supplies `agent_type` but no task text; JevCompass now targets only supported role-level profiles and skips generic or custom roles. This closes the VCR-04 design gap, not live pilot acceptance. Planned surreal-memory benchmarks can affect wall time; keep hook-local Jev durations separate and do not modify that server.
 
+## Fresh isolated CLI source-review delivery (2026-09-24)
+
+A fully synthetic W02 fixture was copied into a fresh temporary workspace; its evaluator key stayed outside the agent's workspace. An isolated `CODEX_HOME` held only JevCompass's two hooks and an ephemeral local copy of Codex auth, with no OpenRouter key, and the CLI ran `codex exec --json --ephemeral --sandbox read-only --skip-git-repo-check --dangerously-bypass-hook-trust`. The first attempt was rejected before the agent started because the fixture lacked Git metadata; the second attempt exposed a real classifier false positive (`initial` matched `init`) and is excluded from delivery evidence. After VCR-29, the successful run exited 0 in 26.27 s.
+
+Its first agent message (event 4) was `93dcedec — exec_command`, before the first command tool event (event 5). The matching local metric recorded `UserPromptSubmit` / `source-review` / `local` / 3.28 ms / trace `93dcedec`. The synthetic draft remained unsent and no corrected artifact was created. This verifies one CLI-local advice delivery and ID correlation in an isolated profile; it does not verify ordinary hook trust, remote Jev selection, Desktop delivery, blinded usefulness, or any paired case. The agent's task result was not scored against the separate evaluator key in this smoke.
+
 ## Synthetic runtime evidence (2026-09-23)
 
 The installed Python client made one live, synthetic Decisions API request and received the expected `pytest` choice with confidence 1 in 540 ms. In a 20-case fixture run using a fresh cache per case, 12 of 13 eligible cases produced advice, all 7 routine cases stayed silent, and eligible-call p95 was 505 ms (maximum 509 ms). The remaining debugging case returned confidence below the local 0.5 threshold and was intentionally skipped. This is 92.3% synthetic coverage, not host delivery or blinded usefulness evidence.
