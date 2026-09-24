@@ -84,6 +84,8 @@ def extract_event(event: dict[str, Any]) -> tuple[str | None, str | None, str | 
         text_value = "\n".join(parts) if parts else None
 
     normalized = str(item_type or "").lower()
+    if normalized in {"error", "reasoning"}:
+        return None, None, None
     if normalized in {"agent_message", "assistant_message", "message"}:
         return "assistant", text_value, None
     if normalized in {

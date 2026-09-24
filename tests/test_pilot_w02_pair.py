@@ -77,6 +77,16 @@ class W02PairRunnerTests(unittest.TestCase):
         self.assertFalse(parsed["advice_id_before_first_tool"])
         self.assertIsNone(parsed["advice_id"])
 
+    def test_error_items_do_not_count_as_first_tool(self):
+        lines = [
+            json.dumps({"type": "item.completed", "item": {"type": "error", "message": "synthetic"}}),
+            json.dumps({"type": "item.completed", "item": {"type": "agent_message", "text": "JevCompass advice ID: abcdef12"}}),
+            json.dumps({"type": "item.started", "item": {"type": "command_execution"}}),
+        ]
+        parsed = runner.parse_event_stream(lines, start_monotonic=runner.time.monotonic())
+        self.assertEqual(parsed["first_tool"]["order"], 3)
+        self.assertTrue(parsed["advice_id_before_first_tool"])
+
     def test_auth_copy_is_private_and_does_not_expose_contents(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "source" / "auth.json"
