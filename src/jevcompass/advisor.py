@@ -44,7 +44,7 @@ CATALOG_TASKS = {
     "project-setup": "project",
 }
 TASK_PATTERNS = (
-    ("project-setup", re.compile(r"(?=.*\b(creat\w*|start\w*|bootstrap\w*|scaffold\w*|setup|set up|initialize\w*|init\w*|utwórz|założ\w*|stwórz|stworze\w*|zainicjaliz\w*)\b)(?=.*\b(repository|repo|repozytorium|package|pakiet|project|projekt)\b)", re.I)),
+    ("project-setup", re.compile(r"(?=.*\b(creat\w*|start\w*|bootstrap\w*|scaffold\w*|setup|set up|initialize\w*|initialise\w*|init|utwórz|założ\w*|stwórz|stworze\w*|zainicjaliz\w*)\b)(?=.*\b(repository|repo|repozytorium|package|pakiet|project|projekt)\b)", re.I)),
     ("api-design", re.compile(r"(?=.*\b(?:api|endpoint|openapi|rest|graphql)\b)(?:(?=.*\b(?:design\w*|architect\w*|defin\w*|specif\w*|zaprojekt\w*|projektow\w*)\b)|(?=.*\b(?:review|audit)\b)(?=.*\b(?:contract|schema|specification)\b))", re.I)),
     ("infrastructure", re.compile(r"\b(kubernetes|kubectl|helm|k3s|deploy|deployment|cluster|terraform|infra|wdroż|klaster)\b", re.I)),
     ("source-review", re.compile(r"^(?!.*\b(?:code|diff|pull request|implementation|api|readme)\b)(?=.*\b(?:review|audit|przegląd|przejrz|audyt)\w*\b)(?=.*\b(?:proposal|offer|quote|bid|draft|invoice|ofert|propozycj|wycen)\w*\b)", re.I)),

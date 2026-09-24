@@ -173,6 +173,18 @@ class AdvisorTests(unittest.TestCase):
                   "Flag missing facts, keep the draft unsent, and report its intended path and filename.")
         self.assertEqual(advisor.classify_task(prompt), ("source-review", "general"))
         self.assertEqual(
+            advisor.classify_task(prompt + " State only the IDs visible in your initial context before using tools."),
+            ("source-review", "general"),
+        )
+        self.assertEqual(
+            advisor.classify_task("Initialize a new repository with package metadata and a smoke test."),
+            ("project-setup", "software"),
+        )
+        self.assertEqual(
+            advisor.classify_task("Run git init to create a new repository for the package and add its minimal metadata."),
+            ("project-setup", "software"),
+        )
+        self.assertEqual(
             advisor.classify_task("Przejrzyj ofertę klienta względem aktualnego źródła cen, oznacz brakujące fakty i zachowaj jako niesłany szkic do weryfikacji."),
             ("source-review", "general"),
         )
