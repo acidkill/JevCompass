@@ -47,6 +47,8 @@ MAX_TIMEOUT = 300
 MAX_EVENT_BYTES = 4 * 1024 * 1024
 TRACE_RE = re.compile(r"JevCompass advice ID:\s*([a-f0-9]{8})", re.I)
 SAFE_TOKEN_RE = re.compile(r"[A-Za-z0-9_.-]{1,64}")
+SOURCE_READ_COMMAND_RE = re.compile(r"\b(?:cat|sed|head|tail|less|nl|grep|rg)\b", re.I)
+FIXTURE_SOURCE_RE = re.compile(r"(?:README\.md|pyproject\.toml|API_REQUIREMENTS\.md|tests?/|tinytext/|scripts/)", re.I)
 
 
 def fixture_digest(root: Path) -> str:
@@ -124,11 +126,13 @@ def extract_event(event: dict[str, Any]) -> tuple[str | None, str | None, str | 
 def parse_event_stream(
     lines: Iterable[str], *, start_monotonic: float,
     event_times: list[float] | None = None,
+    assistant_text_sink: list[str] | None = None,
 ) -> dict[str, Any]:
     """Produce metadata-only event order, timings, and pre-tool advice evidence."""
     events: list[dict[str, Any]] = []
     first_assistant = None
     first_tool = None
+    first_source_read_ms = None
     for order, line in enumerate(lines, 1):
         try:
             event = json.loads(line)
@@ -151,6 +155,8 @@ def parse_event_stream(
             "elapsed_ms": round((observed - start_monotonic) * 1000, 2),
         }
         if kind == "assistant":
+            if assistant_text_sink is not None and text_value is not None:
+                assistant_text_sink.append(text_value)
             match = TRACE_RE.search(text_value or "")
             record["advice_id_present"] = bool(match)
             if first_assistant is None:
@@ -163,6 +169,22 @@ def parse_event_stream(
             record["tool"] = tool_name or "unknown"
             if first_tool is None:
                 first_tool = {"order": order, "elapsed_ms": record["elapsed_ms"], "tool": tool_name or "unknown"}
+            command_item = event.get("item")
+            if not isinstance(command_item, dict):
+                command_item = event.get("payload")
+            if not isinstance(command_item, dict):
+                command_item = event
+            raw_command = command_item.get("command")
+            command_text = raw_command if isinstance(raw_command, str) else " ".join(raw_command) if isinstance(raw_command, list) and all(isinstance(part, str) for part in raw_command) else ""
+            if event.get("type") == "item.completed":
+                command_check = _command_check_kind(command_text)
+                command_exit = command_item.get("exit_code")
+                if command_check and isinstance(command_exit, int) and not isinstance(command_exit, bool):
+                    record["command_check"] = command_check
+                    record["exit_code"] = command_exit
+            if (first_source_read_ms is None and SOURCE_READ_COMMAND_RE.search(command_text)
+                    and FIXTURE_SOURCE_RE.search(command_text)):
+                first_source_read_ms = record["elapsed_ms"]
         events.append(record)
     id_before_tool = bool(
         first_assistant and first_assistant["advice_id"]
@@ -173,9 +195,102 @@ def parse_event_stream(
         "events": events,
         "first_assistant": first_assistant,
         "first_tool": first_tool,
+        "first_source_read_ms": first_source_read_ms,
         "advice_id": first_assistant["advice_id"] if id_before_tool else None,
         "advice_id_before_first_tool": id_before_tool,
     }
+
+
+def _answer_indicator(case_id: str, text: str | None, fixture: Path) -> bool | None:
+    """Check only a few fixture-specific answer tokens; this is not grading."""
+    if not text or not text.strip():
+        return None
+    lowered = text.lower()
+    if case_id == "R01":
+        return "fixture-main" in lowered
+    if case_id == "R02":
+        count = sum(path.is_file() for path in fixture.iterdir())
+        return bool(re.search(rf"(?<!\d){count}(?!\d)", text))
+    if case_id == "R03":
+        return "readme.md" in lowered and bool(re.search(r"\b(exists|present|yes|true)\b", lowered))
+    if case_id == "R04":
+        size = (fixture / "pyproject.toml").stat().st_size
+        return bool(re.search(rf"(?<!\d){size}(?!\d)", text))
+    if case_id == "R05":
+        no_files = not any(path.is_file() and path.suffix == ".py" for path in fixture.iterdir())
+        return no_files and bool(re.search(r"\b(no|none|zero|empty)\b", lowered))
+    if case_id == "R06":
+        readme = (fixture / "README.md").read_text(encoding="utf-8", errors="replace").lower()
+        return "timeout" in readme and bool(re.search(r"\b(contains|includes|yes|true)\b", lowered)) and "timeout" in lowered
+    return None
+
+
+def _command_check_kind(command: str) -> str | None:
+    lowered = command.lower()
+    if "unittest" in lowered and "discover" in lowered and "tests" in lowered:
+        return "fixture_tests"
+    if "--help" in lowered and "tinytext" in lowered:
+        return "cli_help"
+    return None
+
+
+def _fixture_outcome_checks(
+    case_id: str, fixture: Path, assistant_text: str | None,
+    events: list[dict[str, Any]] | None = None,
+) -> dict[str, bool | None]:
+    """Use static fixture inspection and command results from the Codex sandbox only."""
+    events = events or []
+    observed_exits: dict[str, int] = {}
+    for event in events:
+        check = event.get("command_check")
+        exit_code = event.get("exit_code")
+        if check in {"fixture_tests", "cli_help"} and isinstance(exit_code, int) and not isinstance(exit_code, bool):
+            observed_exits[check] = exit_code
+    if case_id == "P01":
+        exit_code = observed_exits.get("fixture_tests")
+        return {"focused_unittest_exit": exit_code == 0 if exit_code is not None else None}
+    if case_id == "P03":
+        script = fixture / "scripts" / "render_report.sh"
+        try:
+            source = script.read_text(encoding="utf-8", errors="replace")
+            syntax = subprocess.run(
+                ["bash", "-n", str(script)], cwd=fixture, stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10,
+                check=False,
+            ).returncode == 0
+        except (OSError, subprocess.TimeoutExpired):
+            return {"bash_syntax": None, "no_unset_output_path_defect": None}
+        guarded = bool(re.search(r"\$\{OUTPUT_PATH(?::[-=+?])", source)) or bool(
+            re.search(r"\[\[\s+-v\s+OUTPUT_PATH\s+\]\]", source)
+        ) or not bool(re.search(r"\$(?:\{OUTPUT_PATH\}|OUTPUT_PATH\b)", source))
+        return {"bash_syntax": syntax, "no_unset_output_path_defect": guarded}
+    if case_id == "P05":
+        try:
+            readme = (fixture / "README.md").read_text(encoding="utf-8", errors="replace").lower()
+            pyproject = (fixture / "pyproject.toml").read_text(encoding="utf-8", errors="replace").lower()
+            cli_source = (fixture / "tinytext" / "cli.py").read_text(encoding="utf-8", errors="replace").lower()
+            module_source = (fixture / "tinytext" / "__main__.py").read_text(encoding="utf-8", errors="replace").lower()
+        except OSError:
+            return {"install_instruction_coherent": None, "help_instruction_coherent": None,
+                    "help_command_exit": None, "test_instruction_exit": None}
+        install_matches = bool(re.search(r"(?:python\s+-m\s+)?pip\s+install\s+\.", readme)) and "[project]" in pyproject and "setup.py install" not in readme
+        help_matches = "python -m tinytext --help" in readme and "--check" in cli_source and "parse_args" in cli_source and "main()" in module_source
+        return {
+            "install_instruction_coherent": install_matches,
+            "help_instruction_coherent": help_matches,
+            "help_command_exit": observed_exits.get("cli_help") == 0 if "cli_help" in observed_exits else None,
+            "test_instruction_exit": observed_exits.get("fixture_tests") == 0 if "fixture_tests" in observed_exits else None,
+        }
+    if case_id == "P07":
+        if not assistant_text or not assistant_text.strip():
+            return {"contract_indicators": None}
+        lowered = assistant_text.lower()
+        method_route = "post" in lowered and "/status" in lowered
+        inputs = "required" in lowered and "optional" in lowered
+        outputs = "status" in lowered and bool(re.search(r"\b(result|response|success)\b", lowered))
+        errors = bool(re.search(r"\b(invalid|validation|4\d\d)\b", lowered)) and bool(re.search(r"\b(server|5\d\d)\b", lowered))
+        return {"contract_indicators": method_route and inputs and outputs and errors}
+    return {"answer_indicator": _answer_indicator(case_id, assistant_text, fixture)}
 
 
 def read_safe_metrics(path: Path) -> list[dict[str, Any]]:
@@ -383,7 +498,13 @@ def _run_arm(
         return {"status": "failed", "failure": "codex_unavailable"}
     if failure:
         return {"status": "failed", "failure": failure}
-    parsed = parse_event_stream(lines, start_monotonic=started, event_times=event_times)
+    assistant_texts: list[str] = []
+    parsed = parse_event_stream(
+        lines, start_monotonic=started, event_times=event_times,
+        assistant_text_sink=assistant_texts,
+    )
+    final_assistant_text = assistant_texts[-1] if assistant_texts else None
+    outcome_checks = _fixture_outcome_checks(case_id, fixture, final_assistant_text, parsed["events"])
     result: dict[str, Any] = {
         "status": "completed" if process.returncode == 0 else "failed",
         "exit_code": process.returncode,
@@ -392,9 +513,12 @@ def _run_arm(
         "first_assistant_ms": parsed["first_assistant"]["elapsed_ms"] if parsed["first_assistant"] else None,
         "first_tool_ms": parsed["first_tool"]["elapsed_ms"] if parsed["first_tool"] else None,
         "first_tool_name": parsed["first_tool"]["tool"] if parsed["first_tool"] else None,
+        "first_source_read_ms": parsed["first_source_read_ms"],
+        "first_source_read_assessment": "heuristic: bounded command text matched a fixture source-reading command; not a usefulness score",
         "first_useful_action_ms": None,
         "first_useful_action_assessment": "pending blinded evaluator",
-        "task_outcome_assessment": "pending blinded evaluator",
+        "outcome_checks": outcome_checks,
+        "outcome_check_scope": "fixture-specific deterministic checks and simple final-answer indicators; heuristic evidence only, not task acceptance",
         "advice_id_before_first_tool": parsed["advice_id_before_first_tool"],
     }
     if treatment:
@@ -499,8 +623,8 @@ def run_pilot(
         "openrouter_key_forwarded": False,
         "other_hooks": "none",
         "receipt_scope": "safe metadata only; no prompt, source, transcript, command text, or auth",
-        "scoring_note": "No usefulness or acceptance score; first useful action requires blinded evaluator review.",
-        "task_outcome_note": "Arm exit status records execution only; task correctness is not assessed by this runner.",
+        "scoring_note": "First useful action requires blinded evaluator review; source-read timing is a command-text heuristic only.",
+        "task_outcome_note": "Arm exit status records execution only. Fixture outcome checks are limited deterministic or keyword heuristics and do not establish overall task correctness or acceptance.",
         "cases": cases_summary,
     }
 

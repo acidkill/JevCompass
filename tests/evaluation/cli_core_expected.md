@@ -13,7 +13,7 @@ R01-R06 cases. It is kept outside the temporary project copied for each arm.
 | R02 | `find . -maxdepth 1 -type f` reports exactly `AGENTS.md`, `API_REQUIREMENTS.md`, `README.md`, and `pyproject.toml` (four files). |
 | R03 | `test -f README.md` succeeds. |
 | R04 | `wc -c < pyproject.toml` reports the byte size of the fixture's unchanged `pyproject.toml`. |
-| R05 | `find . -maxdepth 2 -type f -name '*.py'` lists `tinytext/__init__.py`, `tinytext/__main__.py`, `tinytext/cli.py`, `tinytext/text.py`, and `tests/test_text.py`. |
+| R05 | There are no Python files directly at the project root. Nested `tinytext/` and `tests/` Python files are outside this top-level-only request. |
 | R06 | `grep -q timeout README.md` succeeds. |
 
 The P01 starter intentionally fails its desired-behavior assertions. The P03
