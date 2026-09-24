@@ -118,6 +118,20 @@ class AdvisorTests(unittest.TestCase):
                 self.assertIsNone(advisor.evaluate(event), prompt)
             client.assert_not_called()
 
+    def test_classifier_prioritizes_primary_intent_and_handles_shell_failures(self):
+        self.assertEqual(
+            advisor.classify_task("Review the Python change and report any bugs or regressions you find."),
+            ("review", "python"),
+        )
+        self.assertEqual(
+            advisor.classify_task("Update the Python README from current CLI help and existing test behavior."),
+            ("documentation", "python"),
+        )
+        self.assertEqual(
+            advisor.classify_task("Fix the Bash script's unset-variable defect and run a syntax check."),
+            ("debugging", "software"),
+        )
+
     def test_plan_review_explanation_and_project_setup_are_classified_locally(self):
         self.assertEqual(advisor.classify_task("Review the Python authentication changes and their callers"), ("review", "python"))
         self.assertEqual(
