@@ -13,7 +13,7 @@ from jevcompass.catalog import candidates, load_catalog
 class ProductContractTests(unittest.TestCase):
     def test_new_repository_and_package_plan_is_project_setup_not_documents(self):
         prompt = "Plan creating a new private GitHub repository and product package with README"
-        self.assertEqual(advisor.classify_plan(prompt), ("project-setup", "software"))
+        self.assertEqual(advisor.classify_task(prompt), ("project-setup", "software"))
         project_candidates = candidates("project", "any", "software", limit=20)
         ids = {item["id"] for item in project_candidates}
         self.assertIn("python-packaging", {entry["id"] for entry in load_catalog()})
@@ -21,7 +21,7 @@ class ProductContractTests(unittest.TestCase):
 
     def test_polish_repository_package_prompt_uses_project_setup(self):
         prompt = "Zaplanuj stworzenie nowego prywatnego repozytorium GitHub i pakietu produktowego z README"
-        self.assertEqual(advisor.classify_plan(prompt), ("project-setup", "software"))
+        self.assertEqual(advisor.classify_task(prompt), ("project-setup", "software"))
 
 
     def test_jev_shortlist_is_small_and_balanced(self):
@@ -39,7 +39,7 @@ class ProductContractTests(unittest.TestCase):
         secret = "private-acme-code-and-token-123"
         prompt = f"Create a new Python package for {secret}"
         with mock.patch.object(advisor, "candidates", return_value=[
-            {"id": "shell", "kind": "tool", "capability": "Bounded local operations",
+            {"id": "exec_command", "kind": "tool", "capability": "Bounded local operations",
              "use_when": "inspect local project", "avoid_when": "unclear mutations", "availability": "available"},
             {"id": "git", "kind": "tool", "capability": "Inspect repository state",
              "use_when": "review repository metadata", "avoid_when": "destructive changes", "availability": "available"},
@@ -48,7 +48,7 @@ class ProductContractTests(unittest.TestCase):
             {"id": "create-plan", "kind": "skill", "capability": "Create an implementation plan",
              "use_when": "sequence project work", "avoid_when": "trivial operation", "availability": "available"},
         ]), mock.patch.object(advisor, "_read_cache", return_value=None), \
-             mock.patch.object(advisor, "_judge", return_value=["shell", "python-packaging"]) as judge, \
+             mock.patch.object(advisor, "_judge", return_value=["exec_command", "python-packaging"]) as judge, \
              mock.patch.object(advisor, "_write_cache"), mock.patch.object(advisor, "_metric"):
             output = advisor.evaluate({"hook_event_name": "UserPromptSubmit", "permission_mode": "plan", "prompt": prompt})
         request = json.dumps(judge.call_args.args)
@@ -73,7 +73,7 @@ class ProductContractTests(unittest.TestCase):
     def test_recommend_requires_allowlisted_category_domain_and_role(self):
         with mock.patch.object(advisor, "select_advice", return_value=None) as select:
             self.assertEqual(cli.main(["recommend", "--category", "project-setup", "--domain", "software"]), 0)
-            select.assert_called_once_with("UserPromptSubmit", "project-setup", "software", "planner")
+            select.assert_called_once_with("UserPromptSubmit", "project-setup", "software", "primary")
         with self.assertRaises(SystemExit):
             cli.main(["recommend", "--category", "arbitrary-prompt", "--domain", "software"])
 

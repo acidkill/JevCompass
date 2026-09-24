@@ -16,7 +16,7 @@ class CatalogTests(unittest.TestCase):
             self.assertTrue(entry["use_when"])
             self.assertTrue(entry["avoid_when"])
         ids = {entry["id"] for entry in entries}
-        self.assertTrue({"serena", "smem", "sequential-thinking", "context7", "perplexity", "shell"} <= ids)
+        self.assertTrue({"serena", "smem", "sequential-thinking", "context7", "perplexity", "exec_command"} <= ids)
         self.assertNotIn("jev-use", ids)
         self.assertTrue({"create-plan", "kubernetes-gitops-workflow", "helm-chart-scaffolding", "python-packaging"} <= ids)
         self.assertFalse(any(identifier.startswith("tonis-") for identifier in ids))
@@ -28,6 +28,16 @@ class CatalogTests(unittest.TestCase):
             self.assertIsInstance(item["use_when"], str)
             self.assertIsInstance(item["avoid_when"], str)
             self.assertEqual(item["catalog_version"], version)
+
+    def test_task_tags_separate_codebase_explanation_review_and_testing(self):
+        codebase = catalog.candidates("codebase", "any", "python", limit=20)
+        self.assertTrue(codebase)
+        self.assertTrue(all(item["kind"] == "tool" for item in codebase))
+        review_ids = {item["id"] for item in catalog.candidates("review", "any", "python", limit=20)}
+        testing_ids = {item["id"] for item in catalog.candidates("testing", "any", "python", limit=20)}
+        self.assertIn("code-review-excellence", review_ids)
+        self.assertIn("python-testing-patterns", testing_ids)
+        self.assertNotIn("code-review-excellence", testing_ids)
 
     def test_candidates_apply_task_role_domain_and_limit(self):
         fake = [

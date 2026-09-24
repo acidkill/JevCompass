@@ -2,7 +2,20 @@
 
 ## Status
 
-**Not yet accepted.** Synthetic contract tests are useful but do not prove advice was delivered to an agent before its first tool choice, nor that advice improves live work.
+**Not yet accepted.** Six of the planned 20 live paired cases have been collected as CLI routine negative controls; no substantive-prompt advice pair has been scored. One correlated Desktop `explorer` smoke and one fresh CLI `UserPromptSubmit` smoke prove that recommendations reached the agent before its first tool. The current-code CLI smoke injected `exec_command` through a local singleton fallback in 36.8 ms; it did not exercise a remote Jev choice. JevCompass classifies substantive prompts independently of permission mode; Codex does not provide a reliable Plan UI field in the hook event, so Plan-only automatic coverage is not a product requirement. Usefulness, both-host balance, and the full paired study remain open.
+
+## Current acceptance gate audit (2026-09-24)
+
+| Gate | Evidence | Decision |
+|---|---|---|
+| No routine command blocks or data exposure | Six randomized CLI routine pairs, read-only, both smem profiles active, 12 successful final responses; no credential content in reviewed records | Pass for this sample only |
+| Desktop named-role delivery before first tool | Correlated `SubagentStart` advice ID `968a1d2b` in hook metric and `explorer` first reply | Pass for one smoke, not coverage |
+| CLI default-role advice | CLI `spawn_agent` exposes no `agent_type`; product matcher and policy intentionally skip `default` | Unmet for generic CLI children |
+| Mode-independent substantive prompt advice | Fresh Codex CLI 0.155.1 returned ID `bf04acfe` with `exec_command` before the first tool; matching local metric is `UserPromptSubmit` / `codebase` / `local` / 36.8 ms | Pass for one synthetic smoke; remote Jev selection and cross-host coverage remain unproven; Plan UI state itself remains unavailable |
+| 20 paired cases and host balance | Six CLI routine cases collected; no eligible Plan/subagent pair and no Desktop routine pair | Incomplete |
+| Advice usefulness ≥80%, eligible coverage ≥90%, Jev p95 <2 s, faster first useful action | A Desktop delivery smoke and synthetic benchmark do not establish paired usefulness or host-wide coverage | Unproven |
+
+**Release decision: do not mark automatic-advice acceptance as passed.** The explicit recommendation entrypoint remains useful for tasks the local classifier intentionally skips. Continue the live study using substantive prompt intent across ordinary permission modes; do not wait for a Plan UI field that Codex does not expose. CLI generic subagent role advice remains a separate contract gap for VCR-04. Planned surreal-memory benchmarks can affect wall time; keep hook-local Jev durations separate and do not modify that server.
 
 ## Synthetic runtime evidence (2026-09-23)
 
@@ -14,7 +27,7 @@ The installed Python client made one live, synthetic Decisions API request and r
 
 A read-only Codex CLI 0.155.1 run with `JEV_ADVISOR_DIAGNOSTIC=1` recorded `UserPromptSubmit` as `bypassPermissions` and skipped it, as intended outside confirmed Plan mode. The same run recorded `SubagentStart` for the `explorer` profile as a cache hit in 37.33 ms with diagnostic ID `14f4b002`; the CLI parent response reported that ID and the selected identifiers `serena` and `code-review-excellence`. This corroborates that the hook ran and its advice appeared in model-visible context. The CLI JSON exposed no child thread ID, agent state, or child tool transcript, so this smoke is not counted as a fully verified before-first-tool delivery case and does not count toward the 20 paired cases.
 
-A separate `--ephemeral` attempt logged a `SubagentStart` Jev result but failed to register a child thread; it is excluded from acceptance evidence. No paired or blinded live study has been completed.
+A separate `--ephemeral` attempt logged a `SubagentStart` Jev result but failed to register a child thread; it is excluded from acceptance evidence. At the time of this earlier smoke, no paired or blinded live study had been completed.
 
 ## Local validation evidence (2026-09-23)
 
@@ -27,8 +40,8 @@ A separate `--ephemeral` attempt logged a `SubagentStart` Jev result but failed 
 
 Run 20 paired, anonymized tasks in randomized order:
 
-- 8 confirmed Plan mode prompts
-- 6 supported subagent roles
+- 8 substantive user prompts across ordinary permission modes and distinct task intents; do not require a Plan UI signal
+- 6 subagent starts for roles supported by the host; record generic default-role skips separately
 - 6 routine tasks that should not trigger Jev
 
 For each pair, record baseline/Jev arm, host and version, hook input mode/role, advice ID visible before first tool selection, first productive action time, recommendation usefulness, tool availability, required instruction/test coverage, blocks, data disclosures, and Jev duration. The evaluator should not know which arm used Jev.
@@ -47,4 +60,84 @@ Score explicit jevcompass recommend trials separately from automatic hook covera
 
 ## Evidence table
 
-No live paired study has been completed for this product repository yet. Add one row per task pair only after observing the actual host session. Do not treat configuration presence, a hook log, a direct script invocation, or a synthetic test as proof of agent delivery.
+Six live paired CLI routine controls are now recorded in the corrected evidence directory below. They test silent behavior, not advice delivery; no Plan or eligible subagent pair has been accepted. Do not treat configuration presence, a hook log, a direct script invocation, or a synthetic test as proof of agent delivery.
+
+## Fresh acceptance smoke (2026-09-23, CLI)
+
+This section records targeted live smoke evidence only. It is not part of the blinded paired pilot.
+
+- In a fresh Codex CLI 0.155.1 session, `/hooks` showed three active `UserPromptSubmit` handlers, one active `SubagentStart` handler, and zero `PreToolUse` handlers.
+- The CLI visibly entered Plan mode, but the real `UserPromptSubmit` event carried `permission_mode=bypassPermissions`; the Jev hook recorded `mode-skip` (trace `4fc79918`). Automatic plan advice therefore remains unavailable on this CLI path. The explicit `jevcompass recommend` command remains separately usable.
+- `jevcompass doctor --json` passed all checks when its public OpenRouter metadata request ran outside the network-restricted sandbox. The sandboxed run could not reach that public endpoint; it was not a model-availability failure.
+- One billed synthetic `jevcompass recommend --category testing --domain software --role planner` call returned `sequential-thinking` and `python-testing-patterns`; hook timing was 716.11 ms. This validates the explicit API path, not hook delivery.
+- A fresh CLI `explorer` start produced a cache hit in 39.93 ms (trace `d499a687`). The child's only first response, before any tool call, contained the diagnostic ID and the selected identifiers `serena` and `code-review-excellence`. A prior explorer smoke (trace `975cef1e`, 41.85 ms) surfaced the ID but did not echo the selected identifiers; the stricter follow-up confirmed the complete injected context.
+- Ordinary/non-Plan prompt events recorded `mode-skip` in 0.03-0.1 ms and did not call Jev.
+- The CLI also reported invalid Stop-hook JSON from the configured `codex-smem-hook stop`. This is owned by the existing smem integration and is separate from JevCompass.
+- Desktop delivery remains unverified in this run: the computer-use inventory exposed no native app window and this task has no attached app terminal. The user reported restarting Desktop, but no fresh Desktop hook trace or agent-visible context was available here.
+- At the time of this earlier smoke, the blinded 20-pair study was 0/20. These smoke tests do not satisfy paired usefulness, coverage, p95, or time-to-first-action acceptance thresholds.
+
+## Host contract follow-up (2026-09-23)
+
+The [Codex hook runtime](https://github.com/openai/codex/blob/main/codex-rs/core/src/hook_runtime.rs) derives `UserPromptSubmit.permission_mode` from the approval policy, while the [hook input schema](https://github.com/openai/codex/blob/main/codex-rs/hooks/schema/generated/user-prompt-submit.command.input.schema.json) has no collaboration-mode field. This is consistent with the observed CLI Plan UI event carrying `bypassPermissions`. JevCompass must not infer Plan mode from prompt text; its explicit `recommend` command is a separately scored fallback. Automatic Plan delivery remains an unmet host contract, not an accepted case.
+
+A strict `explorer` probe through this task's collaboration API answered `NO JEVCOMPASS ADVISORY` as its only initial response, before using tools. The local advisor log appended a `SubagentStart` `codebase` cache hit (50.94 ms) without a diagnostic trace. This proves neither delivery nor a native Desktop failure: the collaboration API route and native Desktop subagent route have not been shown equivalent, and the log lacks a correlation ID. A fresh native Desktop child transcript with matching diagnostic ID and recommendations before its first tool is still required.
+
+## Isolated CLI harness correction (2026-09-23)
+
+An isolated A/B harness copied the same Codex configuration and smem hooks to both variants, adding only JevCompass hooks to the full variant. The full variant completed a trivial no-tool prompt with exit 0 in about 6 seconds. Early baseline attempts used the wrong `CODEX_HOME` parent and ran in a network-restricted sandbox; they either timed out or received HTTP 401 from the unauthenticated parent directory. With `CODEX_HOME` set to the populated `.codex` directory and network access, the baseline completed the same prompt with exit 0 in about 15 seconds. Startup also warned about missing plugin installations in the isolated profiles. These runs were not randomized, equivalent production profiles or a tool-selection task, so they are unscored smoke evidence and do not count toward the 20 paired cases. The earlier suspicion that smem `Stop` caused the timeout is unsupported by the corrected network and authentication evidence.
+
+## CLI routine negative-control pair (2026-09-23)
+
+An additional randomized, read-only pair ran the same hook-test search and Git status task, full then baseline. Both completed with exit 0 and no repository edits. The full arm completed in 38.072 seconds after an initial sandboxed attempt had timed out at 180 seconds on network disconnects; the baseline completed directly in 38.829 seconds. The global JevCompass log recorded a fresh `UserPromptSubmit` `mode-skip` at 0.04 ms during the completed full arm (trace `4386468a`), and neither arm displayed advice before the first useful tool. This supports the routine no-Jev and no-block behavior, but the retry and startup history invalidate a paired time-to-first-action comparison; it is not scored in the 20-pair blinded study. Raw receipts remain in `/tmp/jevcli-pair-nyg4c9m1/evidence/`.
+
+## Eligible CLI explorer pair attempt (2026-09-23)
+
+The randomized baseline-first attempt did not start Codex because its timing wrapper referenced a missing `/usr/bin/time` (exit 127). After switching the wrapper to Python's monotonic clock, automatic approval review rejected the authenticated networked Codex launch before either arm started. The reviewer cited possible external transmission of private repository contents and session metadata by hooks. No alternate launch was attempted, no advice or timing was measured, and this case is not counted. The specific pending action is a read-only, authenticated CLI A/B explorer test with baseline and JevCompass hooks in isolated profiles; it requires explicit user approval of the networked invocation before continuing.
+
+## Desktop collaboration subagent probe (2026-09-23)
+
+A new `luna_worker` in this Desktop task was instructed to report only its initial JevCompass advisory before using tools. It answered `NO JEVCOMPASS ADVISORY`. The global advisor log appended a `SubagentStart` `operations` cache entry during the probe window (latest observed 34.36 ms), but the production hook had no diagnostic trace enabled; adjacent subagent starts also logged the same category. Thus this is a reproducible absence of advice in the child's reported initial context, with no exact event-to-child correlation. The collaboration subagent route has not been proven equivalent to a fresh native Desktop task's subagent route. Do not count this as a delivered Desktop advisory or as a fully diagnosed host failure.
+
+## Explicit approval retry (2026-09-24)
+
+The user approved the requested authenticated networked read-only CLI A/B test. Both staged run homes under `/tmp/jevcli-pair-nyg4c9m1/runs/{baseline,full}/.codex` and their authentication files were found, and the configurations match. Automatic approval review nevertheless rejected the baseline launch before execution because the approval did not specify the potential payload and remote destinations of the active hooks. No arm ran. The pending decision must name the classes of task/repository/session data potentially sent to Codex and the configured remote memory service, while JevCompass only sends sanitized candidate metadata to OpenRouter. Do not bypass the review or count this attempt.
+
+## Full Access CLI retest (2026-09-24)
+
+After the user enabled Full Access, a read-only baseline `codex exec` run and a full-profile run both completed the same `DecisionsClient` search. The full run took 37.792 seconds. Both children repeated a historical diagnostic ID `975cef1e` from prior-session memory and explicitly reported no current selected tool/skill identifiers; that memory ID is excluded from delivery evidence. The full run recorded `UserPromptSubmit` `mode-skip`, but no fresh `SubagentStart` record in the global advisor log. Thus this pair did not verify advice delivery and remains unscored.
+
+An interactive CLI full-profile probe trusted its eight isolated hooks and its child replied `NO JEVCOMPASS ADVISORY`. A nearby global `SubagentStart` operations cache entry (44.6 ms) had no diagnostic trace although the CLI process enabled diagnostic mode, so it cannot be correlated to this child and may be from a concurrent Desktop task. A second interactive prompt explicitly requested `agent_type=explorer`; the CLI 0.155.1 parent reported that its exposed `spawn_agent` tool had no `agent_type` argument, so it spawned the generic role and no traceable SubagentStart event was recorded. The available evidence does not prove that this CLI subagent route invoked the installed hook. Neither probe counts toward 20 pairs. The current `UserPromptSubmit` event still carried `bypassPermissions` even for plan UI in earlier smoke. These are host-contract failures to fix or isolate before the full pilot.
+
+A separate, isolated `PreToolUse` probe matched only `^(Agent|spawn_agent)$` and returned a fixed, nonblocking `additionalContext` marker. The actual interactive CLI `spawn_agent` never invoked that hook (no local invocation log), despite the new hook being trusted. The child distinguished the marker repeated in the user task from any separate hook context and reported none. The probe was removed by restoring the isolated `hooks.json` backup. This does not justify activating a production PreToolUse hook; matcher coverage in CLI 0.155.1 remains unproven and at this stage the 20-pair pilot was 0/20.
+
+The official Codex CLI 0.156.1 binary was downloaded to `/tmp` and tested against the same isolated full profile without replacing the installed 0.155.1 binary. Its parent again reported that its exposed `spawn_agent` lacked `agent_type`, used the default role, and its child reported no current JevCompass IDs before attempting a read-only `rg` search. The command host then failed before that search ran. Nearby global operations cache entries were not correlated to this CLI child. The newer CLI therefore did not provide acceptance evidence for SubagentStart, and the source at the tagged release still derives `permission_mode` from approval policy rather than Plan UI. No production hook or Codex installation was changed.
+
+## One routine CLI control pair (2026-09-24)
+
+In isolated baseline and full profiles, the same read-only `git status --short` task completed without blocks or edits. Baseline took 8.624 s; full took 13.680 s, and both reported the existing modified `PILOT.md`. The full profile's advisor log recorded `UserPromptSubmit` `mode-skip` (0.04 ms) because its event carried `bypassPermissions`; no Jev choice was made. This single unblinded control pair is excluded from acceptance. A later trust-state audit found that the isolated baseline profile had no trusted entries for its local `hooks.json`, while the full profile had nine; configuration presence alone did not prove the smem hooks ran in both arms.
+
+## Rejected six-pair CLI routine run (2026-09-24)
+
+A randomized six-pair read-only run finished all 12 CLI arms and showed `UserPromptSubmit` mode skips in the full profile, but it is **excluded from acceptance**. The baseline profile retained the smem hook definitions yet had no trusted local `hooks.json` entries, whereas the full profile had nine. The arms may therefore differ in active smem hooks, which could confound timing and behavior. Raw rejected evidence is retained at `/tmp/jevcli-pair-nyg4c9m1/evidence/routine-six/`; a corrected run must verify hook execution in both arms.
+
+## Corrected six-pair routine CLI control (2026-09-24)
+
+The rerun used `codex exec --dangerously-bypass-hook-trust -s read-only` identically in isolated baseline and full profiles. Random case and arm order was recorded before execution. All 12 arms exited 0 within 120 seconds. Per-arm receipts show `session-start injected`, `user-prompt-submit no-context`, `post-tool-use buffered`, and `stop captured` from smem in **both** profiles. Only the full profile produced JevCompass diagnostic entries, each ending in `mode-skip`; no Jev recommendation was injected and measured hook-local skip duration was 0.03–0.13 ms. Model/CLI wall times varied and are not attributed to Jev.
+
+An independent reviewer scored anonymized A/B final answers and first actions without the arm key: all 12 final answers met the prompts and no mandatory miss, block, or credential disclosure was observed in the supplied records. After unblinding, the full profile's `license` case had an unnecessary first search of its isolated memory file that returned no matches; the model later answered correctly using repository metadata. This is retained as a quality observation, without attributing it to Jev because Jev was skipped. These six live CLI routine pairs provide negative-control evidence, but no eligible advice usefulness evidence and no Desktop routine coverage. The host-balanced 20-pair acceptance set remains incomplete. Concurrent planned surreal-memory server optimization and benchmarking can cause intermittent memory latency; this is not classified as a JevCompass outage or regression, and the server was not changed. Full receipts: `/tmp/jevcli-pair-nyg4c9m1/evidence/routine-six-trusted/result.md`; blind assessment: `/tmp/jevcli-pair-nyg4c9m1/evidence/routine-six-trusted/blind/review.md`.
+
+## Isolated wildcard SubagentStart diagnosis (2026-09-24)
+
+The installed product matcher `^(explorer|worker|luna_worker)$` excludes `agent_type=default`. The available interactive CLI `spawn_agent` route creates a default child and exposes no `agent_type` argument. In an isolated test profile only, replacing the SubagentStart matcher with `*` and using a fixed, nonblocking advisory produced one logged event (`role=default`, marker `JEVPROBE-26a5a7a4`). The fresh CLI 0.155.1 child's **first reply before any tool** contained exactly `JEVPROBE-26a5a7a4`; its subsequent read-only search located `DecisionsClient`. This verifies that the host delivered `additionalContext` to this default child and locates the missing production advice at the role matcher and generic-role policy, rather than at hook delivery. The probe did not call Jev, so it does not establish usefulness or latency of a generic recommendation. The isolated profile was restored to its original matcher; production hooks were not changed. Automatic advice for default children remained unaccepted; no paired case had been scored at that stage.
+
+In the current Desktop task, a newly spawned `explorer` child reported **before its first tool** that no fresh JevCompass diagnostic ID or selected identifiers were visible. It excluded historical ID `975cef1e` and then found `DecisionsClient` through Serena at `src/jevcompass/decisions.py:38`. The shared global advisor log has uncorrelated entries and cannot establish whether this specific child's hook ran. This current-task observation is not a fresh Desktop session acceptance smoke and does not resolve trust, reload, or delivery there. The production `~/.codex/hooks.json` still contains a trusted SubagentStart entry and no active Jev PreToolUse. The product's actual current metrics path is `~/.local/state/jevcompass/advisor.jsonl`; the old `~/.codex/log/jev-advisor.jsonl` belongs to the prior adapter and must not be used as evidence for this product. The current metrics file has SubagentStart entries today, but without a diagnostic trace tied to this specific Desktop child they cannot establish whether its hook ran or its advice was delivered. The separate isolated CLI profile recorded the routine prompt `mode-skip` in its own `~/.local/state/jevcompass/advisor.jsonl`.
+
+A controlled second Desktop `explorer` probe used the product log's line count as a boundary: it rose from 102 to 103 immediately after the child spawned, with exactly one new `SubagentStart` / `codebase` / `cache` entry (34.87 ms), while the child's first response before any tool was `NONE` for a new diagnostic ID or separate advice with selected IDs. A direct synthetic invocation of the installed `jevcompass hook` for `explorer` returned valid `hookSpecificOutput.hookEventName=SubagentStart` and 486 bytes of `additionalContext` including `serena` and `code-review-excellence`. This is strong evidence that the advisor ran but its context was not visible to that Desktop child; line-count correlation lacks an embedded child/session ID and is not a formal delivery trace. No acceptance credit is assigned to that pre-update probe.
+
+## Correlated Desktop delivery after advice ID update (2026-09-24)
+
+The product now emits a fresh random `JevCompass advice ID` in each nonempty advisory and writes the same ID in its local category/status/duration metric. The installed pipx environment was updated from the current source without changing hook definitions; 39 unit tests passed after adding a regression check that ordinary prompts generate no ID, Jev request, or metric. A direct installed-hook invocation produced valid `SubagentStart` JSON and a matching context/metric ID. In a subsequently spawned Desktop `explorer`, the product log advanced by exactly one entry: `SubagentStart`, `codebase`, `cache`, 36.26 ms, `trace=968a1d2b`. **Before using any tool**, the child independently reported the exact ID `968a1d2b` and selected tool `serena` plus skill `code-review-excellence`; the parent prompt supplied no value for the ID. This verifies delivery to this Desktop named-role child. It supersedes the earlier uncorrelated negative child observations but does not prove every Desktop session, automatic Plan delivery, usefulness, or the 20-pair study.
+
+## Vanilla CLI prompt delivery smoke after VCR-02 (2026-09-24)
+
+A fresh Codex CLI 0.155.1 `codex exec --json` session ran in a temporary Git repository containing only a synthetic Python timeout example with `--sandbox read-only`. Its first agent response (JSON event 5) reported fresh JevCompass advice ID `bf04acfe`, tool `exec_command`, and no skill IDs; this preceded the first tool event (JSON event 7). The following shell call inspected the synthetic `sample.py` without changing it. The matching local metric is `UserPromptSubmit`, category `codebase`, status `local`, duration 36.8 ms. Configured-only MCP candidates were excluded, leaving one available universal tool, so the advisor skipped a remote Jev call. The hook process had no `OPENROUTER_API_KEY` in this CLI environment; the smoke therefore verifies vanilla local fallback and delivery, not remote Jev selection. This is not evidence of Desktop delivery, paired usefulness, or acceptance.

@@ -164,7 +164,8 @@ def candidates(task_kind: str, role: str, domain: str | None = None, limit: int 
         if requested_role not in {"any", "*"} and _normalize(entry.get("role", "")) != requested_role:
             continue
         domains = {_normalize(item) for item in entry.get("domains", [])}
-        if requested_domain and requested_domain not in domains and "general" not in domains:
+        inherited_domain = {"python": "software", "web": "software"}.get(requested_domain)
+        if requested_domain and requested_domain not in domains and "general" not in domains and inherited_domain not in domains:
             continue
         candidate = dict(entry)
         candidate["catalog_version"] = catalog_version()

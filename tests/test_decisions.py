@@ -18,11 +18,11 @@ STATE = {
     "candidates": [
         {"id": "serena", "capability": "Navigate symbols", "use_when": "code references",
          "avoid_when": "trivial text", "availability": "available"},
-        {"id": "shell", "capability": "Run local checks", "use_when": "test commands",
+        {"id": "exec_command", "capability": "Run local checks", "use_when": "test commands",
          "avoid_when": "unclear mutations", "availability": "available"},
     ],
 }
-QUESTIONS = {"tool": {"type": "choice", "criteria": {"serena": "Navigate symbols", "shell": "Run local checks"}}}
+QUESTIONS = {"tool": {"type": "choice", "criteria": {"serena": "Navigate symbols", "exec_command": "Run local checks"}}}
 
 
 class DecisionsClientTests(unittest.TestCase):
@@ -88,7 +88,7 @@ class DecisionsClientTests(unittest.TestCase):
 
 ITEMS = [
     {"id": "serena", "kind": "tool", "capability": "Navigate symbols", "use_when": "code references", "avoid_when": "trivial text"},
-    {"id": "shell", "kind": "tool", "capability": "Run checks", "use_when": "test commands", "avoid_when": "unclear changes"},
+    {"id": "exec_command", "kind": "tool", "capability": "Run checks", "use_when": "test commands", "avoid_when": "unclear changes"},
     {"id": "create-plan", "kind": "skill", "capability": "Plan work", "use_when": "multi-step tasks", "avoid_when": "trivia"},
     {"id": "python-packaging", "kind": "skill", "capability": "Package Python", "use_when": "Python packaging", "avoid_when": "other work"},
 ]

@@ -17,11 +17,11 @@ from .installer import install
 
 CATEGORIES = tuple(advisor.CATALOG_TASKS)
 DOMAINS = ("general", "software", "python", "web", "kubernetes")
-ROLES = ("planner", "explorer", "worker", "luna_worker")
+ROLES = ("primary", "planner", "explorer", "worker", "luna_worker")
 
 
 def _recommend(category: str, domain: str, role: str) -> int:
-    event_name = "SubagentStart" if role != "planner" else "UserPromptSubmit"
+    event_name = "UserPromptSubmit" if role in {"primary", "planner"} else "SubagentStart"
     output = advisor.select_advice(event_name, category, domain, role)
     if output:
         print(output["hookSpecificOutput"]["additionalContext"])
@@ -91,7 +91,7 @@ def main(argv: list[str] | None = None) -> int:
     recommend = sub.add_parser("recommend", help="Request advice using allowlisted metadata only")
     recommend.add_argument("--category", required=True, choices=CATEGORIES)
     recommend.add_argument("--domain", required=True, choices=DOMAINS)
-    recommend.add_argument("--role", choices=ROLES, default="planner")
+    recommend.add_argument("--role", choices=ROLES, default="primary")
     doctor_parser = sub.add_parser("doctor", help="Check local runtime, catalog, and hook registration")
     doctor_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
     doctor_parser.add_argument("--test-jev", action="store_true", help="Send one synthetic, billed Jev request")

@@ -2,33 +2,34 @@
 
 **Privacy-first tool and skill recommendations for Codex Desktop and CLI, powered by Jev.**
 
-JevCompass helps Codex choose a small set of relevant tools and skills from a local, curated catalog. It adds two non-blocking advisor hooks: one for confirmed Plan mode prompts and one for supported subagent roles. It never gates everyday commands.
+JevCompass helps Codex choose a small set of relevant tools and skills from a local, curated catalog. It adds two non-blocking advisor hooks: one for substantive user tasks in ordinary Codex sessions and one for supported subagent roles. It never gates everyday commands.
 
 > The source repository remains private. TestPyPI distributions are publicly downloadable after an approved test release; PyPI is a separate release decision.
 
 ## What it does
 
-- **Codex Plan mode:** classifies the task locally into an allowlisted category and domain, then asks Jev to choose from a small set of curated candidates.
+- **Codex user prompts:** classifies substantive task intent locally in any permission mode, then asks Jev to choose when multiple reviewed candidates remain. A single clear candidate is suggested locally to avoid an unnecessary round trip. Short or single-step requests are skipped quickly; the hook does not infer the Codex Plan UI mode.
 - **Codex subagents:** provides role-level suggestions for explorer, worker, and luna_worker. The SubagentStart event does not include the task prompt, so advice is role-based only.
 - **Local catalog:** discovers installed skill names and configured MCP servers. Only catalog entries with reviewed use_when and avoid_when descriptions can be recommended.
-- **Manual entry point:** jevcompass recommend uses explicit allowlisted metadata when a Codex host does not expose a reliable Plan mode signal.
+- **Manual entry point:** `jevcompass recommend` uses explicit allowlisted metadata when the task is too brief or ambiguous for automatic classification.
 - **Diagnostics:** jevcompass doctor checks local requirements and hook registration without showing configuration values.
 
 A recommendation is optional guidance. Codex still follows project instructions, reads any selected skill, confirms actual tool availability, and runs required checks.
 
 ## Example
 
-A planning hook may add:
+For a substantive coding task, the prompt hook may add:
 
 ~~~text
-Optional planning tools and skills to verify against the task and their actual availability:
-- tool: serena — Semantic code search, symbol navigation, and focused edits
+JevCompass advice ID: 0123abcd
+Optional tools and skills for this task; validate against the task and actual availability:
+- tool `exec_command` — Codex's built-in shell tool for bounded local checks and repository inspection
 - skill: python-packaging — Build and distribute a Python package with modern project metadata
 
-Configured MCP entries must be confirmed connected in this session. In the plan, include concise execution recommendations for the primary agent and any useful subagents.
+Configured MCP entries must be confirmed connected in this session. Read any chosen skill before use and follow required project instructions and tests. If you write a plan, include concise execution recommendations for the primary agent and useful subagents.
 ~~~
 
-The exact result depends on the local catalog, the task category, and Jev's validated choice. A missing backend, timeout, uncertain result, or malformed response produces no recommendation and does not block the session.
+For shell work, `exec_command` is the model-facing Codex tool identifier. `Bash` is a separate canonical name used by tool-hook matchers. The exact result depends on the local catalog, the task category, and Jev's validated choice. A missing backend, timeout, uncertain result, or malformed response produces no recommendation and does not block the session.
 
 ## Requirements
 
@@ -58,23 +59,24 @@ jevcompass install --dry-run
 
 ## Explicit advice
 
-If the host does not expose Plan mode as permission_mode=plan, use an explicit allowlisted category instead of inferring the mode from prompt text:
+For a short or ambiguous task, request advice with explicit allowlisted metadata:
 
 ~~~bash
+jevcompass recommend --category project-setup --domain software
+jevcompass recommend --category debugging --domain python --role primary
 jevcompass recommend --category project-setup --domain software --role planner
-jevcompass recommend --category debugging --domain python --role planner
 ~~~
 
-Allowed categories are infrastructure, debugging, testing, research, documentation, coding, codebase, operations, and project-setup. Allowed domains are general, software, python, web, and kubernetes. The command accepts no raw task prompt.
+Allowed categories are infrastructure, debugging, testing, research, documentation, coding, codebase, review, planning, operations, and project-setup. Allowed domains are general, software, python, web, and kubernetes. The command accepts no raw task prompt.
 
 ## Privacy boundaries
 
 - Task classification happens locally. Jev receives only a category, domain, role, and a small set of generic catalog descriptions and selection criteria.
 - JevCompass does not send the raw prompt, source code, repository paths, smem content, client data, credentials, or free-form model output.
 - Installed skill frontmatter is inspected locally for discovery. Its private description is not copied into the Jev request or advice.
-- An MCP server listed in config.toml is marked as configured, not proven connected. The agent must confirm it in the active session before use.
-- Cache and diagnostic logs stay in the user's home directory. Cache keys and selections contain only allowlisted categories, roles, domains, catalog version, and candidate IDs. Logs contain event, category, outcome, duration, and an optional short random trace ID.
-- JEV_ADVISOR_DIAGNOSTIC=1 enables a temporary local correlation ID. A log entry proves hook execution, not delivery; confirm the same ID is visible to the agent before its first tool choice.
+- An MCP server listed in `config.toml` is marked as configured, not proven connected. JevCompass excludes configured-only MCP entries from automatic advice, because hook input cannot prove the active tool connection. The catalog still reports them for inspection.
+- Cache and diagnostic logs stay in the user's home directory. Cache keys and selections contain only allowlisted categories, roles, domains, catalog version, and candidate IDs. Eligible advice includes a fresh short random ID; the local metric records that ID with the event, category, outcome, and duration. Skipped simple prompts produce no metric unless temporary diagnostics are enabled.
+- Match the advice ID in the agent's first response to the local metric to verify delivery. A log entry alone proves execution, not delivery. `JEV_ADVISOR_DIAGNOSTIC=1` additionally records sanitized hook input mode metadata for temporary troubleshooting.
 
 Jev is an advisory service, not an authorization system or security boundary. Do not use this package to authorize actions or replace required tests, reviews, or human approvals.
 
@@ -104,7 +106,7 @@ Current local test results must be checked in the working checkout; synthetic te
 
 ## Pilot status
 
-The blinded 20-pair evaluation and fresh-session delivery checks are separate acceptance gates. Passing deterministic tests does not claim the thresholds have been met. Record host evidence and score paired baseline/Jev tasks in PILOT.md. Acceptance requires zero blocks and data disclosures, no omitted required checks, at least 80% useful advice, at least 90% coverage of eligible events, Jev-call p95 below 2 seconds, and improved time to first productive action. Score manual recommend trials separately.
+The blinded 20-pair evaluation must be rerun with substantive tasks across normal Codex permission modes; the previous Plan-only gate does not match vanilla Codex hook signals. Fresh-session delivery checks remain separate. Passing deterministic tests does not claim the thresholds have been met. Record host evidence and score paired baseline/Jev tasks in PILOT.md. Acceptance requires zero blocks and data disclosures, no omitted required checks, at least 80% useful advice, at least 90% coverage of eligible events, Jev-call p95 below 2 seconds, and improved time to first productive action. Score manual recommend trials separately.
 
 ## GitHub positioning
 

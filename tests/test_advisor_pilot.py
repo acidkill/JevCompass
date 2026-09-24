@@ -13,7 +13,7 @@ from jevcompass import advisor  # noqa: E402
 FIXTURE = Path(__file__).parent / "fixtures" / "advisor_pilot.json"
 CANDIDATES = [
     {"id": "serena", "kind": "tool", "capability": "Symbol navigation", "use_when": "code references", "avoid_when": "trivial text"},
-    {"id": "shell", "kind": "tool", "capability": "Local checks", "use_when": "run tests", "avoid_when": "unclear mutation"},
+    {"id": "exec_command", "kind": "tool", "capability": "Local checks", "use_when": "run tests", "avoid_when": "unclear mutation"},
     {"id": "create-plan", "kind": "skill", "capability": "Plan complex work", "use_when": "multi-step plans", "avoid_when": "trivia"},
 ]
 
@@ -26,9 +26,9 @@ class AdvisorPilotTests(unittest.TestCase):
     def test_fixture_has_exactly_twenty_named_cases(self):
         self.assertEqual(len(self.cases), 20)
         self.assertEqual(len({case["name"] for case in self.cases}), 20)
-        self.assertEqual(sum(case["event"]["hook_event_name"] == "SubagentStart" for case in self.cases), 6)
-        self.assertEqual(sum(case["event"]["hook_event_name"] == "UserPromptSubmit" and
-                             case["event"].get("permission_mode") == "plan" for case in self.cases), 8)
+        self.assertEqual(sum(case["event"]["hook_event_name"] == "SubagentStart" and case["active"] for case in self.cases), 3)
+        self.assertEqual(sum(case["event"]["hook_event_name"] == "UserPromptSubmit" and case["active"] for case in self.cases), 8)
+        self.assertEqual(sum(not case["active"] for case in self.cases), 9)
 
     def test_activation_contract_is_deterministic(self):
         for case in self.cases:
