@@ -38,6 +38,10 @@ The [private GitHub prerelease](https://github.com/acidkill/jev-advisor-for-code
 
 An authenticated download of the attached private v0.1.0 wheel matched the GitHub asset API SHA-256 `64462c751749fb153b470cd4b0330365ee79be8cbd75962d30d99094fa5b0f12`. In an isolated Linux profile, `pipx` installed that downloaded wheel; two installer runs kept exactly one `UserPromptSubmit` and one `SubagentStart` registration with no `PreToolUse`. `jevcompass doctor` passed at 0.1.0 and keyless explicit recommendation returned a labeled local fallback. This is distribution-to-install evidence, not host trust, Desktop delivery, macOS runtime, or efficacy evidence.
 
+## Released-wheel fresh CLI hook delivery (2026-09-24)
+
+The wheel downloaded from the private v0.1.0 release was installed into a fresh isolated pipx and Codex profile. Its SHA-256 matched the GitHub asset digest. With no OpenRouter key, a synthetic repository-setup prompt received first assistant event 4 containing advice ID `3dfbb31a` and candidate IDs `exec_command` and `git`; first tool event followed at 5 and exited 0. The local `UserPromptSubmit/project-setup/local` metric carried the same ID, took 31.31 ms, and contained only allowlisted fields, with no task prompt or fixture text. The isolated CLI run used `--dangerously-bypass-hook-trust`; it does not validate normal user approval of hooks. Evidence is private under `/tmp/jevcompass-wheel-runtime.KR9WFo/` (`evidence.json`, Codex JSON events, advisor metric, doctor result). This verifies one actual delivery from the distributed package, not task usefulness, remote Jev selection, Desktop prompt delivery, or macOS runtime.
+
 ## Current acceptance gate audit (2026-09-24)
 
 | Gate | Evidence | Decision |
