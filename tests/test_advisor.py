@@ -2,7 +2,10 @@
 
 import io
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -553,6 +556,32 @@ class AdvisorTests(unittest.TestCase):
         self.assertIn("Local unranked fallback", context)
         for item in ITEMS:
             self.assertIn(item["id"], context)
+
+    def test_hook_skip_does_not_import_catalog_or_decisions(self):
+        root = Path(__file__).resolve().parents[1]
+        script = """
+import io
+import json
+import sys
+from jevcompass import advisor
+assert "jevcompass.catalog" not in sys.modules
+assert "jevcompass.decisions" not in sys.modules
+sys.stdin = type("Input", (), {"buffer": io.BytesIO(json.dumps({"hook_event_name": "UserPromptSubmit", "prompt": "Hello"}).encode())})()
+assert advisor.hook_main() == 0
+assert "jevcompass.catalog" not in sys.modules
+assert "jevcompass.decisions" not in sys.modules
+"""
+        environment = os.environ.copy()
+        source = str(root / "src")
+        environment["PYTHONPATH"] = os.pathsep.join(
+            part for part in (source, environment.get("PYTHONPATH")) if part
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", script], cwd=root, env=environment,
+            capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "")
 
     def test_unknown_task_or_missing_candidate_is_quiet(self):
         self.assertIsNone(advisor.evaluate({"hook_event_name": "UserPromptSubmit", "permission_mode": "plan", "prompt": "Hello"}))

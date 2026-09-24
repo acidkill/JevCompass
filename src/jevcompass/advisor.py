@@ -14,8 +14,21 @@ import sys
 import time
 from typing import Any
 
-from .catalog import candidates, catalog_version
-from .decisions import DecisionsClient, DecisionsError, configured_model
+def __getattr__(name: str) -> Any:
+    """Load catalog and decision helpers only when an event needs advice."""
+    if name in {"candidates", "catalog_version"}:
+        from importlib import import_module
+
+        module = import_module(".catalog", __package__)
+    elif name in {"DecisionsClient", "DecisionsError", "configured_model"}:
+        from importlib import import_module
+
+        module = import_module(".decisions", __package__)
+    else:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    value = getattr(module, name)
+    globals()[name] = value
+    return value
 
 
 MAX_EVENT_BYTES = 256_000
@@ -253,7 +266,23 @@ def _metric(event: str, category: str, status: str, started: float, trace: str |
         pass
 
 
+def _load_advice_dependencies() -> None:
+    """Bind catalog and decision helpers only after local eligibility succeeds."""
+    if "candidates" not in globals() or "catalog_version" not in globals():
+        from .catalog import candidates, catalog_version
+
+        globals().setdefault("candidates", candidates)
+        globals().setdefault("catalog_version", catalog_version)
+    if not {"DecisionsClient", "DecisionsError", "configured_model"}.issubset(globals()):
+        from .decisions import DecisionsClient, DecisionsError, configured_model
+
+        globals().setdefault("DecisionsClient", DecisionsClient)
+        globals().setdefault("DecisionsError", DecisionsError)
+        globals().setdefault("configured_model", configured_model)
+
+
 def select_advice(name: str, category: str, domain: str, role: str, trace: str | None = None) -> dict[str, Any] | None:
+    _load_advice_dependencies()
     started = time.monotonic()
     pool = candidates(task_kind=CATALOG_TASKS[category], role="any", domain=domain, limit=20)
     # A configured MCP server is not proof that this Codex session exposes it.
