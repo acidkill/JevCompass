@@ -5,6 +5,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import stat
 import subprocess
 import sys
 import tempfile
@@ -41,7 +42,7 @@ def make_fake_codex(path: Path) -> Path:
         "    metric.parent.mkdir(parents=True, exist_ok=True)\n"
         "    status = 'local' if 'OPENROUTER_API_KEY' not in os.environ else 'key_leaked'\n"
         "    metric.write_text(json.dumps({'event':'UserPromptSubmit','category':'coding','status':status,'duration_ms':1.25,'trace':'abcdef12','prompt':'must-not-escape'}) + '\\n', encoding='utf-8')\n"
-        "message = 'JevCompass advice ID: abcdef12\\nSynthetic completion.' if treatment else 'Synthetic completion.'\n"
+        "message = 'JevCompass advice ID: abcdef12\\nCandidate: pytest\\nSynthetic completion.' if treatment else 'Synthetic completion.'\n"
         "print(json.dumps({'type':'item.completed','item':{'type':'agent_message','text':message}}), flush=True)\n"
         "print(json.dumps({'type':'item.started','item':{'type':'command_execution','name':'exec_command','command':'DO NOT RETAIN'}}), flush=True)\n"
         "print(json.dumps({'type':'turn.completed'}), flush=True)\n",
@@ -123,6 +124,127 @@ class PilotCliCoreTests(unittest.TestCase):
         )
         self.assertEqual(result["status"], "completed")
         self.assertTrue(result["preflight"])
+
+    def test_blind_receipts_are_opaque_private_and_redacted(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            blind_dir = root / "receipts"
+            fake = make_fake_codex(root / "fake-codex")
+            result = runner.run_pilot(
+                mode="mock", model="must-not-appear", timeout=4,
+                cases=("P01",), codex=str(fake), rng=OrderedRandom(),
+                blind_dir=blind_dir,
+            )
+            self.assertEqual(result["status"], "completed")
+            self.assertEqual(result["blind_receipts"]["receipt_count"], 2)
+            self.assertIn("cannot establish blinded task correctness", result["blind_receipts"]["limitation"])
+            self.assertEqual(stat.S_IMODE(blind_dir.stat().st_mode), 0o700)
+            evaluator_dir = blind_dir / "receipts"
+            self.assertEqual(stat.S_IMODE(evaluator_dir.stat().st_mode), 0o700)
+            self.assertEqual({path.name for path in blind_dir.iterdir()}, {"receipts", "mapping.json"})
+            self.assertNotIn("mapping.json", {path.name for path in evaluator_dir.iterdir()})
+            mapping = json.loads((blind_dir / "mapping.json").read_text(encoding="utf-8"))
+            self.assertEqual(stat.S_IMODE((blind_dir / "mapping.json").stat().st_mode), 0o600)
+            self.assertEqual(len(mapping["arms"]), 2)
+            self.assertEqual({item["arm"] for item in mapping["arms"]}, {"baseline", "treatment"})
+            self.assertEqual({item["case_id"] for item in mapping["arms"]}, {"P01"})
+            tokens = {item["arm_token"] for item in mapping["arms"]}
+            self.assertEqual(len(tokens), 2)
+            evaluator_files = list(evaluator_dir.glob("*.json"))
+            self.assertEqual({path.stem for path in evaluator_files}, tokens)
+            receipts = [json.loads(path.read_text(encoding="utf-8")) for path in evaluator_files]
+            self.assertNotIn("cases", result)
+            self.assertEqual({item["case_id"] for item in receipts}, {"P01"})
+            self.assertEqual({item["schema"] for item in receipts}, {"jevcompass-blind-cli-core-v1"})
+            for path, receipt in zip(evaluator_files, receipts):
+                self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
+                self.assertIn(receipt["first_action_class"], {"source_read", "test", "edit", "other"})
+                self.assertIsInstance(receipt["outcome_checks"], dict)
+                self.assertIn("cannot establish blinded task correctness", receipt["limitation"])
+                rendered = path.read_text(encoding="utf-8")
+                for forbidden in (
+                    "baseline", "treatment", "must-not-appear", "abcdef12",
+                    "Synthetic completion", "DO NOT RETAIN", "must-not-escape", "pytest", "advice",
+                    "mapping", '"command"', '"prompt"', "transcript", str(root), str(runner.FIXTURE),
+                ):
+                    self.assertNotIn(forbidden, rendered)
+                self.assertNotIn("trace", receipt)
+                self.assertNotIn("model", receipt)
+            treatment_token = next(item["arm_token"] for item in mapping["arms"] if item["arm"] == "treatment")
+            baseline_token = next(item["arm_token"] for item in mapping["arms"] if item["arm"] == "baseline")
+            advice_review = mapping["advice_review"]
+            self.assertEqual(advice_review["timing"], "after blind outcome scoring")
+            self.assertIn("not backend-selection evidence", advice_review["interpretation"])
+            review_by_token = {item["arm_token"]: item["agent_reported_candidate_ids"]
+                               for item in advice_review["arms"]}
+            self.assertEqual(review_by_token[treatment_token], ["pytest"])
+            self.assertIsNone(review_by_token[baseline_token])
+            self.assertLess(len(review_by_token[treatment_token]), len(runner._known_catalog_ids()))
+
+    def test_blind_receipts_reject_existing_content_and_symlink_components(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            existing = root / "existing"
+            existing.mkdir(mode=0o700)
+            (existing / "keep.json").write_text("keep", encoding="utf-8")
+            with self.assertRaises(FileExistsError):
+                runner.write_blind_receipts({}, existing)
+            self.assertEqual((existing / "keep.json").read_text(encoding="utf-8"), "keep")
+
+            target = root / "real"
+            target.mkdir()
+            symlink = root / "linked"
+            symlink.symlink_to(target, target_is_directory=True)
+            with self.assertRaises(OSError):
+                runner.write_blind_receipts({}, symlink / "receipts")
+            self.assertEqual(list(target.iterdir()), [])
+
+    def test_blind_receipts_do_not_overwrite_a_previous_run(self):
+        with tempfile.TemporaryDirectory() as directory:
+            blind_dir = Path(directory) / "receipts"
+            result = runner.run_pilot(mode="dry-run", model=None, cases=("R01",), blind_dir=blind_dir)
+            before = {
+                (Path("receipts") / path.name).as_posix(): path.read_bytes()
+                for path in (blind_dir / "receipts").iterdir()
+            }
+            before["mapping.json"] = (blind_dir / "mapping.json").read_bytes()
+            self.assertEqual(result["blind_receipts"]["receipt_count"], 2)
+            with self.assertRaises(FileExistsError):
+                runner.write_blind_receipts({}, blind_dir)
+            after = {
+                (Path("receipts") / path.name).as_posix(): path.read_bytes()
+                for path in (blind_dir / "receipts").iterdir()
+            }
+            after["mapping.json"] = (blind_dir / "mapping.json").read_bytes()
+            self.assertEqual(after, before)
+
+    def test_first_action_classes_are_coarse_and_allowlisted(self):
+        self.assertEqual(runner._action_class("sed -n '1,4p' README.md", "exec_command"), "source_read")
+        self.assertEqual(runner._action_class("python -m pytest", "exec_command"), "test")
+        self.assertEqual(runner._action_class("apply_patch < private.patch", "exec_command"), "edit")
+        self.assertEqual(runner._action_class("", "file_change"), "edit")
+        self.assertEqual(runner._action_class("private-command --secret", "exec_command"), "other")
+
+    def test_candidate_ids_are_reported_only_from_known_ids_in_first_pretool_message(self):
+        start = time.monotonic()
+        known = runner._known_catalog_ids()
+        lines = [
+            json.dumps({"type": "item.completed", "item": {"type": "agent_message", "text": "JevCompass advice ID: 1234abcd; consider pytest."}}),
+            json.dumps({"type": "item.started", "item": {"type": "command_execution", "name": "exec_command", "command": "safe"}}),
+            json.dumps({"type": "item.completed", "item": {"type": "agent_message", "text": "Later response mentioned git."}}),
+        ]
+        parsed = runner.parse_event_stream(
+            lines, start_monotonic=start, event_times=[start, start + .1, start + .2],
+            known_candidate_ids=known,
+        )
+        self.assertEqual(parsed["agent_reported_candidate_ids"], ["pytest"])
+        self.assertNotIn("git", parsed["agent_reported_candidate_ids"])
+
+        unknown_only = runner.parse_event_stream(
+            [json.dumps({"type": "item.completed", "item": {"type": "agent_message", "text": "JevCompass advice ID: 1234abcd; use unlisted-private-id."}})],
+            start_monotonic=start, event_times=[start], known_candidate_ids=known,
+        )
+        self.assertEqual(unknown_only["agent_reported_candidate_ids"], [])
 
     def test_event_parser_distinguishes_first_tool_from_first_useful_action(self):
         start = time.monotonic()

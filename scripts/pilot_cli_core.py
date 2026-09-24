@@ -9,12 +9,15 @@ command text, authentication material, or model response is retained.
 from __future__ import annotations
 
 import argparse
+from functools import lru_cache
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import random
 import re
+import secrets
 import selectors
 import shutil
 import stat
@@ -50,10 +53,21 @@ PREFLIGHT_INSTRUCTION = (
 DEFAULT_TIMEOUT = 120
 MAX_TIMEOUT = 300
 MAX_EVENT_BYTES = 4 * 1024 * 1024
+MAX_BLIND_RECEIPT_BYTES = 16 * 1024
+MAX_BLIND_MAPPING_BYTES = 32 * 1024
 TRACE_RE = re.compile(r"JevCompass advice ID:\s*([a-f0-9]{8})", re.I)
 SAFE_TOKEN_RE = re.compile(r"[A-Za-z0-9_.-]{1,64}")
 SOURCE_READ_COMMAND_RE = re.compile(r"\b(?:cat|sed|head|tail|less|nl|grep|rg)\b", re.I)
 FIXTURE_SOURCE_RE = re.compile(r"(?:README\.md|pyproject\.toml|API_REQUIREMENTS\.md|tests?/|tinytext/|scripts/)", re.I)
+TEST_COMMAND_RE = re.compile(r"\b(?:pytest|unittest|tox|nox|bats)\b", re.I)
+EDIT_COMMAND_RE = re.compile(r"\b(?:apply_patch|tee|install|touch)\b|(?:^|\s)(?:>>?|\|\s*tee)\s*\S", re.I)
+BLIND_LIMITATION = "Metadata-only receipts cannot establish blinded task correctness."
+BLIND_OUTCOME_KEYS = frozenset({
+    "focused_unittest_exit", "bash_syntax", "no_unset_output_path_defect",
+    "install_instruction_coherent", "help_instruction_coherent",
+    "help_command_exit", "test_instruction_exit", "contract_indicators",
+    "answer_indicator",
+})
 
 
 def fixture_digest(root: Path) -> str:
@@ -132,12 +146,16 @@ def parse_event_stream(
     lines: Iterable[str], *, start_monotonic: float,
     event_times: list[float] | None = None,
     assistant_text_sink: list[str] | None = None,
+    known_candidate_ids: Iterable[str] = (),
 ) -> dict[str, Any]:
-    """Produce metadata-only event order, timings, and pre-tool advice evidence."""
+    """Produce metadata-only event order, timings, and reported catalog IDs."""
     events: list[dict[str, Any]] = []
     first_assistant = None
     first_tool = None
     first_source_read_ms = None
+    first_action = None
+    reported_candidate_ids: list[str] | None = None
+    known_ids = tuple(known_candidate_ids)
     for order, line in enumerate(lines, 1):
         try:
             event = json.loads(line)
@@ -170,6 +188,8 @@ def parse_event_stream(
                     "elapsed_ms": record["elapsed_ms"],
                     "advice_id": match.group(1) if match else None,
                 }
+                if first_tool is None:
+                    reported_candidate_ids = _reported_catalog_ids(text_value or "", known_ids)
         elif kind == "tool":
             record["tool"] = tool_name or "unknown"
             if first_tool is None:
@@ -181,6 +201,11 @@ def parse_event_stream(
                 command_item = event
             raw_command = command_item.get("command")
             command_text = raw_command if isinstance(raw_command, str) else " ".join(raw_command) if isinstance(raw_command, list) and all(isinstance(part, str) for part in raw_command) else ""
+            if first_action is None:
+                first_action = {
+                    "class": _action_class(command_text, tool_name or "unknown"),
+                    "elapsed_ms": record["elapsed_ms"],
+                }
             if event.get("type") == "item.completed":
                 command_check = _command_check_kind(command_text)
                 command_exit = command_item.get("exit_code")
@@ -201,9 +226,49 @@ def parse_event_stream(
         "first_assistant": first_assistant,
         "first_tool": first_tool,
         "first_source_read_ms": first_source_read_ms,
+        "first_action": first_action,
         "advice_id": first_assistant["advice_id"] if id_before_tool else None,
         "advice_id_before_first_tool": id_before_tool,
+        "agent_reported_candidate_ids": reported_candidate_ids if id_before_tool else None,
     }
+
+
+def _action_class(command: str, tool_name: str) -> str:
+    """Reduce an in-memory command/tool event to a coarse action class."""
+    if SOURCE_READ_COMMAND_RE.search(command) and FIXTURE_SOURCE_RE.search(command):
+        return "source_read"
+    if TEST_COMMAND_RE.search(command):
+        return "test"
+    if EDIT_COMMAND_RE.search(command) or re.search(r"\b(?:write|edit|patch|replace)_file\b|file_change", tool_name, re.I):
+        return "edit"
+    return "other"
+
+
+def _reported_catalog_ids(text: str, known_ids: Iterable[str]) -> list[str]:
+    """Extract only exact known IDs that appeared in the supplied agent text."""
+    matches: list[tuple[int, str]] = []
+    for candidate_id in set(known_ids):
+        if not isinstance(candidate_id, str) or not SAFE_TOKEN_RE.fullmatch(candidate_id):
+            continue
+        pattern = re.compile(
+            rf"(?<![A-Za-z0-9_-]){re.escape(candidate_id)}(?![A-Za-z0-9_-])"
+        )
+        match = pattern.search(text)
+        if match:
+            matches.append((match.start(), candidate_id))
+    return [candidate_id for _, candidate_id in sorted(matches)[:20]]
+
+
+@lru_cache(maxsize=1)
+def _known_catalog_ids() -> tuple[str, ...]:
+    """Load only reviewed IDs from the local catalog; availability is not selection."""
+    payload = json.loads((ROOT / "src" / "jevcompass" / "catalog_data.json").read_text(encoding="utf-8"))
+    entries = payload.get("entries", []) if isinstance(payload, dict) else []
+    return tuple(sorted({
+        entry["id"] for entry in entries
+        if isinstance(entry, dict) and isinstance(entry.get("id"), str)
+        and SAFE_TOKEN_RE.fullmatch(entry["id"])
+    }))
 
 
 def _answer_indicator(case_id: str, text: str | None, fixture: Path) -> bool | None:
@@ -511,7 +576,7 @@ def _run_arm(
     assistant_texts: list[str] = []
     parsed = parse_event_stream(
         lines, start_monotonic=started, event_times=event_times,
-        assistant_text_sink=assistant_texts,
+        assistant_text_sink=assistant_texts, known_candidate_ids=_known_catalog_ids(),
     )
     final_assistant_text = assistant_texts[-1] if assistant_texts else None
     outcome_checks = _fixture_outcome_checks(case_id, fixture, final_assistant_text, parsed["events"])
@@ -524,12 +589,14 @@ def _run_arm(
         "first_tool_ms": parsed["first_tool"]["elapsed_ms"] if parsed["first_tool"] else None,
         "first_tool_name": parsed["first_tool"]["tool"] if parsed["first_tool"] else None,
         "first_source_read_ms": parsed["first_source_read_ms"],
+        "first_action": parsed["first_action"],
         "first_source_read_assessment": "heuristic: bounded command text matched a fixture source-reading command; not a usefulness score",
         "first_useful_action_ms": None,
         "first_useful_action_assessment": "pending blinded evaluator",
         "outcome_checks": outcome_checks,
         "outcome_check_scope": "fixture-specific deterministic checks and simple final-answer indicators; heuristic evidence only, not task acceptance",
         "advice_id_before_first_tool": parsed["advice_id_before_first_tool"],
+        "_agent_reported_candidate_ids": parsed["agent_reported_candidate_ids"],
     }
     if treatment:
         result["advice_id"] = parsed["advice_id"]
@@ -541,10 +608,160 @@ def _run_arm(
     return result
 
 
+def _private_directory_fd(path: str | Path) -> tuple[int, Path]:
+    """Open/create a private directory while refusing symlinks in every component."""
+    requested = Path(path)
+    if not requested.is_absolute():
+        requested = Path.cwd() / requested
+    normalized = Path(os.path.abspath(requested))
+    if normalized == Path(normalized.anchor):
+        raise ValueError("blind receipt directory cannot be the filesystem root")
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(normalized.anchor, flags)
+    try:
+        for component in normalized.parts[1:]:
+            try:
+                next_fd = os.open(component, flags, dir_fd=fd)
+            except FileNotFoundError:
+                os.mkdir(component, mode=0o700, dir_fd=fd)
+                next_fd = os.open(component, flags, dir_fd=fd)
+            os.close(fd)
+            fd = next_fd
+        os.fchmod(fd, 0o700)
+        return fd, normalized
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def _write_new_file_at(directory_fd: int, name: str, payload: bytes, mode: int) -> None:
+    """Atomically publish a new file without following links or replacing a target."""
+    temporary_name = f".tmp-{secrets.token_hex(16)}"
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    file_fd = os.open(temporary_name, flags, mode, dir_fd=directory_fd)
+    try:
+        os.fchmod(file_fd, mode)
+        view = memoryview(payload)
+        while view:
+            written = os.write(file_fd, view)
+            view = view[written:]
+        os.fsync(file_fd)
+    except BaseException:
+        os.close(file_fd)
+        os.unlink(temporary_name, dir_fd=directory_fd)
+        raise
+    os.close(file_fd)
+    try:
+        os.link(temporary_name, name, src_dir_fd=directory_fd,
+                dst_dir_fd=directory_fd, follow_symlinks=False)
+        os.fsync(directory_fd)
+    finally:
+        os.unlink(temporary_name, dir_fd=directory_fd)
+
+
+def write_blind_receipts(
+    cases: dict[str, Any], blind_dir: str | Path,
+    advice_reviews: dict[tuple[str, str], list[str] | None] | None = None,
+) -> dict[str, Any]:
+    """Write scorer-visible receipts separately from the private mapping and review."""
+    directory_fd, directory_path = _private_directory_fd(blind_dir)
+    receipts_fd: int | None = None
+    try:
+        if os.listdir(directory_fd):
+            raise FileExistsError("blind receipt directory must be empty")
+        os.mkdir("receipts", mode=0o700, dir_fd=directory_fd)
+        directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+        receipts_fd = os.open("receipts", directory_flags, dir_fd=directory_fd)
+        os.fchmod(receipts_fd, 0o700)
+        receipts: list[tuple[str, bytes]] = []
+        mapping: list[dict[str, str]] = []
+        advice_review: list[dict[str, Any]] = []
+        for case_id, case in cases.items():
+            for arm_label, arm in case["arms"].items():
+                token = secrets.token_urlsafe(24)
+                first_action = arm.get("first_action")
+                if isinstance(first_action, dict):
+                    action_class = first_action.get("class")
+                    action_ms = first_action.get("elapsed_ms")
+                    if action_class not in {"source_read", "test", "edit", "other"}:
+                        action_class = "other"
+                    if (not isinstance(action_ms, (int, float)) or isinstance(action_ms, bool)
+                            or not math.isfinite(action_ms) or action_ms < 0
+                            or action_ms > MAX_TIMEOUT * 1000):
+                        action_ms = None
+                else:
+                    action_class = None
+                    action_ms = None
+                raw_outcomes = arm.get("outcome_checks")
+                safe_outcomes = (
+                    {key: value for key, value in raw_outcomes.items()
+                     if key in BLIND_OUTCOME_KEYS and (isinstance(value, bool) or value is None)}
+                    if isinstance(raw_outcomes, dict) else {}
+                )
+                raw_exit_code = arm.get("exit_code")
+                safe_exit_code = (
+                    raw_exit_code if isinstance(raw_exit_code, int)
+                    and not isinstance(raw_exit_code, bool) and -255 <= raw_exit_code <= 255 else None
+                )
+                receipt = {
+                    "schema": "jevcompass-blind-cli-core-v1",
+                    "arm_token": token,
+                    "case_id": case_id,
+                    "first_action_class": action_class,
+                    "first_action_ms": action_ms,
+                    "execution_status": arm.get("status") if arm.get("status") in {"completed", "failed", "not_run"} else "unknown",
+                    "exit_code": safe_exit_code,
+                    "outcome_checks": safe_outcomes,
+                    "limitation": BLIND_LIMITATION,
+                }
+                encoded = json.dumps(receipt, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+                if len(encoded) > MAX_BLIND_RECEIPT_BYTES:
+                    raise ValueError("blind evaluator receipt exceeds its size limit")
+                receipts.append((f"{token}.json", encoded))
+                mapping.append({"arm_token": token, "case_id": case_id, "arm": arm_label})
+                reported_ids = (advice_reviews or {}).get((case_id, arm_label))
+                safe_reported_ids = (
+                    [candidate_id for candidate_id in reported_ids[:20]
+                     if isinstance(candidate_id, str) and candidate_id in _known_catalog_ids()]
+                    if isinstance(reported_ids, list) else None
+                )
+                advice_review.append({
+                    "arm_token": token,
+                    "agent_reported_candidate_ids": safe_reported_ids,
+                })
+        encoded_mapping = json.dumps(
+            {
+                "schema": "jevcompass-blind-cli-core-map-v1",
+                "arms": mapping,
+                "advice_review": {
+                    "timing": "after blind outcome scoring",
+                    "interpretation": "Agent-reported text only; not backend-selection evidence.",
+                    "arms": advice_review,
+                },
+            },
+            sort_keys=True, separators=(",", ":"), allow_nan=False,
+        ).encode("utf-8")
+        if len(encoded_mapping) > MAX_BLIND_MAPPING_BYTES:
+            raise ValueError("blind receipt mapping exceeds its size limit")
+        for name, encoded in receipts:
+            _write_new_file_at(receipts_fd, name, encoded, 0o600)
+        _write_new_file_at(directory_fd, "mapping.json", encoded_mapping, 0o600)
+        return {
+            "directory": str(directory_path / "receipts"),
+            "receipt_count": len(receipts),
+            "mapping": "mapping.json",
+        }
+    finally:
+        if receipts_fd is not None:
+            os.close(receipts_fd)
+        os.close(directory_fd)
+
+
 def run_pilot(
     *, mode: str, model: str | None, reasoning_effort: str = "medium",
     timeout: int = DEFAULT_TIMEOUT, cases: Iterable[str] = CASE_IDS,
     codex: str | None = None, rng: Any = None, preflight: bool = False,
+    blind_dir: str | Path | None = None,
 ) -> dict[str, Any]:
     if timeout < 1 or timeout > MAX_TIMEOUT:
         raise ValueError(f"timeout must be between 1 and {MAX_TIMEOUT} seconds")
@@ -568,6 +785,7 @@ def run_pilot(
     rng = rng or random.SystemRandom()
     rng.shuffle(case_list)
     cases_summary: dict[str, Any] = {}
+    advice_reviews: dict[tuple[str, str], list[str] | None] = {}
     for case_id in case_list:
         arm_order = ["baseline", "treatment"]
         rng.shuffle(arm_order)
@@ -587,14 +805,14 @@ def run_pilot(
             for label in arm_order:
                 treatment = label == "treatment"
                 if mode == "dry-run":
-                    result_arms[label] = {
+                    arm_result = {
                         "status": "not_run", "model_called": False,
                         "hooks_would_be_configured": treatment,
                     }
                 elif mode == "mock":
                     assert executable
                     home, fixture_copy = arms[label]
-                    result_arms[label] = _run_arm(
+                    arm_result = _run_arm(
                         codex=executable, model=model or "synthetic-model",
                         reasoning_effort=reasoning_effort, fixture=fixture_copy,
                         home=home, case_id=case_id, timeout=timeout,
@@ -603,12 +821,14 @@ def run_pilot(
                 else:
                     assert executable and model
                     home, fixture_copy = arms[label]
-                    result_arms[label] = _run_arm(
+                    arm_result = _run_arm(
                         codex=executable, model=model,
                         reasoning_effort=reasoning_effort, fixture=fixture_copy,
                         home=home, case_id=case_id, timeout=timeout,
                         treatment=treatment, require_auth=True, preflight=preflight,
                     )
+                advice_reviews[(case_id, label)] = arm_result.pop("_agent_reported_candidate_ids", None)
+                result_arms[label] = arm_result
             cases_summary[case_id] = {
                 "arm_order": arm_order,
                 "source_sha256": digests[0],
@@ -622,7 +842,7 @@ def run_pilot(
         for case in cases_summary.values()
         for arm in case["arms"].values()
     )
-    return {
+    result = {
         "pilot": "jevcompass-cli-core",
         "status": "failed" if failed else "completed",
         "mode": mode,
@@ -638,6 +858,15 @@ def run_pilot(
         "task_outcome_note": "Arm exit status records execution only. Fixture outcome checks are limited deterministic or keyword heuristics and do not establish overall task correctness or acceptance.",
         "cases": cases_summary,
     }
+    if blind_dir is not None:
+        receipt_summary = write_blind_receipts(cases_summary, blind_dir, advice_reviews)
+        result.pop("cases", None)
+        result["blind_receipts"] = {
+            "receipt_count": receipt_summary["receipt_count"],
+            "mapping_file": receipt_summary["mapping"],
+            "limitation": BLIND_LIMITATION,
+        }
+    return result
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -649,6 +878,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--reasoning-effort", choices=("low", "medium", "high", "xhigh"), default="medium")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT, help=f"per-arm timeout, maximum {MAX_TIMEOUT}s")
     parser.add_argument("--preflight", action="store_true", help="ask both arms to report pre-tool JevCompass advice evidence")
+    parser.add_argument("--blind-dir", type=Path, help="write private, opaque per-arm evaluator receipts and separate mapping")
     parser.add_argument("--cases", nargs="+", choices=CASE_IDS, default=list(CASE_IDS))
     args = parser.parse_args(argv)
     selected_mode = "dry-run" if args.dry_run else "mock" if args.mock else "run"
@@ -659,9 +889,9 @@ def main(argv: list[str] | None = None) -> int:
             mode=selected_mode, model=args.model,
             reasoning_effort=args.reasoning_effort,
             timeout=args.timeout, cases=args.cases,
-            preflight=args.preflight,
+            preflight=args.preflight, blind_dir=args.blind_dir,
         )
-    except (FileNotFoundError, RuntimeError, ValueError) as error:
+    except (OSError, RuntimeError, ValueError) as error:
         print(json.dumps({"pilot": "jevcompass-cli-core", "status": "failed", "failure": str(error)}))
         return 1
     print(json.dumps(result, sort_keys=True))
