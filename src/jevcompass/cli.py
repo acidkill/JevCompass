@@ -13,7 +13,7 @@ from typing import Any
 from . import __version__, advisor
 from .catalog import catalog_snapshot, catalog_version
 from .paths import resolve_codex_home
-from .decisions import DecisionsClient, DecisionsError, model_available
+from .decisions import DecisionsClient, DecisionsError, model_status
 from .installer import SUBAGENT_MATCHER, install
 from .credentials import auth_main, credential_status
 
@@ -119,12 +119,19 @@ def doctor(*, test_jev: bool = False) -> dict[str, Any]:
         hooks_feature = {"ok": False, "base_config": "unreadable"}
     key_status = credential_status()
     key_configured = key_status["configured"]
+    model_check_status = model_status()
     checks: dict[str, Any] = {
         "python": {"ok": sys.version_info >= (3, 11), "version": platform.python_version(), "required": ">=3.11"},
         "codex_home": {"ok": True, "source": codex_home_source},
         "hooks_feature": hooks_feature,
         "openrouter_key": {"ok": key_configured, **key_status},
-        "jev_model": {"ok": model_available(), "source": "environment" if os.environ.get("JEVCOMPASS_MODEL") else "default", "check": "public model metadata"},
+        "jev_model": {
+            "ok": model_check_status != "missing",
+            "status": model_check_status,
+            "available": model_check_status == "available",
+            "source": "environment" if os.environ.get("JEVCOMPASS_MODEL") else "default",
+            "check": "public model metadata",
+        },
         "catalog": {
             "ok": bool(entries) and not any(item["id"].startswith("tonis-") for item in entries),
             **catalog_counts,
@@ -220,7 +227,11 @@ def main(argv: list[str] | None = None) -> int:
             }.get(key_source, "not configured")
             print(f"- OpenRouter API key: {key_status}; remote Jev choices need it, while local single-candidate advice can still work without it")
             model_check = result["jev_model"]
-            model_status = "metadata available" if model_check["ok"] else "metadata unavailable; remote advice will be skipped"
+            model_status = {
+                "available": "metadata confirms Decisions support",
+                "missing": "model is not listed with Decisions support",
+                "unavailable": "metadata check unavailable; remote advice is unverified",
+            }[model_check["status"]]
             model_source = "JEVCOMPASS_MODEL override" if model_check["source"] == "environment" else "default model"
             print(f"- Jev model metadata: {model_status} ({model_source})")
             catalog_check = result["catalog"]

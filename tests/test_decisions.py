@@ -2,13 +2,21 @@
 
 from __future__ import annotations
 
+import io
 import json
 from urllib.error import HTTPError
 import unittest
 from unittest import mock
 
 from jevcompass import advisor
-from jevcompass.decisions import DecisionsClient, DecisionsError, ENDPOINT
+from jevcompass.decisions import (
+    DecisionsClient,
+    DecisionsError,
+    ENDPOINT,
+    MODELS_ENDPOINT,
+    model_available,
+    model_status,
+)
 
 
 STATE = {
@@ -84,6 +92,32 @@ class DecisionsClientTests(unittest.TestCase):
         for secret in secrets:
             self.assertNotIn(secret, encoded)
         self.assertEqual(json.loads(encoded)["state"], safe_state)
+
+
+    def test_model_status_distinguishes_listed_missing_and_unavailable_metadata(self):
+        listed = json.dumps({"data": [{
+            "id": "test/model", "architecture": {"output_modalities": ["text", "decisions"]},
+        }]}).encode()
+        no_decisions = json.dumps({"data": [{
+            "id": "test/model", "architecture": {"output_modalities": ["text"]},
+        }]}).encode()
+
+        def fetch_with(payload, expected_timeout=2.0):
+            def fetch(url, *, timeout):
+                self.assertEqual(url, MODELS_ENDPOINT)
+                self.assertEqual(timeout, expected_timeout)
+                return io.BytesIO(payload)
+            return fetch
+
+        self.assertEqual(model_status("test/model", timeout=0.25, fetch=fetch_with(listed, 0.25)), "available")
+        self.assertEqual(model_status("other/model", fetch=fetch_with(listed)), "missing")
+        self.assertEqual(model_status("test/model", fetch=fetch_with(no_decisions)), "missing")
+        unavailable = lambda *_args, **_kwargs: (_ for _ in ()).throw(TimeoutError())
+        self.assertEqual(model_status("test/model", fetch=unavailable), "unavailable")
+        self.assertEqual(model_status("test/model", fetch=fetch_with(b'{}')), "unavailable")
+        self.assertEqual(model_status("test/model", fetch=fetch_with(b'{"data":"invalid"}')), "unavailable")
+        self.assertTrue(model_available("test/model", fetch=fetch_with(listed)))
+        self.assertFalse(model_available("test/model", fetch=unavailable))
 
 
 ITEMS = [

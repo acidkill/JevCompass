@@ -1,6 +1,6 @@
 # JevCompass roadmap
 
-This roadmap separates the first usable alpha from the evidence and features still needed for broad adoption. The initial release targets **macOS and Linux** with Codex Desktop and CLI. It ships the local catalog, optional OpenRouter Decisions selection, two non-blocking advisor hooks, explicit recommendation command, installer, and doctor. The first release report uses **four fresh synthetic matched CLI pairs** (P01, P03, P05, P07). These pairs are a release smoke and quality sample, not a claim that the earlier 20-pair acceptance thresholds have passed. [PILOT.md](PILOT.md) contains observed results and uncertainties; [TASKS.md](TASKS.md) tracks commits.
+This roadmap separates the first usable alpha from the evidence and features still needed for broad adoption. The initial release targets **macOS and Linux** with Codex Desktop and CLI. It ships the local catalog, optional OpenRouter Decisions selection, two non-blocking advisor hooks, explicit recommendation command, installer, and doctor. The first release report uses **four fresh synthetic matched CLI pairs** (P01, P03, P05, P07). All four blind quality comparisons tied; the observed cases do not establish a speed or quality gain. These pairs are a release smoke and quality sample, not a claim that the earlier 20-pair acceptance thresholds have passed. [PILOT.md](PILOT.md) contains observed results and uncertainties; [TASKS.md](TASKS.md) tracks commits.
 
 ## First usable release: required evidence
 

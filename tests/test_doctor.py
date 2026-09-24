@@ -38,7 +38,7 @@ class DoctorTests(unittest.TestCase):
             os.utime(metric, (time.time() - 37, time.time() - 37))
             with mock.patch.dict(os.environ, {"CODEX_HOME": str(codex_home)}), \
                     mock.patch.object(advisor, "LOG_PATH", metric), \
-                    mock.patch.object(cli, "model_available", return_value=True), \
+                    mock.patch.object(cli, "model_status", return_value="available"), \
                     mock.patch.object(cli, "catalog_snapshot", return_value=([{"id": "exec_command"}], {"curated_entries": 1, "available_tools": 1, "available_skills": 0,
                         "configured_mcp_servers": 0, "discovered_skills": 0, "unavailable_entries": 0})):
                 result = cli.doctor()
@@ -75,7 +75,7 @@ class DoctorTests(unittest.TestCase):
             }}))
             with mock.patch.dict(os.environ, {"CODEX_HOME": str(codex_home)}), \
                     mock.patch.object(advisor, "LOG_PATH", root / "missing.jsonl"), \
-                    mock.patch.object(cli, "model_available", return_value=True), \
+                    mock.patch.object(cli, "model_status", return_value="available"), \
                     mock.patch.object(cli, "catalog_snapshot", return_value=([{"id": "exec_command"}], {"curated_entries": 1, "available_tools": 1, "available_skills": 0,
                         "configured_mcp_servers": 0, "discovered_skills": 0, "unavailable_entries": 0})):
                 result = cli.doctor()
@@ -98,7 +98,7 @@ class DoctorTests(unittest.TestCase):
                 "CODEX_HOME": str(codex_home),
                 "OPENROUTER_API_KEY": secret_key,
                 "JEVCOMPASS_MODEL": "custom-model-hidden-96a",
-            }), mock.patch.object(cli, "model_available", return_value=True), \
+            }), mock.patch.object(cli, "model_status", return_value="available"), \
                     mock.patch.object(cli, "catalog_snapshot", return_value=(
                         [{"id": "python-testing-patterns"}],
                         {
@@ -134,7 +134,7 @@ class DoctorTests(unittest.TestCase):
                 "SubagentStart": [{"matcher": "^default$", "hooks": [{"command": advisor.hook_command()}]}],
             }}))
             with mock.patch.dict(os.environ, {"CODEX_HOME": str(codex_home)}), \
-                    mock.patch.object(cli, "model_available", return_value=True), \
+                    mock.patch.object(cli, "model_status", return_value="available"), \
                     mock.patch.object(cli, "catalog_snapshot", return_value=([{"id": "exec_command"}], {"curated_entries": 1, "available_tools": 1, "available_skills": 0,
                         "configured_mcp_servers": 0, "discovered_skills": 0, "unavailable_entries": 0})):
                 result = cli.doctor()
@@ -152,7 +152,7 @@ class DoctorTests(unittest.TestCase):
                 with self.subTest(setting=setting):
                     (codex_home / "config.toml").write_text(f"[features]\n{setting} = false\n")
                     with mock.patch.dict(os.environ, {"CODEX_HOME": str(codex_home)}), \
-                            mock.patch.object(cli, "model_available", return_value=True), \
+                            mock.patch.object(cli, "model_status", return_value="available"), \
                             mock.patch.object(cli, "catalog_snapshot", return_value=([{"id": "exec_command"}], {"curated_entries": 1, "available_tools": 1, "available_skills": 0,
                         "configured_mcp_servers": 0, "discovered_skills": 0, "unavailable_entries": 0})):
                         result = cli.doctor()
@@ -162,7 +162,7 @@ class DoctorTests(unittest.TestCase):
 
     def test_doctor_without_openrouter_key_explains_local_fallback(self):
         with mock.patch.dict(os.environ, {"CODEX_HOME": "/tmp/jevcompass-doctor-profile"}, clear=True), \
-                mock.patch.object(cli, "model_available", return_value=False), \
+                mock.patch.object(cli, "model_status", return_value="unavailable"), \
                 mock.patch.object(cli, "catalog_snapshot", return_value=(
                     [{"id": "exec_command"}],
                     {
@@ -177,10 +177,14 @@ class DoctorTests(unittest.TestCase):
             output = io.StringIO()
             with contextlib.redirect_stdout(output):
                 exit_code = cli.main(["doctor"])
-        self.assertEqual(exit_code, 1)
+            result = cli.doctor()
+        self.assertEqual(exit_code, 1)  # This fixture omits hook registration.
+        self.assertEqual(result["jev_model"]["status"], "unavailable")
+        self.assertFalse(result["jev_model"]["available"])
+        self.assertTrue(result["jev_model"]["ok"])
         self.assertIn("not configured", output.getvalue())
         self.assertIn("local single-candidate advice can still work", output.getvalue())
-        self.assertIn("metadata unavailable; remote advice will be skipped", output.getvalue())
+        self.assertIn("metadata check unavailable; remote advice is unverified", output.getvalue())
         self.assertIn("path hidden", output.getvalue())
 
     def test_doctor_passes_local_setup_without_optional_openrouter_key(self):
@@ -194,7 +198,7 @@ class DoctorTests(unittest.TestCase):
                     mock.patch.object(cli, "credential_status", return_value={
                         "configured": False, "source": "none", "secure_store_available": False,
                     }), \
-                    mock.patch.object(cli, "model_available", return_value=True), \
+                    mock.patch.object(cli, "model_status", return_value="unavailable"), \
                     mock.patch.object(cli, "catalog_snapshot", return_value=([{"id": "exec_command"}], {
                         "curated_entries": 1, "available_tools": 1, "available_skills": 0,
                         "configured_mcp_servers": 0, "discovered_skills": 0, "unavailable_entries": 0,
@@ -205,7 +209,30 @@ class DoctorTests(unittest.TestCase):
         result = json.loads(output.getvalue())
         self.assertEqual(exit_code, 0)
         self.assertFalse(result["openrouter_key"]["ok"])
+        self.assertEqual(result["jev_model"]["status"], "unavailable")
+        self.assertTrue(result["jev_model"]["ok"])
         self.assertTrue(result["ok"])
+
+    def test_doctor_fails_when_metadata_confirms_model_missing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            codex_home = Path(directory)
+            (codex_home / "hooks.json").write_text(json.dumps({"hooks": {
+                "UserPromptSubmit": [{"hooks": [{"command": advisor.hook_command()}]}],
+                "SubagentStart": [{"matcher": SUBAGENT_MATCHER, "hooks": [{"command": advisor.hook_command()}]}],
+            }}))
+            with mock.patch.dict(os.environ, {"CODEX_HOME": str(codex_home)}, clear=True), \
+                    mock.patch.object(cli, "credential_status", return_value={
+                        "configured": False, "source": "none", "secure_store_available": False,
+                    }), \
+                    mock.patch.object(cli, "model_status", return_value="missing"), \
+                    mock.patch.object(cli, "catalog_snapshot", return_value=([{"id": "exec_command"}], {
+                        "curated_entries": 1, "available_tools": 1, "available_skills": 0,
+                        "configured_mcp_servers": 0, "discovered_skills": 0, "unavailable_entries": 0,
+                    })):
+                result = cli.doctor()
+        self.assertEqual(result["jev_model"]["status"], "missing")
+        self.assertFalse(result["jev_model"]["ok"])
+        self.assertFalse(result["ok"])
 
     def test_doctor_uses_redacted_system_keyring_status(self):
         with contextlib.ExitStack() as stack:
@@ -219,7 +246,7 @@ class DoctorTests(unittest.TestCase):
                 "source": "system-keyring",
                 "secure_store_available": True,
             }))
-            stack.enter_context(mock.patch.object(cli, "model_available", return_value=True))
+            stack.enter_context(mock.patch.object(cli, "model_status", return_value="available"))
             stack.enter_context(mock.patch.object(cli, "catalog_snapshot", return_value=(
                 [{"id": "exec_command"}],
                 {

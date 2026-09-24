@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 from .credentials import resolve_api_key
 from urllib.error import HTTPError, URLError
@@ -69,15 +69,26 @@ class DecisionsClient:
         return data["answers"]
 
 
-def model_available(model: str | None = None, *, timeout: float = 2.0,
-                    fetch: Callable[..., Any] = urlopen) -> bool:
-    """Read public model metadata; never make a billed Decisions request."""
+def model_status(model: str | None = None, *, timeout: float = 2.0,
+                fetch: Callable[..., Any] = urlopen) -> Literal["available", "missing", "unavailable"]:
+    """Classify public model metadata without making a billed Decisions request."""
     selected = model if model is not None else configured_model()
     try:
         with fetch(MODELS_ENDPOINT, timeout=timeout) as response:
             data = json.load(response)
-        return any(entry.get("id") == selected and
-                   "decisions" in entry.get("architecture", {}).get("output_modalities", [])
-                   for entry in data.get("data", []) if isinstance(entry, dict))
+        if not isinstance(data, dict) or not isinstance(data.get("data"), list):
+            return "unavailable"
+        listed = any(
+            entry.get("id") == selected and
+            "decisions" in entry.get("architecture", {}).get("output_modalities", [])
+            for entry in data.get("data", []) if isinstance(entry, dict)
+        )
+        return "available" if listed else "missing"
     except (HTTPError, URLError, TimeoutError, OSError, ValueError, TypeError, AttributeError):
-        return False
+        return "unavailable"
+
+
+def model_available(model: str | None = None, *, timeout: float = 2.0,
+                    fetch: Callable[..., Any] = urlopen) -> bool:
+    """Return whether public metadata confirms the model; kept for compatibility."""
+    return model_status(model, timeout=timeout, fetch=fetch) == "available"
