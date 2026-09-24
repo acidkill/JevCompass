@@ -118,6 +118,17 @@ class AdvisorTests(unittest.TestCase):
                 self.assertIsNone(advisor.evaluate(event), prompt)
             client.assert_not_called()
 
+    def test_fix_keyword_does_not_match_fixture_in_routine_prompts(self):
+        for prompt in (
+            "Print the current branch name in the synthetic fixture.",
+            "Count the top-level files in the synthetic fixture.",
+        ):
+            self.assertIsNone(advisor.classify_task(prompt), prompt)
+        self.assertEqual(
+            advisor.classify_task("Fix a Bash script defect and run a syntax check."),
+            ("debugging", "software"),
+        )
+
     def test_classifier_prioritizes_primary_intent_and_handles_shell_failures(self):
         self.assertEqual(
             advisor.classify_task("Review the Python change and report any bugs or regressions you find."),

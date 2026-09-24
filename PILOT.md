@@ -199,3 +199,7 @@ A separate vanilla-onboarding opportunity is VCR-13: Codex's plugin format can p
 ## Synthetic classifier regression fix (2026-09-24)
 
 A local synthetic regression test reproduced review prompts containing bug/regression wording being routed to `debugging`. The classifier now prioritizes review before incidental debugging terms, recognizes English `fix`/`defect` wording for debugging, prioritizes documentation over incidental test mentions, and maps Bash/Shell mentions to the software domain. Three focused classifier/contract tests pass, and the full suite passes (72 tests, 55 subtests). Graphify code artifacts were rebuilt using the installed pipx interpreter because this repository does not contain `graphify-out/.graphify_python`. This is local classifier evidence only: it does not count toward recommendation usefulness, host delivery, or the 20-case paired pilot. No private prompt or code was sent to Jev.
+
+## Classifier token-boundary regression fix (2026-09-24)
+
+While validating routine-control wording, `fix\w*` was found to match the beginning of `fixture`, routing simple file-listing requests to debugging. The English fix alternatives now require complete action forms, preserving `fix`, `fixed`, `fixes`, and `fixing` while leaving `fixture` unclassified. Regression tests cover two routine fixture prompts and a Bash fix task. The full suite passes (73 tests, 55 subtests); this is still local synthetic evidence, not a live pilot score.
