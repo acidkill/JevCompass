@@ -34,6 +34,10 @@ For shell work, `exec_command` is the model-facing Codex tool identifier. `Bash`
 
 The local catalog treats `exec_command` as Codex's built-in shell capability, enabled by default, and honors `[features] shell_tool = false`; it does not require `bash` in `PATH`. This is a configuration-derived signal. Invocation-level overrides, model restrictions, or host policy can still change the active tool set, so the agent confirms actual availability in the current session.
 
+## Clean Codex profile
+
+JevCompass can run without extra skills, MCP servers, or an OpenRouter key. A clean profile has few task-specific candidates: for example, a local `api-design/python` request may return “No recommendation available,” while a `package-docs/python` request can suggest the built-in shell with a focused check of the package's actual help and tests. Silence means the catalog found no suitable verified option; it does not mean the Codex task failed. Use `jevcompass doctor` to inspect candidate capacity, and confirm any suggested tool in the active session. Installing a reviewed skill can add a candidate, but JevCompass does not install skills on the user's behalf.
+
 ## Requirements
 
 - Python 3.11 or newer
