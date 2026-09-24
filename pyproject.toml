@@ -4,13 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jevcompass"
-version = "0.1.8"
+version = "0.1.9"
 description = "Privacy-first tool and skill recommendations for Codex Desktop and CLI, powered by Jev"
 readme = "README.md"
 requires-python = ">=3.11"
 keywords = ["codex", "codex-cli", "ai-agents", "agent-skills", "mcp", "tool-selection", "developer-tools", "jev"]
 classifiers = [
-  "Development Status :: 3 - Alpha",
   "Environment :: Console",
   "Operating System :: POSIX :: Linux",
   "Operating System :: MacOS :: MacOS X",

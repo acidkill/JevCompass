@@ -28,10 +28,10 @@ jevcompass install
 jevcompass doctor
 ```
 
-Or install the [private v0.1.8 wheel](https://github.com/acidkill/JevCompass/releases/tag/v0.1.8) after downloading and verifying it:
+Or install the [private v0.1.9 wheel](https://github.com/acidkill/JevCompass/releases/tag/v0.1.9) after downloading and verifying it:
 
 ```bash
-pipx install ./jevcompass-0.1.8-py3-none-any.whl
+pipx install ./jevcompass-0.1.9-py3-none-any.whl
 jevcompass install
 jevcompass doctor
 ```
