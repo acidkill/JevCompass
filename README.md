@@ -79,7 +79,7 @@ jevcompass recommend --category debugging --domain python --role primary
 jevcompass recommend --category project-setup --domain software --role planner
 ~~~
 
-Allowed categories are infrastructure, debugging, testing, research, api-design, documentation, package-docs, coding, codebase, review, source-review, planning, operations, and project-setup. `package-docs` is reserved for Python package installation documentation; it adds a local check against project metadata, actual CLI help, and the repository test command, with `python-packaging` suggested only when installed. Allowed domains are general, software, python, web, shell, kubernetes, and codex. Use the codex domain only for substantive Codex Desktop/CLI documentation or troubleshooting about hooks, settings, skills, models, setup, or related behavior. The command accepts no raw task prompt.
+Allowed categories are infrastructure, debugging, testing, research, api-design, documentation, package-docs, coding, codebase, review, source-review, planning, operations, and project-setup. `package-docs` is reserved for Python package installation documentation; it adds a local check against project metadata, preserves the README's exact supported CLI invocation unless a replacement is run and verified, and distinguishes pre-existing test failures, with `python-packaging` suggested only when installed. Allowed domains are general, software, python, web, shell, kubernetes, and codex. Use the codex domain only for substantive Codex Desktop/CLI documentation or troubleshooting about hooks, settings, skills, models, setup, or related behavior. The command accepts no raw task prompt.
 
 ## Privacy boundaries
 

@@ -227,7 +227,7 @@ def _context(
     if category == "source-review":
         suffix += " Verify current authoritative local sources and mark missing facts. Keep drafts unsent unless explicitly authorized."
     if category == "package-docs":
-        suffix += " For Python package install documentation, verify project metadata, the actual CLI --help output, and the repository test command against the README."
+        suffix += " For Python package install docs, check project metadata and the existing README. Preserve its exact supported CLI help invocation (such as `python -m package --help`) unless a replacement is verified by running it. Check the documented test command; distinguish pre-existing test failures."
     context = (f"JevCompass advice ID: {trace}\n" if trace else "") + prefix + "\n".join(lines) + suffix
     if len(context) > MAX_CONTEXT_CHARS:
         return None

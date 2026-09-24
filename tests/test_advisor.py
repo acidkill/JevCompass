@@ -191,9 +191,10 @@ class AdvisorTests(unittest.TestCase):
         self.assertNotIn(prompt, request)
         self.assertNotIn(secret, request)
         self.assertNotIn("verify project metadata", request)
-        self.assertIn("verify project metadata", context)
-        self.assertIn("actual CLI --help output", context)
-        self.assertIn("repository test command", context)
+        self.assertIn("check project metadata", context)
+        self.assertIn("Preserve its exact supported CLI help invocation", context)
+        self.assertIn("python -m package --help", context)
+        self.assertIn("pre-existing test failures", context)
 
     def test_package_docs_single_shell_gets_local_guidance_but_generic_singleton_stays_silent(self):
         shell = {
@@ -211,7 +212,7 @@ class AdvisorTests(unittest.TestCase):
         judge.assert_not_called()
         context = result["hookSpecificOutput"]["additionalContext"]
         self.assertIn("exec_command", context)
-        self.assertIn("verify project metadata", context)
+        self.assertIn("Preserve its exact supported CLI help invocation", context)
         self.assertIn("Local unranked fallback", context)
 
     def test_plan_review_explanation_and_project_setup_are_classified_locally(self):
