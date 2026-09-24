@@ -2,6 +2,10 @@
 
 ## Status
 
+### Installed v0.1.6 current Desktop explorer abstention (2026-09-24)
+
+A read-only `explorer` subagent in the currently running Linux Desktop host was asked to report its initial JevCompass context before any tool. It reported `NO JEVCOMPASS ADVISORY`; the new safe metric was `SubagentStart/codebase/low-signal-skip` in 63.45 ms (trace `5f4fc8f2`). In this role-only event the available generic shell was not a specific enough recommendation, so no advice context was expected. The agent then answered a codebase question: curated MCP entries that are merely configured are removed in the actual `select_advice` path before ranking; configuration alone does not establish a live connection. This confirms a live hook invocation and deliberate abstention on the current host process, not a fresh Desktop prompt delivery, active MCP availability, or an improvement in task quality. The Desktop app process predates the latest hook configuration and is not the fresh-host acceptance run.
+
 ### Installed v0.1.6 planning classification smoke (2026-09-24)
 
 The active Linux pipx profile was upgraded with the digest-verified v0.1.6 wheel; `doctor --json` passed, reported both advisor hooks, and the production `hooks.json` SHA-256 remained unchanged. A fresh read-only Codex CLI 0.155.1 session reused the prior temporary JevCompass-only profile and synthetic Git/Python fixture. The prompt asked to plan packaging and later to “inspect” files; the v0.1.5 form had classified this as `codebase` and skipped advice. The installed v0.1.6 first agent message (JSON event 4) reported advice ID `c73c13df` and tool `exec_command` before first tool event 5. The matching safe metric recorded `UserPromptSubmit/planning/cache` at 10.22 ms. This verifies the planning classification fix and agent-visible cached advice without edits; the cached outcome is not a new remote Jev call, a paired quality gain, or Desktop delivery. Private transcript remains under `/tmp/jevcompass-v015-cli.EXwTF4/` as `events-v016-mixed.jsonl`.
