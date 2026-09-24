@@ -178,3 +178,18 @@ A fresh Codex CLI 0.155.1 `codex exec --json --sandbox read-only --ephemeral` se
 The first assistant response appeared at JSON event index 3, before the first tool event at index 4. It reported fresh advice ID `5914ac30`, mentioned the `git` recommendation and the optional `code-review-excellence` skill, then identified `exec_command` as the one read-only operation it would use. The run exited 0. The matching local metric is `UserPromptSubmit` / `review` / `jev` / 696.03 ms, which distinguishes a live Jev decision from local fallback or a cache hit.
 
 This confirms one remote selection reached a vanilla CLI agent before its first tool. The model chose not to use the optional skill for this tiny check; this smoke does not score advice usefulness, count toward the 20 paired cases, or prove Desktop prompt-hook coverage.
+
+## Pi + Jev custom-harness article review (2026-09-24)
+
+Reviewed ["Building a Custom Harness with Pi and Jev"](https://x.com/omarsar0/article/2102762406204076532) and its [DAIR.AI Academy tutorial page](https://academy.dair.ai/resources/jev-decisions-in-a-pi-sdk-harness). The article demonstrates three decision points inside a custom Pi agent loop: choose a model before a run, gate each tool call, and grade the final answer. It also recommends typed batched questions, policy thresholds in ordinary code, different failure behavior for routing and safety gates, bounded verification retries, and sanitized decision logs. The tutorial labels its sample policies as educational rather than production-tuned.
+
+Transfer assessment:
+
+- **Already adopted:** JevCompass batches separate `choice` questions for tool and skill candidates, validates selected IDs and confidence locally, builds the advice locally, caches decisions, logs only safe metrics, and falls back to a local unranked shortlist when Jev is unavailable or uncertain.
+- **Defer model routing:** the article controls the model at the start of a custom run. JevCompass's vanilla Codex hooks can add advisory context, but do not expose a documented field to change the active model; do not imply that an automatic route occurred. Revisit an explicit pre-run model/effort suggestion only after core cross-host acceptance.
+- **Do not port the broad tool gate:** Pi's `beforeToolCall` has a direct block/terminate decision. A global Codex `PreToolUse` gate previously interfered with routine work, and Codex `ask` is not a supported hook decision. Keep ordinary operations outside Jev; any permission assistance remains the separate, opt-in VCR-11 investigation.
+- **Do not add automatic answer grading now:** the example sends answer and supporting tool/file evidence to Jev and retries. That would expand private-data transmission and duplicate authoritative tests/review without proving a vanilla Codex hook can safely access the right evidence. Keep test outcomes and repository-required checks decisive.
+
+The useful lesson is to keep Jev's judgments narrow and typed while policy, fallbacks, and evidence stay in local code. No article-derived code change is justified before VCR-06 cross-host delivery and the paired usefulness pilot are complete.
+
+A separate vanilla-onboarding opportunity is VCR-13: Codex's plugin format can package skills, MCP configuration, and lifecycle hooks for Desktop and CLI, but hooks still need an executable in the local environment and explicit trust. Evaluate that distribution layer after core acceptance; it does not make Pi SDK hooks or model-routing controls portable.
