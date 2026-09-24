@@ -31,6 +31,18 @@ PROMPT = (
     "canonical pricing table. Flag missing facts, keep the draft unsent, "
     "and report its intended path and filename."
 )
+PREFLIGHT_SUFFIX = (
+    "\n\nBefore calling any tools, output exactly one line on its own in this format: "
+    "`JevCompass advice ID: <8-character advice ID or none>; selected catalog IDs: "
+    "<comma-separated selected IDs or none>`. Use only JevCompass advice in your "
+    "initial context; do not infer absent values. After this line, continue the "
+    "requested W02 review normally. This must be your first response before any tool call."
+)
+PREFLIGHT_REPORT_RE = re.compile(
+    r"(?m)^JevCompass advice ID: (none|[a-f0-9]{8}); selected catalog IDs: "
+    r"(none|[a-z0-9_.-]+(?:,[a-z0-9_.-]+){0,5})$",
+    re.I,
+)
 DEFAULT_TIMEOUT = 90
 MAX_TIMEOUT = 300
 MAX_EVENT_BYTES = 4 * 1024 * 1024
@@ -39,6 +51,24 @@ EXPECTED_PATH = (
     "clients/fjordly-labs/drafts/"
     "Proposal_Fjordly_Labs_Data_Migration_2026-10-15.md"
 )
+
+
+def build_prompt(*, preflight: bool = False) -> str:
+    """Return the unchanged task prompt, with an opt-in first-response probe."""
+    return PROMPT + PREFLIGHT_SUFFIX if preflight else PROMPT
+
+
+def parse_preflight_report(text: str | None) -> dict[str, Any] | None:
+    """Extract only the bounded advice ID and selected catalog IDs."""
+    match = PREFLIGHT_REPORT_RE.search(text or "")
+    if not match:
+        return None
+    advice_id, selected = match.groups()
+    selected_ids = [] if selected.lower() == "none" else list(dict.fromkeys(selected.split(",")))
+    return {
+        "advice_id": None if advice_id.lower() == "none" else advice_id.lower(),
+        "selected_ids": selected_ids,
+    }
 
 
 def fixture_digest(root: Path) -> str:
@@ -106,13 +136,16 @@ def extract_event(event: dict[str, Any]) -> tuple[str | None, str | None, str | 
 
 
 def parse_event_stream(
-    lines: Iterable[str], *, start_monotonic: float,
+    lines: Iterable[str], *,
+    start_monotonic: float,
     event_times: list[float] | None = None,
+    capture_preflight: bool = False,
 ) -> dict[str, Any]:
-    """Summarize event order/timing and advice visibility without retaining text."""
+    """Summarize event order/timing and allowlisted pre-tool advice metadata."""
     events: list[dict[str, Any]] = []
     captured_times = event_times or []
     first_assistant: dict[str, Any] | None = None
+    first_assistant_text: str | None = None
     first_tool: dict[str, Any] | None = None
     for order, line in enumerate(lines, 1):
         try:
@@ -146,26 +179,24 @@ def parse_event_stream(
                 first_assistant = {
                     "order": order,
                     "elapsed_ms": observed_ms,
-                    "text": text_value or "",
                     "advice_id": trace_match.group(1) if trace_match else None,
                 }
+                first_assistant_text = text_value or ""
         else:
             record["tool"] = tool_name or "unknown"
             if first_tool is None:
                 first_tool = {"order": order, "elapsed_ms": observed_ms}
         events.append(record)
 
-    visible_id = None
-    visible_before_tool = False
-    if first_assistant:
-        visible_id = first_assistant["advice_id"]
-        visible_before_tool = bool(
-            visible_id and (
-                first_tool is None
-                or first_assistant["order"] < first_tool["order"]
-            )
+    assistant_before_tool = bool(
+        first_assistant and (
+            first_tool is None
+            or first_assistant["order"] < first_tool["order"]
         )
-    return {
+    )
+    visible_id = first_assistant["advice_id"] if first_assistant else None
+    visible_before_tool = bool(visible_id and assistant_before_tool)
+    result = {
         "event_count": len(events),
         "events": events,
         "first_assistant": first_assistant,
@@ -173,6 +204,15 @@ def parse_event_stream(
         "advice_id": visible_id if visible_before_tool else None,
         "advice_id_before_first_tool": visible_before_tool,
     }
+    if capture_preflight:
+        report = parse_preflight_report(first_assistant_text) if assistant_before_tool else None
+        result["preflight"] = {
+            "reported": report is not None,
+            "advice_id": report["advice_id"] if report else None,
+            "selected_ids": report["selected_ids"] if report else [],
+            "before_first_tool": report is not None and assistant_before_tool,
+        }
+    return result
 
 
 def read_safe_metrics(path: Path) -> list[dict[str, Any]]:
@@ -266,18 +306,21 @@ def _install_treatment_hooks(home: Path, isolated_python: Path) -> None:
     install(home=home)
 
 
-def _safe_mock_lines() -> list[str]:
+def _safe_mock_lines(*, preflight: bool = False, treatment: bool = True) -> list[str]:
+    report = (
+        "JevCompass advice ID: abcdef12; selected catalog IDs: exec_command,documents"
+        if treatment else "JevCompass advice ID: none; selected catalog IDs: none"
+    )
+    assistant_text = (
+        f"{report}\n" if preflight else "JevCompass advice ID: abcdef12\n"
+    ) + (
+        "Current rate: NOK 12,500 per consultant day (canonical-pricing.md). "
+        "The source-system count is missing and must be confirmed. "
+        f"Intended path: {EXPECTED_PATH}. The proposal remains an unsent draft."
+    )
     assistant = {
         "type": "item.completed",
-        "item": {
-            "type": "agent_message",
-            "text": (
-                "JevCompass advice ID: abcdef12\n"
-                "Current rate: NOK 12,500 per consultant day (canonical-pricing.md). "
-                "The source-system count is missing and must be confirmed. "
-                f"Intended path: {EXPECTED_PATH}. The proposal remains an unsent draft."
-            ),
-        },
+        "item": {"type": "agent_message", "text": assistant_text},
     }
     tool = {
         "type": "item.started",
@@ -289,8 +332,12 @@ def _safe_mock_lines() -> list[str]:
 def _parse_run(
     lines: list[str], started: float, *, treatment: bool,
     event_times: list[float] | None = None,
+    preflight: bool = False,
 ) -> dict[str, Any]:
-    parsed = parse_event_stream(lines, start_monotonic=started, event_times=event_times)
+    parsed = parse_event_stream(
+        lines, start_monotonic=started, event_times=event_times,
+        capture_preflight=preflight,
+    )
     answer = ""
     for line in lines:
         try:
@@ -316,6 +363,8 @@ def _parse_run(
     }
     if treatment:
         result["advice_id"] = parsed["advice_id"]
+    if preflight:
+        result["preflight"] = parsed["preflight"]
     return result
 
 
@@ -381,7 +430,7 @@ def _collect_codex_events(
 
 def _run_codex(
     *, codex: str, model: str, fixture: Path, home: Path,
-    timeout: int, treatment: bool,
+    timeout: int, treatment: bool, prompt: str, preflight: bool,
 ) -> dict[str, Any]:
     codex_home = home / ".codex"
     codex_home.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -419,7 +468,7 @@ def _run_codex(
     command = [
         codex, "exec", "--json", "--ephemeral", "--sandbox", "read-only",
         "--skip-git-repo-check", "--dangerously-bypass-hook-trust",
-        "--model", model, PROMPT,
+        "--model", model, prompt,
     ]
     started = time.monotonic()
     try:
@@ -438,7 +487,8 @@ def _run_codex(
     if failure:
         return {"status": "failed", "failure": failure}
     parsed = _parse_run(
-        lines, started, treatment=treatment, event_times=event_times
+        lines, started, treatment=treatment, event_times=event_times,
+        preflight=preflight,
     )
     metric_path = home / ".local" / "state" / "jevcompass" / "advisor.jsonl"
     metrics = read_safe_metrics(metric_path)
@@ -456,14 +506,14 @@ def _run_codex(
     return parsed
 
 
-def _mock_arm(*, treatment: bool) -> dict[str, Any]:
-    lines = _safe_mock_lines()
-    if not treatment:
+def _mock_arm(*, treatment: bool, preflight: bool = False) -> dict[str, Any]:
+    lines = _safe_mock_lines(preflight=preflight, treatment=treatment)
+    if not treatment and not preflight:
         event = json.loads(lines[0])
         event["item"]["text"] = TRACE_RE.sub("", event["item"]["text"])
         lines[0] = json.dumps(event)
     started = time.monotonic()
-    result = _parse_run(lines, started, treatment=treatment)
+    result = _parse_run(lines, started, treatment=treatment, preflight=preflight)
     result.update({"status": "completed", "exit_code": 0, "mock": True})
     if treatment:
         result["advice_metric"] = correlate_advice(
@@ -483,7 +533,9 @@ def _mock_arm(*, treatment: bool) -> dict[str, Any]:
     return result
 
 
-def run_pair(*, mode: str, model: str | None, timeout: int) -> dict[str, Any]:
+def run_pair(
+    *, mode: str, model: str | None, timeout: int, preflight: bool = False,
+) -> dict[str, Any]:
     if timeout < 1 or timeout > MAX_TIMEOUT:
         raise ValueError(f"timeout must be between 1 and {MAX_TIMEOUT} seconds")
     if not FIXTURE.is_dir():
@@ -505,6 +557,7 @@ def run_pair(*, mode: str, model: str | None, timeout: int) -> dict[str, Any]:
         "arm_order": order,
         "model": model if mode == "run" else None,
         "timeout_seconds": timeout,
+        "preflight_enabled": preflight,
         "openrouter_key_forwarded": False,
         "evaluator_method": "deterministic indicators; not blinded expert assessment",
     }
@@ -533,7 +586,7 @@ def run_pair(*, mode: str, model: str | None, timeout: int) -> dict[str, Any]:
                     "model_called": False,
                 }
             elif mode == "mock":
-                arm_results[label] = _mock_arm(treatment=treatment)
+                arm_results[label] = _mock_arm(treatment=treatment, preflight=preflight)
             else:
                 arm_results[label] = _run_codex(
                     codex=codex or "codex",
@@ -542,6 +595,8 @@ def run_pair(*, mode: str, model: str | None, timeout: int) -> dict[str, Any]:
                     home=arms[label]["home"],
                     timeout=timeout,
                     treatment=treatment,
+                    prompt=build_prompt(preflight=preflight),
+                    preflight=preflight,
                 )
         summary["arms"] = arm_results
         summary["status"] = (
@@ -559,13 +614,20 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument("--dry-run", action="store_true", help="validate setup; do not launch Codex")
     mode.add_argument("--mock", action="store_true", help="parse synthetic events; do not launch Codex")
     parser.add_argument("--model", help="same explicit Codex model for both arms (required for live run)")
+    parser.add_argument(
+        "--preflight", action="store_true",
+        help="ask both arms to report only JevCompass advice ID and selected catalog IDs before tools",
+    )
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT, help=f"per-arm timeout (max {MAX_TIMEOUT}s)")
     args = parser.parse_args(argv)
     selected_mode = "dry-run" if args.dry_run else "mock" if args.mock else "run"
     if selected_mode == "run" and not args.model:
         parser.error("--model is required for a live pair")
     try:
-        result = run_pair(mode=selected_mode, model=args.model, timeout=args.timeout)
+        result = run_pair(
+            mode=selected_mode, model=args.model, timeout=args.timeout,
+            preflight=args.preflight,
+        )
     except (FileNotFoundError, RuntimeError, ValueError) as error:
         # Error messages are fixed allowlisted phrases; do not expose paths or process output.
         print(json.dumps({"case_id": "W02", "status": "failed", "failure": str(error)}))

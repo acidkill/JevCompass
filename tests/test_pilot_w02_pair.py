@@ -13,6 +13,7 @@ import sys
 import time
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -135,6 +136,129 @@ class W02PairRunnerTests(unittest.TestCase):
     def test_timeout_limit_is_enforced(self):
         with self.assertRaises(ValueError):
             runner.run_pair(mode="mock", model=None, timeout=runner.MAX_TIMEOUT + 1)
+
+
+    def test_preflight_prompt_is_opt_in_identical_and_preserves_classification(self):
+        default_prompt = runner.build_prompt()
+        self.assertEqual(default_prompt, runner.PROMPT)
+        baseline_prompt = runner.build_prompt(preflight=True)
+        treatment_prompt = runner.build_prompt(preflight=True)
+        self.assertEqual(baseline_prompt, treatment_prompt)
+        self.assertTrue(baseline_prompt.startswith(runner.PROMPT))
+        self.assertNotEqual(baseline_prompt, default_prompt)
+
+        if str(ROOT / "src") not in sys.path:
+            sys.path.insert(0, str(ROOT / "src"))
+        from jevcompass.advisor import classify_task
+
+        self.assertEqual(classify_task(baseline_prompt), ("source-review", "general"))
+
+    def test_run_pair_passes_the_same_opt_in_prompt_to_both_arms(self):
+        with tempfile.TemporaryDirectory() as directory:
+            auth_home = Path(directory)
+            (auth_home / "auth.json").write_text("{}", encoding="utf-8")
+            prompts = []
+
+            def fake_run_codex(**kwargs):
+                prompts.append(kwargs["prompt"])
+                return {"status": "completed", "exit_code": 0}
+
+            with mock.patch.dict(os.environ, {"CODEX_HOME": str(auth_home)}):
+                with mock.patch.object(runner.shutil, "which", return_value="/fake/codex"):
+                    with mock.patch.object(runner, "_run_codex", side_effect=fake_run_codex):
+                        result = runner.run_pair(
+                            mode="run", model="synthetic-model", timeout=3,
+                            preflight=True,
+                        )
+            self.assertEqual(result["status"], "completed")
+            self.assertEqual(len(prompts), 2)
+            self.assertEqual(prompts[0], prompts[1])
+            self.assertEqual(prompts[0], runner.build_prompt(preflight=True))
+
+    def test_preflight_captures_only_ids_from_first_assistant_before_tool(self):
+        private_text = "PRIVATE_RAW_ANSWER_MUST_NOT_BE_RETAINED"
+        lines = [
+            json.dumps({
+                "type": "item.completed",
+                "item": {
+                    "type": "agent_message",
+                    "text": (
+                        "JevCompass advice ID: abcdef12; selected catalog IDs: "
+                        "exec_command,documents\n" + private_text
+                    ),
+                },
+            }),
+            json.dumps({
+                "type": "item.started",
+                "item": {"type": "command_execution", "name": "exec_command"},
+            }),
+        ]
+        result = runner._parse_run(
+            lines, runner.time.monotonic(), treatment=True, preflight=True,
+        )
+        self.assertEqual(
+            result["preflight"],
+            {
+                "reported": True,
+                "advice_id": "abcdef12",
+                "selected_ids": ["exec_command", "documents"],
+                "before_first_tool": True,
+            },
+        )
+        self.assertNotIn(private_text, json.dumps(result))
+        self.assertNotIn("PRIVATE_RAW", json.dumps(result))
+
+    def test_preflight_after_first_tool_is_not_counted(self):
+        lines = [
+            json.dumps({
+                "type": "item.started",
+                "item": {"type": "command_execution", "name": "exec_command"},
+            }),
+            json.dumps({
+                "type": "item.completed",
+                "item": {
+                    "type": "agent_message",
+                    "text": "JevCompass advice ID: abcdef12; selected catalog IDs: exec_command",
+                },
+            }),
+        ]
+        result = runner._parse_run(
+            lines, runner.time.monotonic(), treatment=True, preflight=True,
+        )
+        self.assertEqual(
+            result["preflight"],
+            {
+                "reported": False,
+                "advice_id": None,
+                "selected_ids": [],
+                "before_first_tool": False,
+            },
+        )
+
+    def test_mock_preflight_reports_none_for_baseline_and_ids_for_treatment(self):
+        result = runner.run_pair(
+            mode="mock", model=None, timeout=3, preflight=True,
+        )
+        self.assertEqual(result["status"], "completed")
+        self.assertTrue(result["preflight_enabled"])
+        self.assertEqual(
+            result["arms"]["baseline"]["preflight"],
+            {
+                "reported": True,
+                "advice_id": None,
+                "selected_ids": [],
+                "before_first_tool": True,
+            },
+        )
+        self.assertEqual(
+            result["arms"]["treatment"]["preflight"],
+            {
+                "reported": True,
+                "advice_id": "abcdef12",
+                "selected_ids": ["exec_command", "documents"],
+                "before_first_tool": True,
+            },
+        )
 
 
 if __name__ == "__main__":
