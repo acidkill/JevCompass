@@ -39,6 +39,21 @@ class CatalogTests(unittest.TestCase):
         self.assertIn("python-testing-patterns", testing_ids)
         self.assertNotIn("code-review-excellence", testing_ids)
 
+    def test_vanilla_profile_stays_silent_for_api_and_documentation_without_specific_skill(self):
+        with patch.object(catalog, "discover_installed_skills", return_value={}), \
+                patch.object(catalog, "_configured_mcp_servers", return_value=set()), \
+                patch.object(catalog, "_codex_shell_available", return_value=True), \
+                patch.object(catalog.shutil, "which", return_value=None):
+            self.assertEqual(catalog.candidates("api-design", "any", "python"), [])
+            self.assertEqual(catalog.candidates("document", "any", "python"), [])
+
+    def test_builtin_api_and_documentation_candidate_respects_disabled_shell(self):
+        with patch.object(catalog, "discover_installed_skills", return_value={}), \
+                patch.object(catalog, "_configured_mcp_servers", return_value=set()), \
+                patch.object(catalog, "_codex_shell_available", return_value=False):
+            self.assertEqual(catalog.candidates("api-design", "any", "software"), [])
+            self.assertEqual(catalog.candidates("document", "any", "general"), [])
+
     def test_web_testing_excludes_python_only_candidates(self):
         curated = catalog.load_catalog()
         for entry in curated:

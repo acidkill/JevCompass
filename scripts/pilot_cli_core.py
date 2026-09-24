@@ -42,6 +42,11 @@ PROMPTS = {
 }
 READ_ONLY_CASES = frozenset({"P07", "R01", "R02", "R03", "R04", "R05", "R06"})
 ROUTINE_CASES = frozenset({"R01", "R02", "R03", "R04", "R05", "R06"})
+PREFLIGHT_CASES = frozenset({"P01", "P03", "P05", "P07"})
+PREFLIGHT_INSTRUCTION = (
+    "Before your first tool call, report the JevCompass advice ID and only the candidate IDs. "
+    "If no advisory is present, report exactly: NO JEVCOMPASS ADVISORY."
+)
 DEFAULT_TIMEOUT = 120
 MAX_TIMEOUT = 300
 MAX_EVENT_BYTES = 4 * 1024 * 1024
@@ -372,13 +377,17 @@ def _case_settings(case_id: str) -> dict[str, str]:
 
 def _build_command(
     *, codex: str, model: str, reasoning_effort: str, case_id: str,
+    preflight: bool = False,
 ) -> list[str]:
     settings = _case_settings(case_id)
+    prompt = PROMPTS[case_id]
+    if preflight and case_id in PREFLIGHT_CASES:
+        prompt = f"{prompt}\n\n{PREFLIGHT_INSTRUCTION}"
     return [
         codex, "-a", settings["approval_policy"], "exec", "--json", "--ephemeral",
         "--sandbox", settings["sandbox"], "--skip-git-repo-check",
         "--dangerously-bypass-hook-trust", "--model", model,
-        "--config", f"model_reasoning_effort={reasoning_effort}", PROMPTS[case_id],
+        "--config", f"model_reasoning_effort={reasoning_effort}", prompt,
     ]
 
 
@@ -464,6 +473,7 @@ def _collect_events(
 def _run_arm(
     *, codex: str, model: str, reasoning_effort: str, fixture: Path, home: Path,
     case_id: str, timeout: int, treatment: bool, require_auth: bool,
+    preflight: bool = False,
 ) -> dict[str, Any]:
     codex_home = home / ".codex"
     codex_home.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -485,7 +495,7 @@ def _run_arm(
     env = _isolated_environment(home=home, isolated_python=isolated_python)
     command = _build_command(
         codex=codex, model=model, reasoning_effort=reasoning_effort,
-        case_id=case_id,
+        case_id=case_id, preflight=preflight,
     )
     started = time.monotonic()
     try:
@@ -534,7 +544,7 @@ def _run_arm(
 def run_pilot(
     *, mode: str, model: str | None, reasoning_effort: str = "medium",
     timeout: int = DEFAULT_TIMEOUT, cases: Iterable[str] = CASE_IDS,
-    codex: str | None = None, rng: Any = None,
+    codex: str | None = None, rng: Any = None, preflight: bool = False,
 ) -> dict[str, Any]:
     if timeout < 1 or timeout > MAX_TIMEOUT:
         raise ValueError(f"timeout must be between 1 and {MAX_TIMEOUT} seconds")
@@ -588,7 +598,7 @@ def run_pilot(
                         codex=executable, model=model or "synthetic-model",
                         reasoning_effort=reasoning_effort, fixture=fixture_copy,
                         home=home, case_id=case_id, timeout=timeout,
-                        treatment=treatment, require_auth=False,
+                        treatment=treatment, require_auth=False, preflight=preflight,
                     )
                 else:
                     assert executable and model
@@ -597,7 +607,7 @@ def run_pilot(
                         codex=executable, model=model,
                         reasoning_effort=reasoning_effort, fixture=fixture_copy,
                         home=home, case_id=case_id, timeout=timeout,
-                        treatment=treatment, require_auth=True,
+                        treatment=treatment, require_auth=True, preflight=preflight,
                     )
             cases_summary[case_id] = {
                 "arm_order": arm_order,
@@ -616,6 +626,7 @@ def run_pilot(
         "pilot": "jevcompass-cli-core",
         "status": "failed" if failed else "completed",
         "mode": mode,
+        "preflight": bool(preflight),
         "case_order": case_list,
         "model": model if mode == "run" else None,
         "reasoning_effort": reasoning_effort,
@@ -637,6 +648,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--model", help="same explicit Codex model for both arms (required for live run)")
     parser.add_argument("--reasoning-effort", choices=("low", "medium", "high", "xhigh"), default="medium")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT, help=f"per-arm timeout, maximum {MAX_TIMEOUT}s")
+    parser.add_argument("--preflight", action="store_true", help="ask both arms to report pre-tool JevCompass advice evidence")
     parser.add_argument("--cases", nargs="+", choices=CASE_IDS, default=list(CASE_IDS))
     args = parser.parse_args(argv)
     selected_mode = "dry-run" if args.dry_run else "mock" if args.mock else "run"
@@ -647,6 +659,7 @@ def main(argv: list[str] | None = None) -> int:
             mode=selected_mode, model=args.model,
             reasoning_effort=args.reasoning_effort,
             timeout=args.timeout, cases=args.cases,
+            preflight=args.preflight,
         )
     except (FileNotFoundError, RuntimeError, ValueError) as error:
         print(json.dumps({"pilot": "jevcompass-cli-core", "status": "failed", "failure": str(error)}))

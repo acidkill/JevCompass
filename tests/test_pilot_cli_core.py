@@ -14,6 +14,8 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "pilot_cli_core.py"
+sys.path.insert(0, str(ROOT / "src"))
+from jevcompass.advisor import classify_task
 SPEC = importlib.util.spec_from_file_location("pilot_cli_core", SCRIPT)
 runner = importlib.util.module_from_spec(SPEC)
 assert SPEC and SPEC.loader
@@ -63,6 +65,7 @@ class PilotCliCoreTests(unittest.TestCase):
                 rng=OrderedRandom(),
             )
         self.assertEqual(result["status"], "completed")
+        self.assertFalse(result["preflight"])
         self.assertEqual(result["case_order"], ["R01", "P01"])
         self.assertFalse(result["openrouter_key_forwarded"])
         for case_id, case in result["cases"].items():
@@ -91,6 +94,35 @@ class PilotCliCoreTests(unittest.TestCase):
             self.assertIn("--model", command)
             self.assertIn("test-model", command)
             self.assertIn("model_reasoning_effort=high", command)
+
+    def test_preflight_appends_same_instruction_without_changing_substantive_classification(self):
+        for case_id in sorted(runner.PREFLIGHT_CASES):
+            base = runner._build_command(
+                codex="fake", model="test-model", reasoning_effort="high", case_id=case_id,
+            )[-1]
+            preflight = runner._build_command(
+                codex="fake", model="test-model", reasoning_effort="high", case_id=case_id,
+                preflight=True,
+            )[-1]
+            self.assertEqual(preflight, f"{base}\n\n{runner.PREFLIGHT_INSTRUCTION}")
+            self.assertEqual(classify_task(preflight), classify_task(base), case_id)
+
+    def test_preflight_preserves_exact_routine_prompts_and_does_not_trigger_classification(self):
+        for case_id in sorted(runner.ROUTINE_CASES):
+            command = runner._build_command(
+                codex="fake", model="test-model", reasoning_effort="high", case_id=case_id,
+                preflight=True,
+            )
+            self.assertEqual(command[-1], runner.PROMPTS[case_id])
+            self.assertIsNone(classify_task(command[-1]), case_id)
+
+    def test_preflight_receipt_is_recorded_in_dry_run(self):
+        result = runner.run_pilot(
+            mode="dry-run", model=None, cases=("P01", "R01"),
+            preflight=True, rng=OrderedRandom(),
+        )
+        self.assertEqual(result["status"], "completed")
+        self.assertTrue(result["preflight"])
 
     def test_event_parser_distinguishes_first_tool_from_first_useful_action(self):
         start = time.monotonic()
