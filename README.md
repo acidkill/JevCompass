@@ -37,7 +37,7 @@ The local catalog treats `exec_command` as Codex's built-in shell capability, en
 
 - Python 3.11 or newer
 - Codex Desktop or Codex CLI with the UserPromptSubmit and SubagentStart hook events
-- `OPENROUTER_API_KEY` in the hook process environment for remote selection
+- `OPENROUTER_API_KEY` in the hook process environment, or the optional native system-keyring extra for remote selection
 
 ## Install
 
@@ -51,7 +51,17 @@ jevcompass doctor
 
 `jevcompass install` creates a timestamped backup before changing the active `hooks.json` (`$CODEX_HOME/hooks.json` when `CODEX_HOME` is set, otherwise `~/.codex/hooks.json`) and idempotently adds exactly the JevCompass `UserPromptSubmit` and `SubagentStart` registrations. It removes only known legacy Jev gate commands from `PreToolUse`; unrelated hooks, including smem, are preserved. No Node installation is needed. The installed hook command uses the pipx environment's Python interpreter so it keeps working after a shell restart.
 
-Set `OPENROUTER_API_KEY` for the Codex process before starting Desktop or CLI. The default model is `typesafe/jev-1.13`; `JEVCOMPASS_MODEL` overrides it with another Decisions model identifier. After installation, review and trust the hooks in Codex with `/hooks`, then start a fresh session. The installer does not create a credential or send a test request. `doctor` checks public model metadata without a paid decision; `doctor --test-jev` explicitly sends one synthetic, billed request. [OpenRouter Decisions API](https://openrouter.ai/docs/cookbook/building-agents/gate-tool-calls-with-jev).
+Remote Jev selection uses `OPENROUTER_API_KEY` when present. For GUI-launched Desktop sessions that do not inherit a shell environment, install the optional secure-store extra and add the key interactively:
+
+~~~bash
+pipx inject jevcompass "keyring>=25"
+jevcompass auth set
+jevcompass auth status
+~~~
+
+For a checkout install, use `pipx install ".[secure-store]"`. `auth set` hides the key while typing and sends it to the system keyring over the helper process's stdin; the key is never accepted as a command argument or written to JevCompass configuration. The hook checks the environment first, then queries only native macOS Keychain, Linux Secret Service/KWallet, or Windows Credential Locker backends in a short-lived process with a 350 ms timeout. An unavailable, unsupported, locked, or slow keyring is ignored and local advice continues. Keyring access can still trigger platform-specific authorization UI; configure and authorize the store interactively before relying on it in hooks. On macOS, Keychain access may authorize the pipx Python executable rather than only JevCompass, so review the system Keychain access controls for your needs. Third-party and plaintext backends are rejected. See the [Python keyring documentation](https://keyring.readthedocs.io/en/stable/) for platform setup and backend behavior. `auth status` and `doctor` report only the source and whether a key exists.
+
+The default model is `typesafe/jev-1.13`; `JEVCOMPASS_MODEL` overrides it with another Decisions model identifier. After installation, review and trust the hooks in Codex with `/hooks`, then start a fresh session. The installer does not create a credential or send a test request. `doctor` checks public model metadata without a paid decision; `doctor --test-jev` explicitly sends one synthetic, billed request. [OpenRouter Decisions API](https://openrouter.ai/docs/cookbook/building-agents/gate-tool-calls-with-jev).
 
 To validate changes without writing files:
 
@@ -74,7 +84,7 @@ Allowed categories are infrastructure, debugging, testing, research, documentati
 ## Privacy boundaries
 
 - Task classification happens locally. Jev receives only a category, domain, role, and a small set of generic catalog descriptions and selection criteria.
-- JevCompass does not send the raw prompt, source code, repository paths, smem content, client data, credentials, or free-form model output.
+- The Decisions request body never contains the raw prompt, source code, repository paths, smem content, client data, or free-form model output. It carries only allowlisted task metadata and generic candidate descriptions. The OpenRouter API key is sent to OpenRouter only in the HTTPS authorization header; it is not included in the JSON body, cache, diagnostics, or logs.
 - Installed skill frontmatter is inspected locally for discovery. Its private description is not copied into the Jev request or advice.
 - An MCP server listed in `config.toml` is marked as configured, not proven connected. JevCompass excludes configured-only MCP entries from automatic advice, because hook input cannot prove the active tool connection. The catalog still reports them for inspection.
 - Cache and diagnostic logs stay in the user's home directory. Cache keys and selections contain only allowlisted categories, roles, domains, catalog version, and candidate IDs. Eligible advice includes a fresh short random ID; the local metric records that ID with the event, category, outcome, and duration. Skipped simple prompts produce no metric unless temporary diagnostics are enabled.
@@ -91,6 +101,9 @@ Jev is an advisory service, not an authorization system or security boundary. Do
 | jevcompass doctor | Check Python, config source, OpenRouter key presence, public Decisions model metadata, catalog counts, and hook registration. |
 | jevcompass doctor --test-jev | Also send one synthetic, billed Jev decision request. |
 | jevcompass install | Merge the two advisory hooks without installing Node. |
+| jevcompass auth status | Show redacted environment/keyring credential status. |
+| jevcompass auth set | Store an OpenRouter key through a hidden terminal prompt. |
+| jevcompass auth delete | Remove the JevCompass system-keyring entry after confirmation. |
 
 ## Development and tests
 

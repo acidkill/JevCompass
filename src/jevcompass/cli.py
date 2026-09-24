@@ -13,6 +13,7 @@ from .catalog import catalog_snapshot, catalog_version
 from .paths import resolve_codex_home
 from .decisions import DecisionsClient, DecisionsError, model_available
 from .installer import install
+from .credentials import auth_main, credential_status
 
 
 CATEGORIES = tuple(advisor.CATALOG_TASKS)
@@ -35,11 +36,12 @@ def doctor(*, test_jev: bool = False) -> dict[str, Any]:
     codex_home_source = "environment" if os.environ.get("CODEX_HOME") else "default"
     hooks_path = resolve_codex_home() / "hooks.json"
     hook_command = advisor.hook_command()
-    key_configured = bool(os.environ.get("OPENROUTER_API_KEY"))
+    key_status = credential_status()
+    key_configured = key_status["configured"]
     checks: dict[str, Any] = {
         "python": {"ok": sys.version_info >= (3, 11), "version": platform.python_version(), "required": ">=3.11"},
         "codex_home": {"ok": True, "source": codex_home_source},
-        "openrouter_key": {"ok": key_configured, "configured": key_configured},
+        "openrouter_key": {"ok": key_configured, **key_status},
         "jev_model": {"ok": model_available(), "source": "environment" if os.environ.get("JEVCOMPASS_MODEL") else "default", "check": "public model metadata"},
         "catalog": {
             "ok": bool(entries) and not any(item["id"].startswith("tonis-") for item in entries),
@@ -99,6 +101,11 @@ def main(argv: list[str] | None = None) -> int:
     doctor_parser.add_argument("--test-jev", action="store_true", help="Send one synthetic, billed Jev request")
     installer = sub.add_parser("install", help="Merge the two advisory hooks")
     installer.add_argument("--dry-run", action="store_true", help="Validate planned changes without writing files")
+    auth = sub.add_parser("auth", help="Manage the OpenRouter key in the system keyring")
+    auth_sub = auth.add_subparsers(dest="auth_action", required=True)
+    auth_sub.add_parser("status", help="Show redacted credential availability")
+    auth_sub.add_parser("set", help="Store a key using a hidden interactive prompt")
+    auth_sub.add_parser("delete", help="Remove the keyring entry after confirmation")
     args = parser.parse_args(argv)
     if args.command == "hook":
         return advisor.hook_main()
@@ -116,7 +123,12 @@ def main(argv: list[str] | None = None) -> int:
             python_check = result["python"]
             print(f"- Python: {'PASS' if python_check['ok'] else 'CHECK'} {python_check['version']} (requires {python_check['required']})")
             key_check = result["openrouter_key"]
-            key_status = "configured" if key_check["configured"] else "not configured"
+            key_source = key_check["source"]
+            key_status = {
+                "environment": "configured through the environment",
+                "system-keyring": "configured in the system keyring",
+                "none": "not configured",
+            }.get(key_source, "not configured")
             print(f"- OpenRouter API key: {key_status}; remote Jev choices need it, while local single-candidate advice can still work without it")
             model_check = result["jev_model"]
             model_status = "metadata available" if model_check["ok"] else "metadata unavailable; remote advice will be skipped"
@@ -139,6 +151,8 @@ def main(argv: list[str] | None = None) -> int:
             print("MCP configuration and installed skill metadata do not prove tools are callable in this Codex session.")
             print("Private integration and skill names, configuration values, and local paths are withheld.")
         return 0 if result["ok"] else 1
+    if args.command == "auth":
+        return auth_main(args.auth_action)
     if args.command == "install":
         try:
             result = install(dry_run=args.dry_run)

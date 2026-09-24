@@ -78,6 +78,35 @@ class DoctorTests(unittest.TestCase):
         self.assertIn("metadata unavailable; remote advice will be skipped", output.getvalue())
         self.assertIn("path hidden", output.getvalue())
 
+    def test_doctor_uses_redacted_system_keyring_status(self):
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(mock.patch.dict(
+                os.environ,
+                {"CODEX_HOME": "/tmp/jevcompass-doctor-profile"},
+                clear=True,
+            ))
+            stack.enter_context(mock.patch.object(cli, "credential_status", return_value={
+                "configured": True,
+                "source": "system-keyring",
+                "secure_store_available": True,
+            }))
+            stack.enter_context(mock.patch.object(cli, "model_available", return_value=True))
+            stack.enter_context(mock.patch.object(cli, "catalog_snapshot", return_value=(
+                [{"id": "exec_command"}],
+                {
+                    "curated_entries": 20,
+                    "available_tools": 3,
+                    "available_skills": 1,
+                    "configured_mcp_servers": 0,
+                    "discovered_skills": 1,
+                    "unavailable_entries": 16,
+                },
+            )))
+            result = cli.doctor()
+        self.assertTrue(result["openrouter_key"]["ok"])
+        self.assertEqual(result["openrouter_key"]["source"], "system-keyring")
+        self.assertTrue(result["openrouter_key"]["secure_store_available"])
+
 
 if __name__ == "__main__":
     unittest.main()

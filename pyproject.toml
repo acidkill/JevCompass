@@ -19,6 +19,9 @@ classifiers = [
   "Topic :: Software Development :: Libraries",
 ]
 
+[project.optional-dependencies]
+secure-store = ["keyring>=25"]
+
 [project.scripts]
 jevcompass = "jevcompass.cli:main"
 

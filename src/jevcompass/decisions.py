@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import os
 from typing import Any, Callable
+
+from .credentials import resolve_api_key
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -41,7 +43,7 @@ class DecisionsClient:
     def __init__(self, *, api_key: str | None = None, model: str | None = None,
                  timeout: float = 1.5,
                  transport: Callable[[str, bytes, str, float], bytes] = _post):
-        self.api_key = api_key if api_key is not None else os.environ.get("OPENROUTER_API_KEY", "")
+        self.api_key = api_key if api_key is not None else resolve_api_key()
         self.model = model if model is not None else configured_model()
         self.timeout = timeout
         self.transport = transport
