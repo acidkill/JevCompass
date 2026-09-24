@@ -18,14 +18,13 @@ A recommendation is optional guidance. Codex still follows project instructions,
 
 ## Example
 
-For a substantive coding task, the prompt hook may add:
+For a substantive repository setup task without an OpenRouter key, the prompt hook may add this locally selected shortlist (the ID is illustrative):
 
 ~~~text
 JevCompass advice ID: 0123abcd
-Optional tools and skills for this task; validate against the task and actual availability:
-- tool `exec_command` — Codex's built-in shell tool for bounded local checks and repository inspection
-- skill: python-packaging — Build and distribute a Python package with modern project metadata
-
+Local unranked fallback; Jev did not select these candidates. Optional tools and skills for this task; validate against the task and actual availability:
+- tool `exec_command`: Codex built-in exec_command for bounded local shell commands
+- tool `git`: Inspect repository changes and history
 Configured MCP entries must be confirmed connected in this session. Read any chosen skill before use and follow required project instructions and tests. If you write a plan, include concise execution recommendations for the primary agent and useful subagents.
 ~~~
 
@@ -79,7 +78,7 @@ jevcompass recommend --category debugging --domain python --role primary
 jevcompass recommend --category project-setup --domain software --role planner
 ~~~
 
-Allowed categories are infrastructure, debugging, testing, research, documentation, coding, codebase, review, planning, operations, and project-setup. Allowed domains are general, software, python, web, and kubernetes. The command accepts no raw task prompt.
+Allowed categories are infrastructure, debugging, testing, research, api-design, documentation, coding, codebase, review, planning, operations, and project-setup. Allowed domains are general, software, python, web, and kubernetes. The command accepts no raw task prompt.
 
 ## Privacy boundaries
 
