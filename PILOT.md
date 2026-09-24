@@ -6,6 +6,12 @@ The private CLI pilot can now produce `pilot-diagnostics.json` alongside the map
 
 **Not yet accepted.** A previous six-pair CLI routine run exists, but it inspected the private JevCompass repository with custom smem hooks and is excluded from this synthetic acceptance bank. No substantive-prompt paired usefulness case has been scored. One correlated Desktop `explorer` smoke and one fresh CLI local-fallback prompt smoke prove advice reached the agent before its first tool. A separate fresh CLI 0.155.1 `review/python` run made a remote Jev choice and delivered advice ID `5914ac30` before its first `exec_command`; its matching metric reports `UserPromptSubmit` / `review` / `jev` / 696.03 ms. These are single delivery smokes, not usefulness or paired-study evidence. JevCompass classifies substantive prompts independently of permission mode; Codex does not provide a reliable Plan UI field in the hook event, so Plan-only automatic coverage is not a product requirement. Usefulness, both-host balance, and the full paired study remain open.
 
+## VCR-64 fresh P05 paired CLI diagnostic (2026-09-24)
+
+A fresh randomized baseline/treatment pair ran the synthetic P05 package README task with `gpt-6-sol` medium and equal preflight. The isolated runner forwarded no OpenRouter key and installed no other hooks. Blind quality scores were saved and SHA-256 committed (`39d8d021a3d46d8f109bd68800bc9bae835b6927d9dd3662ebf62c1152e31710`) before arm mapping was opened. Both README artifacts gave coherent install steps and preserved the module-form help and required unittest command; both observed test commands failed on the deliberately broken starter. The scorer therefore found a quality tie with required checks preserved and no blocks. It did not score first productive action, privacy disclosure, or recommendation usefulness from incomplete evidence.
+
+The private, validated diagnostic sidecar correlates the treatment to `package-docs/local` at 3.64 ms and confirms its ID was reported before the first tool. The baseline is `not_applicable`. This verifies delivery in one CLI pair, not causation or a speed gain. Private receipts, quality artifacts, mapping, sidecar, score, and rationale are at `/tmp/jevcompass-vcr64-p05-20260924/`; keep mapping and sidecar away from blind evaluators. Overall automatic-advice acceptance remains **not passed (0/20 complete gate cases)**. A separate post-unblind relevance assessment and Desktop coverage remain necessary.
+
 ## Current acceptance gate audit (2026-09-24)
 
 | Gate | Evidence | Decision |
