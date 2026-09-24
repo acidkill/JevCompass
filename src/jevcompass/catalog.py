@@ -42,10 +42,10 @@ def _codex_config_file() -> Path:
 
 
 def discover_installed_skills(limits: dict[str, int] | None = None) -> dict[str, dict[str, str]]:
-    """Enumerate bounded SKILL.md metadata, keyed by normalized display name.
+    """Enumerate bounded SKILL.md metadata by plain name and verified package alias.
 
-    Only frontmatter name/description is retained. Symlinks are skipped,
-    traversal is bounded per root, and filesystem paths are never returned.
+    Namespaced aliases require a matching plugin-cache layout, not an unrelated
+    standalone skill with the same basename. Filesystem paths are never returned.
     """
     bounds = {**_DEFAULT_LIMITS, **(limits or {})}
     found: dict[str, dict[str, str]] = {}
@@ -70,7 +70,15 @@ def discover_installed_skills(limits: dict[str, int] | None = None) -> dict[str,
                         files_seen += 1
                         metadata = _skill_frontmatter(Path(child.path))
                         if metadata.get("name"):
-                            found.setdefault(_normalize(metadata["name"]), metadata)
+                            short_name = _normalize(metadata["name"].split(":")[-1])
+                            found.setdefault(short_name, metadata)
+                            relative = Path(child.path).relative_to(root).parts
+                            # <provider>/<package>/<version>/skills/<skill>/SKILL.md
+                            if len(relative) >= 6 and relative[-3] == "skills":
+                                package = _normalize(relative[-5])
+                                if (_normalize(relative[-2]) == short_name
+                                        and _normalize(metadata["name"]) in {short_name, f"{package}:{short_name}"}):
+                                    found.setdefault(f"{package}:{short_name}", metadata)
                 except OSError:
                     continue
     return found
@@ -162,7 +170,7 @@ def catalog_snapshot() -> tuple[list[dict[str, Any]], dict[str, int]]:
         kind = spec.get("kind")
         item["kind"] = "skill" if kind == "skill" else "tool"
         if kind == "skill":
-            key = _normalize(spec.get("name", "").split(":")[-1])
+            key = _normalize(spec.get("name", ""))
             item["availability"] = "available" if key in skills else "unavailable"
         elif kind == "command":
             item["availability"] = "available" if shutil.which(spec.get("command", "")) else "unavailable"
@@ -179,7 +187,7 @@ def catalog_snapshot() -> tuple[list[dict[str, Any]], dict[str, int]]:
         "available_tools": sum(item["kind"] == "tool" and item["availability"] == "available" for item in clean),
         "available_skills": sum(item["kind"] == "skill" and item["availability"] == "available" for item in clean),
         "configured_mcp_servers": len(servers),
-        "discovered_skills": len(skills),
+        "discovered_skills": sum(":" not in name for name in skills),
         "unavailable_entries": sum(item["availability"] == "unavailable" for item in clean),
     }
     return clean, summary

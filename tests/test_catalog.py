@@ -179,7 +179,7 @@ shell_tool = false
         with tempfile.TemporaryDirectory() as directory:
             user_home = Path(directory)
             codex_home = user_home / "codex-profile"
-            skill_file = codex_home / "skills" / "python-testing-patterns" / "SKILL.md"
+            skill_file = codex_home / "plugins" / "cache" / "claude-code-workflows" / "python-development" / "1.2.3" / "skills" / "python-testing-patterns" / "SKILL.md"
             skill_file.parent.mkdir(parents=True)
             skill_file.write_text(
                 "---\nname: python-testing-patterns\ndescription: private-skill-description-9f2c\n---\n"
@@ -209,6 +209,41 @@ shell_tool = false
                 str(codex_home),
             ):
                 self.assertNotIn(private_value, rendered)
+
+    def test_namespaced_skill_requires_matching_plugin_package(self):
+        with tempfile.TemporaryDirectory() as directory:
+            user_home = Path(directory)
+            codex_home = user_home / "codex-profile"
+            standalone = codex_home / "skills" / "gitops-workflow" / "SKILL.md"
+            other_package = codex_home / "plugins" / "cache" / "provider" / "other-plugin" / "1.0" / "skills" / "gitops-workflow" / "SKILL.md"
+            for path in (standalone, other_package):
+                path.parent.mkdir(parents=True)
+                path.write_text("---\nname: gitops-workflow\ndescription: unrelated helper\n---\n")
+            with patch.dict(catalog.os.environ, {"CODEX_HOME": str(codex_home)}, clear=True), \
+                    patch.object(Path, "home", return_value=user_home):
+                by_id = {item["id"]: item for item in catalog.load_catalog()}
+                self.assertEqual(by_id["kubernetes-gitops-workflow"]["availability"], "unavailable")
+                self.assertIn("gitops-workflow", catalog.discover_installed_skills())
+                matching = codex_home / "plugins" / "cache" / "provider" / "kubernetes-operations" / "1.0" / "skills" / "gitops-workflow" / "SKILL.md"
+                matching.parent.mkdir(parents=True)
+                matching.write_text("---\nname: gitops-workflow\ndescription: matching plugin\n---\n")
+                by_id = {item["id"]: item for item in catalog.load_catalog()}
+                self.assertEqual(by_id["kubernetes-gitops-workflow"]["availability"], "available")
+                self.assertIn("kubernetes-operations:gitops-workflow", catalog.discover_installed_skills())
+
+    def test_unnamespaced_skill_is_found_in_codex_or_agents_root(self):
+        with tempfile.TemporaryDirectory() as directory:
+            user_home = Path(directory)
+            codex_home = user_home / "codex-profile"
+            for root in (codex_home / "skills", user_home / ".agents" / "skills"):
+                file = root / "documents" / "SKILL.md"
+                file.parent.mkdir(parents=True)
+                file.write_text("---\nname: documents\ndescription: generic document helper\n---\n")
+                with patch.dict(catalog.os.environ, {"CODEX_HOME": str(codex_home)}, clear=True), \
+                        patch.object(Path, "home", return_value=user_home):
+                    by_id = {item["id"]: item for item in catalog.load_catalog()}
+                    self.assertEqual(by_id["documents"]["availability"], "available")
+                file.unlink()
 
     def test_skill_directory_budget_is_applied_per_root(self):
         with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second:
