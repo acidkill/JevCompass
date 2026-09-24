@@ -46,7 +46,7 @@ class ProductContractTests(unittest.TestCase):
 
         entries = {item["id"]: item for item in load_catalog()}
         self.assertEqual(entries["api-design-principles"]["task_kinds"], ["api-design"])
-        self.assertEqual(entries["documents"]["task_kinds"], ["document"])
+        self.assertEqual(entries["documents"]["task_kinds"], ["document", "source-review"])
         for skill_id in (
             "create-plan",
             "api-design-principles",

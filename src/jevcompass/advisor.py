@@ -38,6 +38,7 @@ CATALOG_TASKS = {
     "coding": "code",
     "codebase": "codebase",
     "review": "review",
+    "source-review": "source-review",
     "planning": "planning",
     "operations": "ops",
     "project-setup": "project",
@@ -46,6 +47,7 @@ TASK_PATTERNS = (
     ("project-setup", re.compile(r"(?=.*\b(creat\w*|start\w*|bootstrap\w*|scaffold\w*|setup|set up|initialize\w*|init\w*|utwórz|założ\w*|stwórz|stworze\w*|zainicjaliz\w*)\b)(?=.*\b(repository|repo|repozytorium|package|pakiet|project|projekt)\b)", re.I)),
     ("api-design", re.compile(r"(?=.*\b(?:api|endpoint|openapi|rest|graphql)\b)(?:(?=.*\b(?:design\w*|architect\w*|defin\w*|specif\w*|zaprojekt\w*|projektow\w*)\b)|(?=.*\b(?:review|audit)\b)(?=.*\b(?:contract|schema|specification)\b))", re.I)),
     ("infrastructure", re.compile(r"\b(kubernetes|kubectl|helm|k3s|deploy|deployment|cluster|terraform|infra|wdroż|klaster)\b", re.I)),
+    ("source-review", re.compile(r"^(?!.*\b(?:code|diff|pull request|implementation|api|readme)\b)(?=.*\b(?:review|audit|przegląd|przejrz|audyt)\w*\b)(?=.*\b(?:proposal|offer|quote|bid|draft|invoice|ofert|propozycj|wycen)\w*\b)", re.I)),
     ("review", re.compile(r"\b(review|audit|diff|pull request|pr|przegląd|audyt)\b", re.I)),
     ("debugging", re.compile(r"\b(debug|diagnos|bug|error|failure|regress|defect|napraw|błąd|awari)\w*|\bfix(?:es|ed|ing)?\b", re.I)),
     ("codebase", re.compile(r"\b(inspect|understand|explain|trace|investigat|how does|what does|przejrz|zrozum|wyjaśn)\w*", re.I)),
@@ -194,6 +196,7 @@ def _context(
     items: list[dict[str, Any]],
     trace: str | None = None,
     selection_source: str = "jev",
+    category: str | None = None,
 ) -> dict[str, Any] | None:
     chosen = {item["id"]: item for item in items}
     lines = []
@@ -216,6 +219,8 @@ def _context(
     else:
         prefix = source_note + "Optional tools and skills for this agent role; validate them against your actual task and availability:\n"
         suffix = "\nConfigured MCP entries must be confirmed connected in this session. Read any chosen skill before use. Follow the task brief and required project instructions."
+    if category == "source-review":
+        suffix += " Verify current authoritative local sources and mark missing facts. Keep drafts unsent unless explicitly authorized."
     context = (f"JevCompass advice ID: {trace}\n" if trace else "") + prefix + "\n".join(lines) + suffix
     if len(context) > MAX_CONTEXT_CHARS:
         return None
@@ -253,7 +258,7 @@ def select_advice(name: str, category: str, domain: str, role: str, trace: str |
         if len(group := [item for item in items if item["kind"] == kind]) == 1
     ]
     if not questions:
-        output = _context(name, singleton_ids, items, trace, selection_source="local") if singleton_ids else None
+        output = _context(name, singleton_ids, items, trace, selection_source="local", category=category) if singleton_ids else None
         _metric(name, category, "local" if output else "insufficient-candidates", started, trace)
         return output
 
@@ -276,7 +281,7 @@ def select_advice(name: str, category: str, domain: str, role: str, trace: str |
         selected = list(dict.fromkeys([*singleton_ids, *(choices or [])]))
 
     source = "local" if status == "local" else "jev"
-    output = _context(name, selected, items, trace, selection_source=source) if selected else None
+    output = _context(name, selected, items, trace, selection_source=source, category=category) if selected else None
     _metric(name, category, status if output else "skip", started, trace)
     return output
 

@@ -10,6 +10,7 @@ JevCompass helps Codex choose a small set of relevant tools and skills from a lo
 
 - **Codex user prompts:** classifies substantive task intent locally in any permission mode, then asks Jev to choose when multiple reviewed candidates remain. API design and documentation use focused candidate pools; planning, Kubernetes, and packaging skills stay out of generic coding choices. A single clear candidate is suggested locally to avoid an unnecessary round trip. Short or single-step requests are skipped quickly; the hook does not infer the Codex Plan UI mode.
 - **Codex subagents:** provides role-level suggestions for the built-in `explorer` and `worker` agents. The generic `default` role and custom agent types are skipped. The [SubagentStart event](https://learn.chatgpt.com/docs/hooks) includes the agent type but not its task, so advice stays role-level and never reads a transcript.
+- **Source reviews:** proposals and offers receive a separate local review path that reminds the agent to check authoritative sources, mark missing facts, and leave drafts unsent until explicitly authorized. Code reviews keep their own candidate pool. Jev sees only the generic task category and reviewed candidate metadata.
 - **Local catalog:** checks reviewed skills against installed skill names and MCP integrations against local configuration. `CODEX_HOME` selects the active Codex config and skill roots; `~/.agents/skills` remains discoverable. Private skill descriptions, integration names, configuration values, and paths are not sent to Jev.
 - **Manual entry point:** `jevcompass recommend` uses explicit allowlisted metadata when the task is too brief or ambiguous for automatic classification.
 - **Diagnostics:** `jevcompass doctor` reports the active config source, aggregate catalog counts, model/key status, hook registration, and whether hooks are explicitly disabled in the base Codex config, without printing local paths or configuration values. A passing registration check does not prove hook trust or agent-visible delivery.
@@ -78,7 +79,7 @@ jevcompass recommend --category debugging --domain python --role primary
 jevcompass recommend --category project-setup --domain software --role planner
 ~~~
 
-Allowed categories are infrastructure, debugging, testing, research, api-design, documentation, coding, codebase, review, planning, operations, and project-setup. Allowed domains are general, software, python, web, and kubernetes. The command accepts no raw task prompt.
+Allowed categories are infrastructure, debugging, testing, research, api-design, documentation, coding, codebase, review, source-review, planning, operations, and project-setup. Allowed domains are general, software, python, web, and kubernetes. The command accepts no raw task prompt.
 
 ## Privacy boundaries
 

@@ -48,12 +48,14 @@ These three pairs use the task shapes of a real Codex workflow while keeping eve
 | Case | Host | Local expectation | Synthetic task |
 |---|---|---|---|
 | W01 | CLI | `codebase / software` after event normalization | Investigate how a synthetic workstation setup script reads configuration across modules; identify its entry point, tests, and the smallest safe change without changing the host. |
-| W02 | Desktop | `review / general` | Review a synthetic client proposal draft against the repository map and canonical pricing table. Flag missing facts, keep the draft unsent, and report its intended path and filename. |
+| W02 | Desktop | `source-review / general` | Review a synthetic client proposal draft against the repository map and canonical pricing table. Flag missing facts, keep the draft unsent, and report its intended path and filename. |
 | W03 | CLI | `infrastructure / kubernetes` | Inspect a synthetic Helm deployment configuration and explain rollback steps and required checks without contacting any cluster. |
 
 W01's temporary repository contains two small setup scripts, an inert configuration file, and a focused test. No command may alter a real workstation. W02's fixture includes a minimal repository map, current pricing table, clearly marked legacy price table, naming convention, and a mock proposal with one absent fact; use fictional entities and values. Its expected result chooses the client draft folder, follows the naming rule, cites only the current table, marks the absent fact, and sends nothing. W03 has a local Helm chart, values file, and a mock runbook; no kubeconfig, credentials, or live cluster access is present.
 
 For each pair, record whether the first useful action found the right source, whether the advice was actually available to that agent before its first tool, whether required checks were preserved, and whether the output respected the fixture's path/source/approval constraints. W02 must not count a plausible but invented price as success; W03 must not substitute Jev advice for a Helm render or required repository check. This is a usability stress test for ordinary multi-source work, not evidence of access to this user's private materials.
+
+Local classifier preflight for the W02 text is `source-review/general`, while a Python implementation review remains `review/python`. In a clean no-skill profile the source-review pool has only the built-in shell tool; if the reviewed documents skill is installed, it may also be considered. These local checks do not prove that the recommendation improves a real draft.
 
 ## Fixture and scoring rules
 

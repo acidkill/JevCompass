@@ -50,6 +50,24 @@ class CatalogTests(unittest.TestCase):
         self.assertTrue({"pytest", "python-testing-patterns"} <= python_ids)
         self.assertFalse({"pytest", "python-testing-patterns"} & web_ids)
 
+    def test_source_review_pool_excludes_code_review_and_git(self):
+        reviewed = catalog.load_catalog()
+        for entry in reviewed:
+            if entry["id"] in {"exec_command", "documents", "git", "code-review-excellence"}:
+                entry["availability"] = "available"
+        with patch.object(catalog, "load_catalog", return_value=reviewed):
+            source_ids = {item["id"] for item in catalog.candidates("source-review", "any", "general", limit=20)}
+            code_ids = {item["id"] for item in catalog.candidates("review", "any", "software", limit=20)}
+        self.assertEqual(source_ids, {"exec_command", "documents"})
+        self.assertIn("code-review-excellence", code_ids)
+        self.assertNotIn("documents", code_ids)
+        for entry in reviewed:
+            if entry["id"] == "documents":
+                entry["availability"] = "unavailable"
+        with patch.object(catalog, "load_catalog", return_value=reviewed):
+            vanilla_ids = {item["id"] for item in catalog.candidates("source-review", "any", "general", limit=20)}
+        self.assertEqual(vanilla_ids, {"exec_command"})
+
     def test_candidates_apply_task_role_domain_and_limit(self):
         fake = [
             {"id": "a", "task_kinds": ["code"], "role": "testing", "domains": ["software"], "availability": "available"},

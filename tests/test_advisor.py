@@ -168,6 +168,30 @@ class AdvisorTests(unittest.TestCase):
         self.assertIsNotNone(output)
         select.assert_called_once_with("UserPromptSubmit", "codebase", "software", "primary", None)
 
+    def test_proposal_review_uses_source_review_without_exposing_content(self):
+        prompt = ("Review a synthetic client proposal draft against the repository map and canonical pricing table. "
+                  "Flag missing facts, keep the draft unsent, and report its intended path and filename.")
+        self.assertEqual(advisor.classify_task(prompt), ("source-review", "general"))
+        self.assertEqual(
+            advisor.classify_task("Przejrzyj ofertę klienta względem aktualnego źródła cen, oznacz brakujące fakty i zachowaj jako niesłany szkic do weryfikacji."),
+            ("source-review", "general"),
+        )
+        self.assertEqual(
+            advisor.classify_task("Review the Python code that renders a client offer and report implementation defects."),
+            ("review", "python"),
+        )
+        with mock.patch.object(advisor, "candidates", return_value=[ITEMS[1]]) as candidates, \
+                mock.patch.object(advisor, "_judge") as judge:
+            output = advisor.evaluate({"hook_event_name": "UserPromptSubmit", "prompt": prompt})
+        context = output["hookSpecificOutput"]["additionalContext"]
+        candidates.assert_called_once_with(task_kind="source-review", role="any", domain="general", limit=20)
+        judge.assert_not_called()
+        self.assertIn("current authoritative local sources", context)
+        self.assertIn("mark missing facts", context)
+        self.assertIn("Keep drafts unsent unless explicitly authorized", context)
+        self.assertNotIn("client proposal draft", context)
+        self.assertNotIn("pricing table", context)
+
     def test_single_available_candidate_is_recommended_locally_without_jev(self):
         with mock.patch.object(advisor, "candidates", return_value=[ITEMS[1]]) as candidates, \
                 mock.patch.object(advisor, "_judge") as judge, \
