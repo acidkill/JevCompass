@@ -12,7 +12,7 @@ from . import __version__, advisor
 from .catalog import catalog_snapshot, catalog_version
 from .paths import resolve_codex_home
 from .decisions import DecisionsClient, DecisionsError, model_available
-from .installer import install
+from .installer import SUBAGENT_MATCHER, install
 from .credentials import auth_main, credential_status
 
 
@@ -57,6 +57,7 @@ def doctor(*, test_jev: bool = False) -> dict[str, Any]:
         for event_name in ("UserPromptSubmit", "SubagentStart"):
             if any(handler.get("command") == hook_command
                    for group in hooks.get(event_name, [])
+                   if event_name != "SubagentStart" or group.get("matcher") == SUBAGENT_MATCHER
                    for handler in group.get("hooks", [])):
                 registered.append(event_name)
         pretool = any(

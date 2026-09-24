@@ -18,6 +18,7 @@ from .paths import resolve_codex_home
 
 LEGACY_GATE_COMMANDS = {"npx -y jev-use hook gate", "jev-use hook gate"}
 ADVISOR_EVENTS = ("UserPromptSubmit", "SubagentStart")
+SUBAGENT_MATCHER = "^(explorer|worker)$"
 
 
 def _is_product_hook(command: str) -> bool:
@@ -81,7 +82,7 @@ def merge_hooks(data: dict[str, Any], command: str) -> dict[str, Any]:
     handler = {"type": "command", "command": command, "timeout": 2, "additionalContextLimit": 400}
     hooks.setdefault("UserPromptSubmit", []).append({"hooks": [handler]})
     hooks.setdefault("SubagentStart", []).append({
-        "matcher": "^(explorer|worker)$",
+        "matcher": SUBAGENT_MATCHER,
         "hooks": [handler],
     })
     return result

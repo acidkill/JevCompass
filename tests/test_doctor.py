@@ -10,6 +10,7 @@ import unittest
 from unittest import mock
 
 from jevcompass import advisor, cli
+from jevcompass.installer import SUBAGENT_MATCHER
 
 
 class DoctorTests(unittest.TestCase):
@@ -19,7 +20,7 @@ class DoctorTests(unittest.TestCase):
             codex_home.mkdir()
             (codex_home / "hooks.json").write_text(json.dumps({"hooks": {
                 "UserPromptSubmit": [{"hooks": [{"command": advisor.hook_command()}]}],
-                "SubagentStart": [{"hooks": [{"command": advisor.hook_command()}]}],
+                "SubagentStart": [{"matcher": SUBAGENT_MATCHER, "hooks": [{"command": advisor.hook_command()}]}],
                 "PreToolUse": [],
             }}))
             secret_key = "openrouter-secret-test-value"
@@ -54,6 +55,20 @@ class DoctorTests(unittest.TestCase):
             self.assertNotIn(str(codex_home), serialized)
             self.assertNotIn(secret_key, serialized)
             self.assertNotIn("custom-model-hidden-96a", serialized)
+
+    def test_doctor_rejects_subagent_hook_with_wrong_matcher(self):
+        with tempfile.TemporaryDirectory() as directory:
+            codex_home = Path(directory)
+            (codex_home / "hooks.json").write_text(json.dumps({"hooks": {
+                "UserPromptSubmit": [{"hooks": [{"command": advisor.hook_command()}]}],
+                "SubagentStart": [{"matcher": "^default$", "hooks": [{"command": advisor.hook_command()}]}],
+            }}))
+            with mock.patch.dict(os.environ, {"CODEX_HOME": str(codex_home)}), \
+                    mock.patch.object(cli, "model_available", return_value=True), \
+                    mock.patch.object(cli, "catalog_snapshot", return_value=([{"id": "exec_command"}], {})):
+                result = cli.doctor()
+        self.assertFalse(result["hooks_json"]["ok"])
+        self.assertEqual(result["hooks_json"]["registered_advisory_hooks"], ["UserPromptSubmit"])
 
     def test_doctor_without_openrouter_key_explains_local_fallback(self):
         with mock.patch.dict(os.environ, {"CODEX_HOME": "/tmp/jevcompass-doctor-profile"}, clear=True), \
