@@ -42,6 +42,10 @@ An authenticated download of the attached private v0.1.0 wheel matched the GitHu
 
 The wheel downloaded from the private v0.1.0 release was installed into a fresh isolated pipx and Codex profile. Its SHA-256 matched the GitHub asset digest. With no OpenRouter key, a synthetic repository-setup prompt received first assistant event 4 containing advice ID `3dfbb31a` and candidate IDs `exec_command` and `git`; first tool event followed at 5 and exited 0. The local `UserPromptSubmit/project-setup/local` metric carried the same ID, took 31.31 ms, and contained only allowlisted fields, with no task prompt or fixture text. The isolated CLI run used `--dangerously-bypass-hook-trust`; it does not validate normal user approval of hooks. Evidence is private under `/tmp/jevcompass-wheel-runtime.KR9WFo/` (`evidence.json`, Codex JSON events, advisor metric, doctor result). This verifies one actual delivery from the distributed package, not task usefulness, remote Jev selection, Desktop prompt delivery, or macOS runtime.
 
+## Current Desktop explorer negative smoke (2026-09-24)
+
+A new native Desktop `explorer` child answered a read-only question about the synthetic whitespace fixture. Its first commentary reported **no JevCompass advice ID or candidate IDs** before its first tool. Local hooks configuration still lists `SubagentStart` for `explorer|worker`, but the available safe metric stream has no identifiable new SubagentStart record for this invocation. Since diagnostic correlation is absent, this run cannot distinguish a hook that did not run from a silent low-signal decision. The prior positive Desktop explorer smoke preceded the current catalog abstention calibration and does not prove current named-role delivery. Record this as no delivery observed, with hook reload/trust/invocation investigation on the roadmap; do not count it as accepted coverage.
+
 ## Current acceptance gate audit (2026-09-24)
 
 | Gate | Evidence | Decision |
