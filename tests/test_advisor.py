@@ -259,6 +259,14 @@ class AdvisorTests(unittest.TestCase):
                   "Flag missing facts, keep the draft unsent, and report its intended path and filename.")
         self.assertEqual(advisor.classify_task(prompt), ("source-review", "general"))
         self.assertEqual(
+            advisor.classify_task("Review counter.py for a correctness issue and quote only the advice ID before tools."),
+            ("review", "general"),
+        )
+        self.assertEqual(
+            advisor.classify_task("Review the client price quote against the canonical pricing table and flag missing facts."),
+            ("source-review", "general"),
+        )
+        self.assertEqual(
             advisor.classify_task(prompt + " State only the IDs visible in your initial context before using tools."),
             ("source-review", "general"),
         )
