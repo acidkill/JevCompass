@@ -237,6 +237,8 @@ class AdvisorTests(unittest.TestCase):
         self.assertEqual(advisor.classify_task("Create a new Python package project and add tests."), ("project-setup", "python"))
         self.assertEqual(advisor.classify_task("Create Python tests for this project and run them."), ("testing", "python"))
         self.assertEqual(advisor.classify_task("Create a feature in this project and implement it."), ("coding", "general"))
+        self.assertEqual(advisor.classify_task("Review counter.py for correctness and security in this fixture."), ("review", "python"))
+        self.assertEqual(advisor.classify_task("Review counter.pyc for correctness and security in this fixture."), ("review", "general"))
         self.assertEqual(advisor.classify_task("Review the new Python package API and its callers"), ("review", "python"))
         self.assertEqual(advisor.classify_task("Build documentation for the Python project"), ("documentation", "python"))
         self.assertIsNone(advisor.classify_task("Explain the timeout handling briefly"))
@@ -260,7 +262,7 @@ class AdvisorTests(unittest.TestCase):
         self.assertEqual(advisor.classify_task(prompt), ("source-review", "general"))
         self.assertEqual(
             advisor.classify_task("Review counter.py for a correctness issue and quote only the advice ID before tools."),
-            ("review", "general"),
+            ("review", "python"),
         )
         self.assertEqual(
             advisor.classify_task("Review the client price quote against the canonical pricing table and flag missing facts."),

@@ -64,7 +64,7 @@ TASK_PATTERNS = (
 DOMAIN_PATTERNS = (
     ("kubernetes", re.compile(r"\b(kubernetes|kubectl|helm|k3s|cluster|klaster)\b", re.I)),
     ("codex", re.compile(r"\b(?:codex(?:'s)?\s+(?:desktop|cli|hooks?|settings|skills?|models?|setup|configuration|troubleshooting|customization)|(?:desktop|cli|hooks?|settings|skills?|models?|setup|configuration|troubleshooting|customization)\s+(?:in|for|with|on)\s+codex)\b", re.I)),
-    ("python", re.compile(r"\b(python|pytest|django|fastapi)\b", re.I)),
+    ("python", re.compile(r"\b(python|pytest|django|fastapi)\b|\.py\b", re.I)),
     ("web", re.compile(r"\b(web|frontend|browser|react|typescript|javascript)\b", re.I)),
     ("shell", re.compile(r"\b(bash|shell)\b", re.I)),
 )
