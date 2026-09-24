@@ -1,6 +1,7 @@
 """Offline fake-CLI tests for the bounded CLI core paired pilot runner."""
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import os
@@ -52,10 +53,156 @@ def make_fake_codex(path: Path) -> Path:
     return path
 
 
+def make_scoring_inputs(root: Path, case_ids=("P01",)):
+    cases = {}
+    for case_id in case_ids:
+        arms = {}
+        for arm in ("baseline", "treatment"):
+            arms[arm] = {
+                "status": "completed",
+                "exit_code": 0,
+                "first_action": {
+                    "class": "source_read",
+                    "elapsed_ms": 100.0 if arm == "baseline" else 90.0,
+                },
+                "outcome_checks": {"answer_indicator": True},
+            }
+        cases[case_id] = {"arms": arms}
+    blind_dir = root / "blind"
+    runner.write_blind_receipts(cases, blind_dir)
+    mapping_path = blind_dir / "mapping.json"
+    mapping = json.loads(mapping_path.read_text(encoding="utf-8"))
+    scores = []
+    for index, entry in enumerate(mapping["arms"]):
+        scores.append({
+            "arm_token": entry["arm_token"],
+            "first_productive_action_ms": 12000 if index % 2 == 0 else 9000,
+            "task_quality": bool(index % 2),
+            "required_checks_preserved": True,
+            "blocked": False,
+            "privacy_disclosure": False,
+        })
+    score_path = root / "scores.json"
+    score_bytes = json.dumps(
+        {"schema": "jevcompass-blind-human-scores-v1", "scores": scores},
+        sort_keys=True, separators=(",", ":"),
+    ).encode("utf-8")
+    score_path.write_bytes(score_bytes)
+    return blind_dir / "receipts", mapping_path, score_path, hashlib.sha256(score_bytes).hexdigest()
+
+
 class PilotCliCoreTests(unittest.TestCase):
     def setUp(self):
         if not runner.FIXTURE.is_dir():
             self.skipTest("independently prepared cli_core fixture is not present yet")
+
+    def test_score_blind_pilot_valid_pair_aggregates_but_never_accepts_overall(self):
+        with tempfile.TemporaryDirectory() as directory:
+            receipts, mapping, scores, digest = make_scoring_inputs(Path(directory))
+            result = runner.score_blind_pilot(receipts, mapping, scores, digest)
+        self.assertEqual(result["status"], "incomplete")
+        self.assertEqual(result["decision"], "not_accepted")
+        self.assertTrue(result["commitment_verified"])
+        self.assertFalse(result["blindness_verified"])
+        self.assertEqual(result["task_quality"]["paired_rated"], 1)
+        self.assertEqual(result["task_quality"]["treatment_better"], 1)
+        self.assertEqual(result["first_productive_action"]["eligible_paired_cases"], 1)
+        self.assertEqual(result["first_productive_action"]["eligible_median_treatment_minus_baseline_ms"], -3000.0)
+        self.assertEqual(result["blocks"], 0)
+        self.assertEqual(result["privacy_disclosures"], 0)
+        self.assertEqual(result["recommendation_usefulness"]["status"], "unscored")
+        self.assertIsNone(result["recommendation_usefulness"]["rate"])
+        self.assertTrue(any("latency" in item for item in result["missing_evidence"]))
+        self.assertTrue(any("delivery" in item for item in result["missing_evidence"]))
+        self.assertTrue(any("post-unblind" in item for item in result["missing_evidence"]))
+
+    def test_score_blind_pilot_rejects_missing_and_duplicate_tokens(self):
+        for duplicate in (False, True):
+            with self.subTest(duplicate=duplicate), tempfile.TemporaryDirectory() as directory:
+                receipts, mapping, scores_path, _ = make_scoring_inputs(Path(directory))
+                scores = json.loads(scores_path.read_text(encoding="utf-8"))
+                if duplicate:
+                    scores["scores"].append(dict(scores["scores"][0]))
+                else:
+                    scores["scores"].pop()
+                raw = json.dumps(scores).encode("utf-8")
+                scores_path.write_bytes(raw)
+                with self.assertRaisesRegex(ValueError, "duplicate token|exactly match"):
+                    runner.score_blind_pilot(receipts, mapping, scores_path, hashlib.sha256(raw).hexdigest())
+
+    def test_score_blind_pilot_checks_hash_and_rejects_unknown_or_invalid_ratings(self):
+        with tempfile.TemporaryDirectory() as directory:
+            receipts, mapping, scores_path, _ = make_scoring_inputs(Path(directory))
+            with self.assertRaisesRegex(ValueError, "does not match"):
+                runner.score_blind_pilot(receipts, mapping, scores_path, "0" * 64)
+            scores = json.loads(scores_path.read_text(encoding="utf-8"))
+            scores["scores"][0]["task_quality"] = "probably"
+            raw = json.dumps(scores).encode("utf-8")
+            scores_path.write_bytes(raw)
+            with self.assertRaisesRegex(ValueError, "task_quality"):
+                runner.score_blind_pilot(receipts, mapping, scores_path, hashlib.sha256(raw).hexdigest())
+            scores["scores"][0]["task_quality"] = None
+            scores["scores"][0]["usefulness"] = True
+            raw = json.dumps(scores).encode("utf-8")
+            scores_path.write_bytes(raw)
+            with self.assertRaisesRegex(ValueError, "unknown or missing fields"):
+                runner.score_blind_pilot(receipts, mapping, scores_path, hashlib.sha256(raw).hexdigest())
+
+    def test_score_blind_pilot_partial_routine_and_zero_quality_denominator(self):
+        with tempfile.TemporaryDirectory() as directory:
+            receipts, mapping, scores_path, _ = make_scoring_inputs(Path(directory), ("P01", "R01"))
+            scores = json.loads(scores_path.read_text(encoding="utf-8"))
+            for score in scores["scores"]:
+                score["task_quality"] = None
+            raw = json.dumps(scores).encode("utf-8")
+            scores_path.write_bytes(raw)
+            result = runner.score_blind_pilot(receipts, mapping, scores_path, hashlib.sha256(raw).hexdigest())
+        self.assertEqual(result["task_quality"]["paired_rated"], 0)
+        self.assertEqual(result["task_quality"]["unscored"], 2)
+        self.assertEqual(result["recommendation_usefulness"]["rated"], 0)
+        self.assertIsNone(result["recommendation_usefulness"]["rate"])
+        self.assertEqual(result["first_productive_action"]["paired_cases"], 2)
+        self.assertEqual(result["first_productive_action"]["eligible_paired_cases"], 1)
+        self.assertEqual(result["status"], "incomplete")
+        self.assertEqual(result["decision"], "not_accepted")
+        self.assertTrue(any("task-quality ratings" in item for item in result["missing_evidence"]))
+        self.assertTrue(any("Recommendation usefulness remains unscored" in item for item in result["missing_evidence"]))
+
+    def test_unrated_block_and_privacy_flags_do_not_pass_zero_event_gates(self):
+        with tempfile.TemporaryDirectory() as directory:
+            receipts, mapping, scores_path, _ = make_scoring_inputs(Path(directory))
+            scores = json.loads(scores_path.read_text(encoding="utf-8"))
+            for score in scores["scores"]:
+                score["blocked"] = None
+                score["privacy_disclosure"] = None
+            raw = json.dumps(scores).encode("utf-8")
+            scores_path.write_bytes(raw)
+            result = runner.score_blind_pilot(receipts, mapping, scores_path, hashlib.sha256(raw).hexdigest())
+        self.assertEqual(result["blocks"], 0)
+        self.assertEqual(result["block_ratings"], {"rated": 0, "total": 2})
+        self.assertIsNone(result["gate_summary"]["zero_blocks_passed"])
+        self.assertEqual(result["privacy_disclosures"], 0)
+        self.assertEqual(result["privacy_ratings"], {"rated": 0, "total": 2})
+        self.assertIsNone(result["gate_summary"]["zero_privacy_disclosures_passed"])
+
+    def test_score_blind_pilot_accepts_blind_task_quality_ratings_for_both_arms(self):
+        with tempfile.TemporaryDirectory() as directory:
+            receipts, mapping, scores_path, _ = make_scoring_inputs(Path(directory), ("P01", "R01"))
+            scores = json.loads(scores_path.read_text(encoding="utf-8"))
+            self.assertTrue(all(isinstance(score["task_quality"], bool) for score in scores["scores"]))
+            digest = hashlib.sha256(scores_path.read_bytes()).hexdigest()
+            first = runner.score_blind_pilot(receipts, mapping, scores_path, digest)
+            mapping_doc = json.loads(mapping.read_text(encoding="utf-8"))
+            for entry in mapping_doc["arms"]:
+                entry["arm"] = "baseline" if entry["arm"] == "treatment" else "treatment"
+            mapping.write_text(json.dumps(mapping_doc), encoding="utf-8")
+            flipped = runner.score_blind_pilot(receipts, mapping, scores_path, digest)
+        self.assertEqual(first["task_quality"]["paired_rated"], 2)
+        self.assertEqual(first["task_quality"]["treatment_better"], 2)
+        self.assertEqual(flipped["task_quality"]["paired_rated"], 2)
+        self.assertEqual(flipped["task_quality"]["baseline_better"], 2)
+        self.assertEqual(first["recommendation_usefulness"]["status"], "unscored")
+        self.assertEqual(flipped["recommendation_usefulness"]["status"], "unscored")
 
     def test_mock_pair_randomizes_and_emits_safe_metadata_only(self):
         with tempfile.TemporaryDirectory() as directory:

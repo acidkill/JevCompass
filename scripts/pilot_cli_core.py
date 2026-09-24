@@ -757,6 +757,287 @@ def write_blind_receipts(
         os.close(directory_fd)
 
 
+def _median(values: list[float]) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    middle = len(ordered) // 2
+    if len(ordered) % 2:
+        return ordered[middle]
+    return (ordered[middle - 1] + ordered[middle]) / 2
+
+
+def _strict_json_object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("JSON object contains a duplicate field")
+        result[key] = value
+    return result
+
+
+def _read_limited_json(path: str | Path, limit: int, label: str) -> tuple[bytes, dict[str, Any]]:
+    source = Path(path)
+    if source.is_symlink() or not source.is_file():
+        raise ValueError(f"{label} must be a regular non-symlink file")
+    if source.stat().st_size > limit:
+        raise ValueError(f"{label} exceeds its size limit")
+    raw = source.read_bytes()
+    try:
+        parsed = json.loads(raw, object_pairs_hook=_strict_json_object_pairs)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError(f"{label} is not valid JSON") from error
+    if not isinstance(parsed, dict):
+        raise ValueError(f"{label} must contain a JSON object")
+    return raw, parsed
+
+
+def score_blind_pilot(
+    receipts_dir: str | Path, mapping_path: str | Path,
+    score_path: str | Path, committed_sha256: str,
+) -> dict[str, Any]:
+    """Validate a committed human score file, unblind locally, and report study gaps."""
+    if not isinstance(committed_sha256, str) or not re.fullmatch(r"[a-f0-9]{64}", committed_sha256):
+        raise ValueError("committed score SHA-256 must be 64 lowercase hexadecimal characters")
+    score_bytes, score_doc = _read_limited_json(score_path, MAX_BLIND_MAPPING_BYTES, "score file")
+    actual_sha256 = hashlib.sha256(score_bytes).hexdigest()
+    if actual_sha256 != committed_sha256:
+        raise ValueError("score file SHA-256 does not match the precommitted digest")
+    _, mapping_doc = _read_limited_json(mapping_path, MAX_BLIND_MAPPING_BYTES, "private mapping")
+    if set(mapping_doc) != {"schema", "arms", "advice_review"} or mapping_doc.get("schema") != "jevcompass-blind-cli-core-map-v1":
+        raise ValueError("private mapping has an unknown schema or fields")
+    if not isinstance(mapping_doc["arms"], list) or not mapping_doc["arms"]:
+        raise ValueError("private mapping must contain at least one arm")
+    mapped: dict[str, dict[str, str]] = {}
+    seen_case_arms: set[tuple[str, str]] = set()
+    for entry in mapping_doc["arms"]:
+        if not isinstance(entry, dict) or set(entry) != {"arm_token", "case_id", "arm"}:
+            raise ValueError("private mapping arm has unknown or missing fields")
+        token, case_id, arm = entry["arm_token"], entry["case_id"], entry["arm"]
+        if not isinstance(token, str) or not SAFE_TOKEN_RE.fullmatch(token):
+            raise ValueError("private mapping contains an invalid token")
+        if token in mapped or not isinstance(case_id, str) or case_id not in CASE_IDS:
+            raise ValueError("private mapping contains a duplicate token or invalid case arm")
+        if not isinstance(arm, str) or arm not in {"baseline", "treatment"}:
+            raise ValueError("private mapping contains an invalid arm label")
+        case_arm = (case_id, arm)
+        if case_arm in seen_case_arms:
+            raise ValueError("private mapping contains a duplicate case arm")
+        mapped[token] = {"case_id": case_id, "arm": arm}
+        seen_case_arms.add(case_arm)
+
+    advice_review = mapping_doc["advice_review"]
+    if not isinstance(advice_review, dict) or set(advice_review) != {"timing", "interpretation", "arms"}:
+        raise ValueError("private mapping advice review has unknown or missing fields")
+    if (advice_review["timing"] != "after blind outcome scoring"
+            or advice_review["interpretation"] != "Agent-reported text only; not backend-selection evidence."
+            or not isinstance(advice_review["arms"], list)):
+        raise ValueError("private mapping advice review has an invalid format")
+    advice_tokens: set[str] = set()
+    for entry in advice_review["arms"]:
+        if not isinstance(entry, dict) or set(entry) != {"arm_token", "agent_reported_candidate_ids"}:
+            raise ValueError("private mapping advice entry has unknown or missing fields")
+        token, candidates = entry["arm_token"], entry["agent_reported_candidate_ids"]
+        if token not in mapped or token in advice_tokens:
+            raise ValueError("private mapping advice entries do not match arm tokens")
+        if candidates is not None and (
+            not isinstance(candidates, list) or len(candidates) > 20
+            or any(not isinstance(value, str) or not SAFE_TOKEN_RE.fullmatch(value) for value in candidates)
+        ):
+            raise ValueError("private mapping contains invalid reported candidate IDs")
+        advice_tokens.add(token)
+    if advice_tokens != set(mapped):
+        raise ValueError("private mapping advice token set does not match arms")
+
+    receipts_root = Path(receipts_dir)
+    if receipts_root.is_symlink() or not receipts_root.is_dir():
+        raise ValueError("receipts path must be a non-symlink directory")
+    files = list(receipts_root.iterdir())
+    if any(path.is_symlink() or not path.is_file() or path.suffix != ".json" for path in files):
+        raise ValueError("receipts directory contains a non-receipt entry")
+    receipts: dict[str, dict[str, Any]] = {}
+    expected_receipt_fields = {
+        "schema", "arm_token", "case_id", "first_action_class", "first_action_ms",
+        "execution_status", "exit_code", "outcome_checks", "limitation",
+    }
+    for path in files:
+        token = path.stem
+        if token not in mapped or path.name != f"{token}.json" or token in receipts:
+            raise ValueError("receipt token set does not match private mapping")
+        _, receipt = _read_limited_json(path, MAX_BLIND_RECEIPT_BYTES, "receipt")
+        if set(receipt) != expected_receipt_fields:
+            raise ValueError("receipt has unknown or missing fields")
+        link = mapped[token]
+        if (receipt["schema"] != "jevcompass-blind-cli-core-v1"
+                or receipt["arm_token"] != token or receipt["case_id"] != link["case_id"]
+                or receipt["limitation"] != BLIND_LIMITATION):
+            raise ValueError("receipt does not match its mapped token and case")
+        action_class = receipt["first_action_class"]
+        if action_class is not None and (
+            not isinstance(action_class, str) or action_class not in {"source_read", "test", "edit", "other"}
+        ):
+            raise ValueError("receipt has an invalid first action class")
+        action_ms = receipt["first_action_ms"]
+        if action_ms is not None and (
+            not isinstance(action_ms, (int, float)) or isinstance(action_ms, bool)
+            or not math.isfinite(action_ms) or action_ms < 0 or action_ms > MAX_TIMEOUT * 1000
+        ):
+            raise ValueError("receipt has an invalid first action time")
+        if not isinstance(receipt["execution_status"], str) or receipt["execution_status"] not in {"completed", "failed", "not_run", "unknown"}:
+            raise ValueError("receipt has an invalid execution status")
+        exit_code = receipt["exit_code"]
+        if exit_code is not None and (
+            not isinstance(exit_code, int) or isinstance(exit_code, bool) or not -255 <= exit_code <= 255
+        ):
+            raise ValueError("receipt has an invalid exit code")
+        outcomes = receipt["outcome_checks"]
+        if not isinstance(outcomes, dict) or any(
+            key not in BLIND_OUTCOME_KEYS or (value is not None and not isinstance(value, bool))
+            for key, value in outcomes.items()
+        ):
+            raise ValueError("receipt has invalid outcome checks")
+        receipts[token] = receipt
+    if set(receipts) != set(mapped):
+        raise ValueError("receipt token set does not exactly match private mapping")
+
+    if set(score_doc) != {"schema", "scores"} or score_doc.get("schema") != "jevcompass-blind-human-scores-v1":
+        raise ValueError("score file has an unknown schema or fields")
+    if not isinstance(score_doc["scores"], list):
+        raise ValueError("score scores must be a list")
+    scores: dict[str, dict[str, Any]] = {}
+    expected_score_fields = {
+        "arm_token", "first_productive_action_ms", "task_quality",
+        "required_checks_preserved", "blocked", "privacy_disclosure",
+    }
+    for score in score_doc["scores"]:
+        if not isinstance(score, dict) or set(score) != expected_score_fields:
+            raise ValueError("score row has unknown or missing fields")
+        token = score["arm_token"]
+        if not isinstance(token, str) or token not in mapped or token in scores:
+            raise ValueError("score rows contain an unknown or duplicate token")
+        timing = score["first_productive_action_ms"]
+        if timing is not None and (
+            not isinstance(timing, (int, float)) or isinstance(timing, bool)
+            or not math.isfinite(timing) or timing < 0 or timing > MAX_TIMEOUT * 1000
+        ):
+            raise ValueError("score row has an invalid first productive action time")
+        for field in ("task_quality", "required_checks_preserved"):
+            if score[field] is not None and not isinstance(score[field], bool):
+                raise ValueError(f"score row {field} must be boolean or null")
+        for field in ("blocked", "privacy_disclosure"):
+            if score[field] is not None and not isinstance(score[field], bool):
+                raise ValueError(f"score row {field} must be boolean or null")
+        scores[token] = score
+    if set(scores) != set(mapped):
+        raise ValueError("score token set does not exactly match receipts and mapping")
+
+    paired_deltas: list[float] = []
+    eligible_deltas: list[float] = []
+    by_case: dict[str, dict[str, float | None]] = {}
+    for token, link in mapped.items():
+        value = scores[token]["first_productive_action_ms"]
+        by_case.setdefault(link["case_id"], {})[link["arm"]] = value
+    for case_id, arms in by_case.items():
+        baseline, treatment = arms.get("baseline"), arms.get("treatment")
+        if isinstance(baseline, (int, float)) and isinstance(treatment, (int, float)):
+            delta = float(treatment) - float(baseline)
+            paired_deltas.append(delta)
+            if case_id.startswith("P"):
+                eligible_deltas.append(delta)
+    task_quality_by_case: dict[str, dict[str, bool | None]] = {}
+    for token, link in mapped.items():
+        task_quality_by_case.setdefault(link["case_id"], {})[link["arm"]] = scores[token]["task_quality"]
+    quality_outcomes = {"treatment_better": 0, "baseline_better": 0, "tie": 0, "unscored": 0}
+    for arms in task_quality_by_case.values():
+        if set(arms) != {"baseline", "treatment"} or arms["baseline"] is None or arms["treatment"] is None:
+            quality_outcomes["unscored"] += 1
+        elif arms["baseline"] == arms["treatment"]:
+            quality_outcomes["tie"] += 1
+        elif arms["treatment"]:
+            quality_outcomes["treatment_better"] += 1
+        else:
+            quality_outcomes["baseline_better"] += 1
+    quality_outcomes["paired_rated"] = sum(
+        quality_outcomes[key] for key in ("treatment_better", "baseline_better", "tie")
+    )
+    checks = [score["required_checks_preserved"] for score in scores.values()]
+    block_ratings = [score["blocked"] for score in scores.values()]
+    privacy_ratings = [score["privacy_disclosure"] for score in scores.values()]
+    all_blocks_rated = bool(block_ratings) and all(value is not None for value in block_ratings)
+    all_privacy_rated = bool(privacy_ratings) and all(value is not None for value in privacy_ratings)
+    missing_evidence = [
+        "Host-wide eligible-event coverage is absent from the receipt and score schemas.",
+        "Correlated advice delivery before first tool is absent from the receipt and score schemas.",
+        "Jev remote-call latency and p95 are absent from the receipt and score schemas.",
+        "Routine-case advisor silence/request evidence is absent from the receipt and score schemas.",
+        "Desktop prompt and supported-subagent pairs are outside this CLI receipt set.",
+    ]
+    missing_evidence.append(
+        "Recommendation usefulness remains unscored; it requires a separate post-unblind relevance review with advice evidence."
+    )
+    if quality_outcomes["unscored"]:
+        missing_evidence.append("At least one case lacks task-quality ratings for both paired arms.")
+    if any(score["first_productive_action_ms"] is None for score in scores.values()):
+        missing_evidence.append("At least one arm has no human first-productive-action time.")
+    if any(value is None for value in checks):
+        missing_evidence.append("At least one arm lacks a required-checks-preserved rating.")
+    if sum(case_id.startswith("P") for case_id in by_case) < 4:
+        missing_evidence.append("The CLI core has fewer than four eligible prompt pairs.")
+    case_ids = {link["case_id"] for link in mapped.values()}
+    if len(case_ids) < len(CASE_IDS):
+        missing_evidence.append(f"Only {len(case_ids)} of {len(CASE_IDS)} CLI core cases are present.")
+    if sum(case_id.startswith("R") for case_id in case_ids) < len(ROUTINE_CASES):
+        missing_evidence.append("The six routine negative-control cases are incomplete.")
+    if any(set(arms) != {"baseline", "treatment"} for arms in by_case.values()):
+        missing_evidence.append("At least one case lacks its complete baseline/treatment pair.")
+    if len(eligible_deltas) == 0:
+        missing_evidence.append("No eligible prompt pair has numeric first-productive-action times in both arms.")
+    all_deltas = sorted(paired_deltas)
+    eligible_sorted = sorted(eligible_deltas)
+    return {
+        "status": "incomplete",
+        "decision": "not_accepted",
+        "score_file_sha256": actual_sha256,
+        "commitment_verified": True,
+        "blindness_verified": False,
+        "blindness_note": "The SHA-256 commitment verifies score-file bytes only; it does not prove that evaluator blinding was maintained.",
+        "receipt_arms": len(mapped),
+        "cases_present": sorted({link["case_id"] for link in mapped.values()}),
+        "task_quality": quality_outcomes,
+        "recommendation_usefulness": {
+            "status": "unscored",
+            "rated": 0,
+            "rate": None,
+            "required_next_step": "Separate post-unblind relevance assessment using advice evidence.",
+        },
+        "first_productive_action": {
+            "paired_cases": len(paired_deltas),
+            "median_treatment_minus_baseline_ms": _median(all_deltas),
+            "eligible_paired_cases": len(eligible_deltas),
+            "eligible_median_treatment_minus_baseline_ms": _median(eligible_sorted),
+            "eligible_treatment_faster": sum(value < 0 for value in eligible_deltas),
+        },
+        "required_checks_preserved": {
+            "rated": sum(value is not None for value in checks),
+            "preserved": sum(value is True for value in checks),
+            "omitted": sum(value is False for value in checks),
+        },
+        "blocks": sum(value is True for value in block_ratings),
+        "block_ratings": {"rated": sum(value is not None for value in block_ratings), "total": len(block_ratings)},
+        "privacy_disclosures": sum(value is True for value in privacy_ratings),
+        "privacy_ratings": {"rated": sum(value is not None for value in privacy_ratings), "total": len(privacy_ratings)},
+        "gate_summary": {
+            "zero_blocks_passed": not any(block_ratings) if all_blocks_rated else None,
+            "zero_privacy_disclosures_passed": not any(privacy_ratings) if all_privacy_rated else None,
+            "required_checks_preserved_passed": bool(checks) and all(value is True for value in checks),
+            "eligible_first_productive_action_improved": _median(eligible_sorted) < 0 if eligible_sorted else None,
+            "recommendation_usefulness_assessed": False,
+        },
+        "missing_evidence": missing_evidence,
+        "acceptance_note": "This CLI-only scorer never infers recommendation usefulness from receipts and cannot pass overall acceptance while required host, coverage, delivery, and latency evidence is absent.",
+    }
+
+
 def run_pilot(
     *, mode: str, model: str | None, reasoning_effort: str = "medium",
     timeout: int = DEFAULT_TIMEOUT, cases: Iterable[str] = CASE_IDS,
@@ -879,8 +1160,25 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT, help=f"per-arm timeout, maximum {MAX_TIMEOUT}s")
     parser.add_argument("--preflight", action="store_true", help="ask both arms to report pre-tool JevCompass advice evidence")
     parser.add_argument("--blind-dir", type=Path, help="write private, opaque per-arm evaluator receipts and separate mapping")
+    parser.add_argument("--score-receipts", type=Path, help="score an existing blind receipt directory")
+    parser.add_argument("--score-mapping", type=Path, help="private arm mapping for offline blind scoring")
+    parser.add_argument("--score-file", type=Path, help="blind human score JSON with task_quality bool/null for each opaque arm token")
+    parser.add_argument("--score-sha256", help="precommitted SHA-256 of the exact human score file bytes")
     parser.add_argument("--cases", nargs="+", choices=CASE_IDS, default=list(CASE_IDS))
     args = parser.parse_args(argv)
+    score_args = (args.score_receipts, args.score_mapping, args.score_file, args.score_sha256)
+    if any(value is not None for value in score_args):
+        if not all(value is not None for value in score_args):
+            parser.error("--score-receipts, --score-mapping, --score-file, and --score-sha256 are required together")
+        try:
+            result = score_blind_pilot(
+                args.score_receipts, args.score_mapping, args.score_file, args.score_sha256,
+            )
+        except (OSError, ValueError) as error:
+            print(json.dumps({"pilot": "jevcompass-cli-core-scoring", "status": "failed", "failure": str(error)}))
+            return 1
+        print(json.dumps(result, sort_keys=True))
+        return 0
     selected_mode = "dry-run" if args.dry_run else "mock" if args.mock else "run"
     if selected_mode == "run" and not args.model:
         parser.error("--model is required for a live pair")
