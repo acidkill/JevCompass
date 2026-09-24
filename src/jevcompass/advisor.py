@@ -250,9 +250,9 @@ def select_advice(name: str, category: str, domain: str, role: str, trace: str |
     if not isinstance(items, list) or not items:
         _metric(name, category, "insufficient-candidates", started, trace)
         return None
-    # SubagentStart provides a role, not the task. Repeating the generic shell
-    # capability alone adds no useful role-specific choice to a vanilla child.
-    if name == "SubagentStart" and len(items) == 1 and items[0]["id"] == "exec_command":
+    # The built-in shell is a generic capability, not a meaningful singleton
+    # recommendation for either a task hook or a role-only subagent hook.
+    if len(items) == 1 and items[0]["id"] == "exec_command":
         _metric(name, category, "low-signal-skip", started, trace)
         return None
 

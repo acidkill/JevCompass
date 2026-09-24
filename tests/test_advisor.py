@@ -192,7 +192,8 @@ class AdvisorTests(unittest.TestCase):
             advisor.classify_task("Review the Python code that renders a client offer and report implementation defects."),
             ("review", "python"),
         )
-        with mock.patch.object(advisor, "candidates", return_value=[ITEMS[1]]) as candidates, \
+        source_review_tool = {**ITEMS[1], "id": "local-source-review", "capability": "Review authoritative local sources"}
+        with mock.patch.object(advisor, "candidates", return_value=[source_review_tool]) as candidates, \
                 mock.patch.object(advisor, "_judge") as judge:
             output = advisor.evaluate({"hook_event_name": "UserPromptSubmit", "prompt": prompt})
         context = output["hookSpecificOutput"]["additionalContext"]
@@ -204,13 +205,14 @@ class AdvisorTests(unittest.TestCase):
         self.assertNotIn("client proposal draft", context)
         self.assertNotIn("pricing table", context)
 
-    def test_single_available_candidate_is_recommended_locally_without_jev(self):
-        with mock.patch.object(advisor, "candidates", return_value=[ITEMS[1]]) as candidates, \
+    def test_single_specific_candidate_is_recommended_locally_without_jev(self):
+        specific = {**ITEMS[1], "id": "specific-tool", "capability": "Specific repository inspection"}
+        with mock.patch.object(advisor, "candidates", return_value=[specific]) as candidates, \
                 mock.patch.object(advisor, "_judge") as judge, \
                 mock.patch.object(advisor, "_metric") as metric:
             result = advisor.select_advice("UserPromptSubmit", "codebase", "software", "primary", "local1234")
         context = result["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("exec_command", context)
+        self.assertIn("specific-tool", context)
         candidates.assert_called_once()
         judge.assert_not_called()
         metric.assert_called_once_with("UserPromptSubmit", "codebase", "local", mock.ANY, "local1234")
@@ -354,25 +356,39 @@ class AdvisorTests(unittest.TestCase):
             self.assertIn("worker", serialized_request)
             self.assertIn("coding", serialized_request)
 
-    def test_generic_subagent_shell_singleton_is_quiet_but_specific_candidate_remains(self):
+    def test_generic_shell_singleton_is_silent_in_hooks_without_calling_jev(self):
         shell = next(item for item in ITEMS if item["id"] == "exec_command")
-        event = {"hook_event_name": "SubagentStart", "agent_type": "explorer"}
+        cases = (
+            {"hook_event_name": "SubagentStart", "agent_type": "explorer"},
+            {"hook_event_name": "UserPromptSubmit", "prompt": "Investigate a Python runtime error"},
+        )
+        for event in cases:
+            with self.subTest(event=event), \
+                    mock.patch.object(advisor, "candidates", return_value=[shell]), \
+                    mock.patch.object(advisor, "DecisionsClient") as client:
+                self.assertIsNone(advisor.evaluate(event, trace="abc12345"))
+                client.assert_not_called()
+
+        prompt_event = cases[1]
+        output = io.StringIO()
+        fake_stdin = mock.Mock(buffer=io.BytesIO(json.dumps(prompt_event).encode()))
         with mock.patch.object(advisor, "candidates", return_value=[shell]), \
-                mock.patch.object(advisor, "DecisionsClient") as client:
-            self.assertIsNone(advisor.evaluate(event, trace="abc12345"))
+                mock.patch.object(advisor, "DecisionsClient") as client, \
+                mock.patch.object(advisor.sys, "stdin", fake_stdin), \
+                mock.patch.object(advisor.sys, "stdout", output):
+            self.assertEqual(advisor.hook_main(), 0)
             client.assert_not_called()
+        self.assertEqual(output.getvalue(), "")
+
         record = json.loads(advisor.LOG_PATH.read_text().splitlines()[-1])
         self.assertEqual(record["status"], "low-signal-skip")
-        self.assertEqual(record["category"], "codebase")
-        with mock.patch.object(advisor, "candidates", return_value=[shell]):
-            prompt_output = advisor.select_advice(
-                "UserPromptSubmit", "source-review", "general", "primary",
-            )
-        self.assertIn("exec_command", prompt_output["hookSpecificOutput"]["additionalContext"])
+
         specific = {**shell, "id": "specific-tool", "capability": "specific role tool"}
-        with mock.patch.object(advisor, "candidates", return_value=[specific]):
-            role_output = advisor.evaluate(event)
-        self.assertIn("specific-tool", role_output["hookSpecificOutput"]["additionalContext"])
+        with mock.patch.object(advisor, "candidates", return_value=[specific]), \
+                mock.patch.object(advisor, "DecisionsClient") as client:
+            specific_output = advisor.evaluate(prompt_event)
+            client.assert_not_called()
+        self.assertIn("specific-tool", specific_output["hookSpecificOutput"]["additionalContext"])
 
     def test_jev_failures_fall_back_locally_without_blocking(self):
         event = {"hook_event_name": "UserPromptSubmit", "permission_mode": "plan", "prompt": "Investigate a Python runtime error"}
