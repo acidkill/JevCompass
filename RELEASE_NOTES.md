@@ -1,3 +1,22 @@
+# JevCompass v0.1.14
+
+This release respects installed skill MCP prerequisites during candidate discovery (PR #40) and adds **optional** task-aware advice when Codex creates an agent (PR #42). The default installation still registers only `UserPromptSubmit` and `SubagentStart`. The extra hook is matched to agent creation only and never gates shell, Git, Helm or network commands.
+
+Download the v0.1.14 wheel from [GitHub releases](https://github.com/acidkill/JevCompass/releases/tag/v0.1.14), verify its SHA-256 against the asset digest, then run:
+
+```bash
+pipx install ./jevcompass-0.1.14-py3-none-any.whl
+jevcompass install --dry-run
+jevcompass install
+jevcompass doctor
+```
+
+To try the experimental spawn advisor, run `jevcompass install --spawn-advice`, review and trust the new entry in Codex `/hooks`, and start a fresh session. `jevcompass install --disable-spawn-advice` removes only that entry. The installer backs up an existing `hooks.json` when it changes it and preserves unrelated smem hooks.
+
+One isolated CLI source-checkout experiment confirmed that the child saw an advice ID before its first tool when the host encoded the message and supplied a descriptive task title. It has not established skill use, improved outcomes, fresh Desktop delivery or macOS compatibility. The C05 equal-environment planning pair (PR #41) tied 6/7 on blind scores and showed no speed gain. PyPI publication is separate. JevCompass remains [Apache-2.0 licensed](LICENSE). Previous release: [v0.1.13](https://github.com/acidkill/JevCompass/releases/tag/v0.1.13).
+
+---
+
 # JevCompass v0.1.13
 
 Skill advice now includes concise catalog conditions for when to use or skip a suggested skill. The agent is prompted to inspect task scope before opening one, which helps avoid treating every suggestion as mandatory. If these conditions would exceed the advisory size limit, JevCompass keeps the shorter bounded advice. The two hooks remain optional and nonblocking; routine shell and Git commands stay outside them.

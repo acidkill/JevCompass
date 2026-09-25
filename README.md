@@ -14,10 +14,10 @@ A useful skill can be buried in your setup. JevCompass discovers installed candi
 
 ## Quick start
 
-Requirements: Python 3.11 or newer, [pipx](https://pipx.pypa.io/stable/installation/), and a Codex installation with hooks enabled. Download the wheel from the [latest GitHub release](https://github.com/acidkill/JevCompass/releases/latest), verify its SHA-256 against the release asset digest, then run:
+Requirements: Python 3.11 or newer, [pipx](https://pipx.pypa.io/stable/installation/), and a Codex installation with hooks enabled. Download the v0.1.14 wheel from the [GitHub release](https://github.com/acidkill/JevCompass/releases/tag/v0.1.14), verify its SHA-256 against the release asset digest, then run:
 
 ```bash
-pipx install ./jevcompass-0.1.13-py3-none-any.whl
+pipx install ./jevcompass-0.1.14-py3-none-any.whl
 jevcompass recommend --category review --domain python
 ```
 
@@ -97,7 +97,7 @@ Evidence is deliberately limited to the environments tested:
 - A fresh isolated Codex CLI 0.155.1 smoke using the published v0.1.12 wheel received `openai-docs` advice before its first tool, with a matching local hook ID. Additional synthetic CLI pairs confirmed remote Jev advice IDs before the first tool. The published v0.1.13 wheel adds bounded skill use/skip conditions; these checks do not prove broad coverage or effectiveness.
 - The initial four blinded synthetic CLI pairs tied on task quality. Later focused pairs had mixed results, including one baseline win and one treatment win; no repeatable speed or quality improvement has been demonstrated.
 - One native Desktop `explorer` child reported an advice ID before its first tool in a correlated smoke test. Other subagent probes were inconclusive, and fresh Desktop prompt delivery has not been confirmed.
-- A source-checkout CLI experiment with the optional spawn hook placed an advice ID in the child's own context and first message before its first tool. The host encoded the child message, so the adapter used a descriptive task name. This experiment has not been verified in a published wheel or Desktop and did not demonstrate an outcome benefit.
+- The v0.1.14 source includes the changes from PR #40 (respect installed skill MCP prerequisites), PR #41 (C05 equal-environment comparison tied on blind scores), and PR #42 (opt-in agent-spawn advice). The spawn check was an isolated CLI source-checkout run: the child saw an advice ID before its first tool using the descriptive task title because the host message was encoded. This has not been verified in a published wheel, Desktop, or macOS, and no outcome benefit has been demonstrated. The default install remains two advisory hooks; routine commands are not gated.
 - macOS runtime behavior and broad usefulness remain unverified.
 
 These checks do not establish that recommendations improve outcomes. If you test JevCompass, please share a reproducible example of advice that helped—or a case where silence was the right result.
