@@ -567,6 +567,29 @@ class PilotCliCoreTests(unittest.TestCase):
         self.assertEqual(parsed["events"][0]["exit_code"], 0)
         self.assertNotIn("secret-token", json.dumps(parsed))
 
+    def test_event_parser_correlates_test_start_and_completion_without_retaining_command(self):
+        start = time.monotonic()
+        lines = [
+            json.dumps({"type": "item.started", "item": {"id": "cmd-1", "type": "command_execution",
+                        "command": "python -m unittest discover -s tests; private-token"}}),
+            json.dumps({"type": "item.completed", "item": {"id": "cmd-1", "type": "command_execution",
+                        "exit_code": 1}}),
+            json.dumps({"type": "item.started", "item": {"id": "cmd-2", "type": "command_execution",
+                        "command": "python -m unittest discover -s tests"}}),
+            json.dumps({"type": "item.completed", "item": {"id": "cmd-2", "type": "command_execution"}}),
+        ]
+        parsed = runner.parse_event_stream(lines, start_monotonic=start,
+                                           event_times=[start] * len(lines))
+        self.assertEqual(parsed["events"][1]["command_check"], "fixture_tests")
+        self.assertEqual(parsed["events"][1]["exit_code"], 1)
+        self.assertEqual(parsed["events"][3]["command_check_completed"], "fixture_tests")
+        self.assertNotIn("exit_code", parsed["events"][3])
+        self.assertNotIn("private-token", json.dumps(parsed))
+        checks = runner._fixture_outcome_checks("P01", Path("."), None, parsed["events"])
+        self.assertEqual(checks, {"focused_unittest_exit": False,
+                                  "unittest_invocation_observed": True,
+                                  "unittest_completion_observed": True})
+
     def test_p03_checks_syntax_and_unset_guard_without_running_script(self):
         with tempfile.TemporaryDirectory() as directory:
             fixture = Path(directory)
@@ -664,7 +687,8 @@ class PilotCliCoreTests(unittest.TestCase):
 
             self.assertEqual(
                 runner._fixture_outcome_checks("P01", fixture, None),
-                {"focused_unittest_exit": None},
+                {"focused_unittest_exit": None, "unittest_invocation_observed": False,
+                 "unittest_completion_observed": False},
             )
             self.assertEqual(
                 runner._fixture_outcome_checks("P05", fixture, None),
@@ -678,7 +702,8 @@ class PilotCliCoreTests(unittest.TestCase):
             ]
             self.assertEqual(
                 runner._fixture_outcome_checks("P01", fixture, None, sandbox_events),
-                {"focused_unittest_exit": True},
+                {"focused_unittest_exit": True, "unittest_invocation_observed": False,
+                 "unittest_completion_observed": False},
             )
             self.assertEqual(
                 runner._fixture_outcome_checks("P05", fixture, None, sandbox_events)["test_instruction_exit"],

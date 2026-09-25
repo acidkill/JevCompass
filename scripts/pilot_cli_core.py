@@ -84,7 +84,8 @@ TEST_COMMAND_RE = re.compile(r"\b(?:pytest|unittest|tox|nox|bats)\b", re.I)
 EDIT_COMMAND_RE = re.compile(r"\b(?:apply_patch|tee|install|touch)\b|(?:^|\s)(?:>>?|\|\s*tee)\s*\S", re.I)
 BLIND_LIMITATION = "Metadata-only receipts cannot establish blinded task correctness."
 BLIND_OUTCOME_KEYS = frozenset({
-    "focused_unittest_exit", "bash_syntax", "no_unset_output_path_defect",
+    "focused_unittest_exit", "unittest_invocation_observed", "unittest_completion_observed",
+    "bash_syntax", "no_unset_output_path_defect",
     "install_instruction_coherent", "help_instruction_coherent",
     "help_command_exit", "test_instruction_exit", "contract_indicators",
     "answer_indicator",
@@ -194,6 +195,7 @@ def parse_event_stream(
     first_action = None
     reported_candidate_ids: list[str] | None = None
     known_ids = tuple(known_candidate_ids)
+    pending_command_checks: dict[str, str] = {}
     for order, line in enumerate(lines, 1):
         try:
             event = json.loads(line)
@@ -244,12 +246,24 @@ def parse_event_stream(
                     "class": _action_class(command_text, tool_name or "unknown"),
                     "elapsed_ms": record["elapsed_ms"],
                 }
+            command_check = _command_check_kind(command_text)
+            item_id = command_item.get("id")
+            safe_item_id = item_id if isinstance(item_id, str) and 0 < len(item_id) <= 128 else None
+            if event.get("type") == "item.started" and command_check:
+                record["command_check_started"] = command_check
+                if safe_item_id:
+                    pending_command_checks[safe_item_id] = command_check
             if event.get("type") == "item.completed":
-                command_check = _command_check_kind(command_text)
-                command_exit = command_item.get("exit_code")
-                if command_check and isinstance(command_exit, int) and not isinstance(command_exit, bool):
-                    record["command_check"] = command_check
-                    record["exit_code"] = command_exit
+                if not command_check and safe_item_id:
+                    command_check = pending_command_checks.get(safe_item_id)
+                if safe_item_id:
+                    pending_command_checks.pop(safe_item_id, None)
+                if command_check:
+                    record["command_check_completed"] = command_check
+                    command_exit = command_item.get("exit_code")
+                    if isinstance(command_exit, int) and not isinstance(command_exit, bool):
+                        record["command_check"] = command_check
+                        record["exit_code"] = command_exit
             if (first_source_read_ms is None and SOURCE_READ_COMMAND_RE.search(command_text)
                     and FIXTURE_SOURCE_RE.search(command_text)):
                 first_source_read_ms = record["elapsed_ms"]
@@ -356,7 +370,15 @@ def _fixture_outcome_checks(
             observed_exits[check] = exit_code
     if case_id == "P01":
         exit_code = observed_exits.get("fixture_tests")
-        return {"focused_unittest_exit": exit_code == 0 if exit_code is not None else None}
+        return {
+            "focused_unittest_exit": exit_code == 0 if exit_code is not None else None,
+            "unittest_invocation_observed": any(
+                event.get("command_check_started") == "fixture_tests" for event in events
+            ),
+            "unittest_completion_observed": any(
+                event.get("command_check_completed") == "fixture_tests" for event in events
+            ),
+        }
     if case_id == "P03":
         script = fixture / "scripts" / "render_report.sh"
         try:
