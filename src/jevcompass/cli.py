@@ -293,6 +293,14 @@ def main(argv: list[str] | None = None) -> int:
     recommend.add_argument("--category", required=True, choices=CATEGORIES)
     recommend.add_argument("--domain", required=True, choices=DOMAINS)
     recommend.add_argument("--role", choices=ROLES, default="primary")
+    strategy_parser = sub.add_parser("strategy", help="Choose a coding strategy from allowlisted signals")
+    strategy_sub = strategy_parser.add_subparsers(dest="strategy_action", required=True)
+    strategy_choose = strategy_sub.add_parser("choose", help="Get up to two reviewed pretask strategies")
+    strategy_choose.add_argument("--kind", required=True, choices=("coding", "debugging", "testing", "review"))
+    strategy_choose.add_argument("--signal", action="append", required=True,
+                                 choices=("failing_test", "dependency_change", "existing_symbol", "behavior_change",
+                                          "unclear_contract", "regression_risk", "data_flow"))
+    strategy_choose.add_argument("--json", action="store_true", help="Print machine-readable result")
     tests_parser = sub.add_parser("tests", help="Order focused tests after a code change without running them")
     tests_sub = tests_parser.add_subparsers(dest="tests_action", required=True)
     tests_rank = tests_sub.add_parser("rank", help="Rank candidate tests from local JSON metadata")
@@ -335,6 +343,21 @@ def main(argv: list[str] | None = None) -> int:
         return advisor.hook_main()
     if args.command == "recommend":
         return _recommend(args.category, args.domain, args.role)
+    if args.command == "strategy":
+        from .strategy import choose_strategies
+        result = choose_strategies(args.kind, args.signal)
+        payload = {"status": result.status,
+                   "strategies": [{"id": item.id.value, "rationale": item.rationale}
+                                  for item in result.recommendations]}
+        if args.json:
+            print(json.dumps(payload))
+        else:
+            print(f"Suggested coding strategy ({result.status}):")
+            for item in result.recommendations:
+                print(f"- {item.id.value}: {item.rationale}")
+            if not result.recommendations:
+                print("No relevant strategy; continue with the normal Codex workflow.")
+        return 0
     if args.command == "tests":
         return _rank_tests_cli(args.input, args.json)
     if args.command == "doctor":
