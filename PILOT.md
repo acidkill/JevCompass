@@ -6,6 +6,10 @@
 
 Use [PILOT_CASES.md](PILOT_CASES.md) for the planned synthetic case bank, [ROADMAP.md](ROADMAP.md) for the thresholds and remaining gates, and [TASKS.md](TASKS.md) for release receipts. Entries below are dated development evidence, including older private-release observations; later records do not erase earlier results. Paths to local experiment artifacts are historical maintainer records and are not downloadable project assets.
 
+### VCR-252-T test-order coding fixture (2026-09-25)
+
+The fictional ParcelQuote fixture has a seeded partial-kilogram rounding defect. Unit and public CLI contract checks both fail for 1001 grams before the edit; an ephemeral reference repair passes all six required tests. A candidate-visible TESTING.md names two focused commands without a preferred order and requires the full suite. The evaluator rubric stays outside the copied fixture and was frozen before any paired agent call. Future treatment must ask JevCompass to order these test kinds after the edit, while baseline chooses unaided; both must run the same required command, and any choice time belongs in treatment timing. The fixture is a reproducible comparison target, not evidence of agent uptake, a useful error timing, or a quality gain.
+
 ### VCR-252-H core CLI runner receipt integration (2026-09-25)
 
 The existing paired CLI runner now applies the redacted event parser to emit bounded first tool-start type and time in v3 anonymous receipts. Legacy v1 and v2 receipts still score under their own schemas. This field says when a tool started, **not** whether it was useful; the prior heuristic first-action and source-read fields retain their explicit limitations. Existing token and wall-time fields remain. Source integration has synthetic tests only: no new live paired arm has exercised v3, no choice ID is yet exported from an explicit coding-decision CLI invocation, and first useful action/cost remain unscored without independent validation and billing provenance.
