@@ -219,6 +219,28 @@ class CodexSetupPairTests(unittest.TestCase):
             self.assertFalse(case["arms"]["baseline"]["hooks_configured"])
             self.assertTrue(case["arms"]["treatment"]["hooks_configured"])
 
+    def test_installed_version_016_is_accepted_and_reported(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            skill = make_skill(root)
+            make_planning_skills(root)
+            interpreter = root / "installed-python"
+            interpreter.write_text("synthetic", encoding="utf-8")
+            with mock.patch.object(runner, "_source_auth_root", return_value=root), \
+                 mock.patch.object(runner, "_source_skill_root", return_value=skill), \
+                 mock.patch.object(runner, "_check_installed_version") as verify, \
+                 mock.patch.object(runner.subprocess, "run", return_value=mock.Mock(returncode=0)), \
+                 contextlib.redirect_stdout(io.StringIO()) as output:
+                status = runner.main([
+                    "--dry-run", "--case", "C05", "--installed-python", str(interpreter),
+                    "--installed-version", "0.1.16",
+                ])
+            verify.assert_called_once_with(interpreter, "0.1.16")
+            self.assertEqual(status, 0)
+            result = json.loads(output.getvalue())
+            self.assertEqual(result["advisor_version"], "0.1.16")
+            self.assertTrue(result["cases"]["C05"]["fixture_copies_identical"])
+
     def test_installed_version_must_match_exact_release(self):
         with tempfile.TemporaryDirectory() as temporary:
             interpreter = Path(temporary) / "python"
@@ -233,6 +255,8 @@ class CodexSetupPairTests(unittest.TestCase):
             self.assertNotIn("PYTHONPATH", kwargs["env"])
             with mock.patch.object(runner.subprocess, "run", return_value=mock.Mock(returncode=0, stdout="0.1.15\n")):
                 runner._check_installed_version(interpreter, "0.1.15")
+            with mock.patch.object(runner.subprocess, "run", return_value=mock.Mock(returncode=0, stdout="0.1.16\n")):
+                runner._check_installed_version(interpreter, "0.1.16")
             with mock.patch.object(runner.subprocess, "run", return_value=mock.Mock(returncode=0, stdout="0.1.13\n")):
                 with self.assertRaisesRegex(RuntimeError, "0.1.15"):
                     runner._check_installed_version(interpreter, "0.1.15")
