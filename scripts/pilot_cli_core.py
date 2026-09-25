@@ -56,6 +56,11 @@ PREFLIGHT_INSTRUCTION = (
 DEFAULT_TIMEOUT = 120
 MAX_TIMEOUT = 300
 MAX_EVENT_BYTES = 4 * 1024 * 1024
+MAX_USAGE_COUNTER = 1_000_000_000
+TURN_USAGE_FIELDS = (
+    "input_tokens", "cached_input_tokens", "cache_write_input_tokens",
+    "output_tokens", "reasoning_output_tokens",
+)
 MAX_BLIND_RECEIPT_BYTES = 16 * 1024
 MAX_BLIND_MAPPING_BYTES = 32 * 1024
 MAX_BLIND_ARTIFACT_BYTES = 512 * 1024
@@ -183,6 +188,25 @@ def extract_event(event: dict[str, Any]) -> tuple[str | None, str | None, str | 
     return None, None, None
 
 
+def _safe_turn_usage(event: dict[str, Any]) -> tuple[str, dict[str, int] | None]:
+    """Allowlist bounded numeric counters from one Codex turn.completed event."""
+    if "usage" not in event:
+        return "unavailable", None
+    usage = event["usage"]
+    if not isinstance(usage, dict) or set(usage) != set(TURN_USAGE_FIELDS):
+        return "invalid", None
+    if any(
+        not isinstance(usage[field], int) or isinstance(usage[field], bool)
+        or usage[field] < 0 or usage[field] > MAX_USAGE_COUNTER
+        for field in TURN_USAGE_FIELDS
+    ):
+        return "invalid", None
+    if (usage["cached_input_tokens"] > usage["input_tokens"]
+            or usage["reasoning_output_tokens"] > usage["output_tokens"]):
+        return "invalid", None
+    return "available", {field: usage[field] for field in TURN_USAGE_FIELDS}
+
+
 def parse_event_stream(
     lines: Iterable[str], *, start_monotonic: float,
     event_times: list[float] | None = None,
@@ -198,6 +222,9 @@ def parse_event_stream(
     reported_candidate_ids: list[str] | None = None
     known_ids = tuple(known_candidate_ids)
     pending_command_checks: dict[str, str] = {}
+    turn_usage_status = "unavailable"
+    turn_usage: dict[str, int] | None = None
+    turn_completion_count = 0
     for order, line in enumerate(lines, 1):
         try:
             event = json.loads(line)
@@ -212,6 +239,12 @@ def parse_event_stream(
             else time.monotonic()
         )
         raw_type = event.get("type")
+        if raw_type == "turn.completed":
+            turn_completion_count += 1
+            if turn_completion_count == 1:
+                turn_usage_status, turn_usage = _safe_turn_usage(event)
+            else:
+                turn_usage_status, turn_usage = "invalid", None
         safe_type = str(raw_type) if isinstance(raw_type, str) and SAFE_TOKEN_RE.fullmatch(raw_type) else "unknown"
         record: dict[str, Any] = {
             "order": order,
@@ -284,6 +317,8 @@ def parse_event_stream(
         "advice_id": first_assistant["advice_id"] if id_before_tool else None,
         "advice_id_before_first_tool": id_before_tool,
         "agent_reported_candidate_ids": reported_candidate_ids if id_before_tool else None,
+        "token_usage_status": turn_usage_status,
+        "token_usage": turn_usage,
     }
 
 
@@ -789,7 +824,6 @@ def _run_arm(
             _install_treatment_hooks(home, isolated_python, installed_python)
         except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired):
             return {"status": "failed", "failure": "hooks_setup_failed"}
-    settings = _case_settings(case_id)
     env = _isolated_environment(
         home=home, isolated_python=isolated_python, installed_python=installed_python,
         allow_openrouter_key=allow_openrouter_key,
@@ -809,8 +843,13 @@ def _run_arm(
         lines, event_times, failure = _collect_events(process, started=started, timeout=timeout)
     except OSError:
         return {"status": "failed", "failure": "codex_unavailable"}
+    observed_wall_time_ms = round((time.monotonic() - started) * 1000, 2)
+    total_wall_time_ms = observed_wall_time_ms if observed_wall_time_ms <= MAX_TIMEOUT * 1000 else None
     if failure:
-        return {"status": "failed", "failure": failure}
+        return {
+            "status": "failed", "failure": failure,
+            "total_wall_time_ms": total_wall_time_ms,
+        }
     assistant_texts: list[str] = []
     parsed = parse_event_stream(
         lines, start_monotonic=started, event_times=event_times,
@@ -831,6 +870,9 @@ def _run_arm(
         "first_source_read_assessment": "heuristic: bounded command text matched a fixture source-reading command; not a usefulness score",
         "first_useful_action_ms": None,
         "first_useful_action_assessment": "pending blinded evaluator",
+        "total_wall_time_ms": total_wall_time_ms,
+        "token_usage_status": parsed["token_usage_status"],
+        "token_usage": parsed["token_usage"],
         "outcome_checks": outcome_checks,
         "_blind_final_answer": final_assistant_text,
         "outcome_check_scope": "fixture-specific deterministic checks and simple final-answer indicators; heuristic evidence only, not task acceptance",
@@ -978,8 +1020,28 @@ def write_blind_receipts(
                     raw_exit_code if isinstance(raw_exit_code, int)
                     and not isinstance(raw_exit_code, bool) and -255 <= raw_exit_code <= 255 else None
                 )
+                usage_status = arm.get("token_usage_status")
+                raw_usage = arm.get("token_usage")
+                safe_usage = None
+                if usage_status == "available":
+                    if (isinstance(raw_usage, dict) and set(raw_usage) == set(TURN_USAGE_FIELDS)
+                            and all(isinstance(raw_usage[field], int) and not isinstance(raw_usage[field], bool)
+                                    and 0 <= raw_usage[field] <= MAX_USAGE_COUNTER for field in TURN_USAGE_FIELDS)
+                            and raw_usage["cached_input_tokens"] <= raw_usage["input_tokens"]
+                            and raw_usage["reasoning_output_tokens"] <= raw_usage["output_tokens"]):
+                        safe_usage = {field: raw_usage[field] for field in TURN_USAGE_FIELDS}
+                    else:
+                        usage_status = "invalid"
+                elif usage_status not in {"unavailable", "invalid"}:
+                    usage_status = "unavailable"
+                raw_wall_time = arm.get("total_wall_time_ms")
+                safe_wall_time = (
+                    raw_wall_time if isinstance(raw_wall_time, (int, float))
+                    and not isinstance(raw_wall_time, bool) and math.isfinite(raw_wall_time)
+                    and 0 <= raw_wall_time <= MAX_TIMEOUT * 1000 else None
+                )
                 receipt = {
-                    "schema": "jevcompass-blind-cli-core-v1",
+                    "schema": "jevcompass-blind-cli-core-v2",
                     "arm_token": token,
                     "case_id": case_id,
                     "first_action_class": action_class,
@@ -987,6 +1049,9 @@ def write_blind_receipts(
                     "execution_status": arm.get("status") if arm.get("status") in {"completed", "failed", "not_run"} else "unknown",
                     "exit_code": safe_exit_code,
                     "outcome_checks": safe_outcomes,
+                    "token_usage_status": usage_status,
+                    "token_usage": safe_usage,
+                    "total_wall_time_ms": safe_wall_time,
                     "limitation": BLIND_LIMITATION,
                 }
                 encoded = json.dumps(receipt, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
@@ -1322,20 +1387,26 @@ def score_blind_pilot(
     if any(path.is_symlink() or not path.is_file() or path.suffix != ".json" for path in files):
         raise ValueError("receipts directory contains a non-receipt entry")
     receipts: dict[str, dict[str, Any]] = {}
-    expected_receipt_fields = {
+    expected_v1_receipt_fields = {
         "schema", "arm_token", "case_id", "first_action_class", "first_action_ms",
         "execution_status", "exit_code", "outcome_checks", "limitation",
+    }
+    expected_v2_receipt_fields = expected_v1_receipt_fields | {
+        "token_usage_status", "token_usage", "total_wall_time_ms",
     }
     for path in files:
         token = path.stem
         if token not in mapped or path.name != f"{token}.json" or token in receipts:
             raise ValueError("receipt token set does not match private mapping")
         _, receipt = _read_limited_json(path, MAX_BLIND_RECEIPT_BYTES, "receipt")
-        if set(receipt) != expected_receipt_fields:
-            raise ValueError("receipt has unknown or missing fields")
+        schema = receipt.get("schema")
+        expected_fields = (expected_v1_receipt_fields if schema == "jevcompass-blind-cli-core-v1"
+                           else expected_v2_receipt_fields if schema == "jevcompass-blind-cli-core-v2"
+                           else None)
+        if expected_fields is None or set(receipt) != expected_fields:
+            raise ValueError("receipt has an unknown schema or fields")
         link = mapped[token]
-        if (receipt["schema"] != "jevcompass-blind-cli-core-v1"
-                or receipt["arm_token"] != token or receipt["case_id"] != link["case_id"]
+        if (receipt["arm_token"] != token or receipt["case_id"] != link["case_id"]
                 or receipt["limitation"] != BLIND_LIMITATION):
             raise ValueError("receipt does not match its mapped token and case")
         action_class = receipt["first_action_class"]
@@ -1362,6 +1433,28 @@ def score_blind_pilot(
             for key, value in outcomes.items()
         ):
             raise ValueError("receipt has invalid outcome checks")
+        if schema == "jevcompass-blind-cli-core-v2":
+            usage_status = receipt["token_usage_status"]
+            usage = receipt["token_usage"]
+            if usage_status not in {"available", "unavailable", "invalid"}:
+                raise ValueError("receipt has an invalid token usage status")
+            if usage_status == "available":
+                if (not isinstance(usage, dict) or set(usage) != set(TURN_USAGE_FIELDS)
+                        or any(not isinstance(usage[field], int) or isinstance(usage[field], bool)
+                               or usage[field] < 0 or usage[field] > MAX_USAGE_COUNTER
+                               for field in TURN_USAGE_FIELDS)
+                        or usage["cached_input_tokens"] > usage["input_tokens"]
+                        or usage["reasoning_output_tokens"] > usage["output_tokens"]):
+                    raise ValueError("receipt has invalid token usage counters")
+            elif usage is not None:
+                raise ValueError("receipt token usage must be null when unavailable or invalid")
+            wall_time = receipt["total_wall_time_ms"]
+            if wall_time is not None and (
+                not isinstance(wall_time, (int, float)) or isinstance(wall_time, bool)
+                or not math.isfinite(wall_time) or wall_time < 0
+                or wall_time > MAX_TIMEOUT * 1000
+            ):
+                raise ValueError("receipt has an invalid total wall time")
         receipts[token] = receipt
     if set(receipts) != set(mapped):
         raise ValueError("receipt token set does not exactly match private mapping")
@@ -1410,6 +1503,67 @@ def score_blind_pilot(
             paired_deltas.append(delta)
             if case_id.startswith("P"):
                 eligible_deltas.append(delta)
+    usage_by_case: dict[str, dict[str, dict[str, Any]]] = {}
+    usage_status_counts = {"available": 0, "unavailable": 0, "invalid": 0, "legacy_v1": 0}
+    wall_time_by_case: dict[str, dict[str, float | None]] = {}
+    usage_delta_values: dict[str, list[float]] = {
+        field: [] for field in (*TURN_USAGE_FIELDS, "uncached_input_tokens_proxy", "total_tokens_proxy")
+    }
+    paired_usage_cases = 0
+    paired_wall_time_deltas: list[float] = []
+    for token, link in mapped.items():
+        receipt = receipts[token]
+        if receipt["schema"] == "jevcompass-blind-cli-core-v1":
+            usage_status_counts["legacy_v1"] += 1
+            usage_status = "unavailable"
+            usage = None
+            wall_time = None
+        else:
+            usage_status = receipt["token_usage_status"]
+            usage = receipt["token_usage"]
+            wall_time = receipt["total_wall_time_ms"]
+            usage_status_counts[usage_status] += 1
+        usage_by_case.setdefault(link["case_id"], {})[link["arm"]] = {
+            "status": usage_status, "usage": usage,
+        }
+        wall_time_by_case.setdefault(link["case_id"], {})[link["arm"]] = wall_time
+    for case_id, arms in usage_by_case.items():
+        baseline, treatment = arms.get("baseline"), arms.get("treatment")
+        if (baseline and treatment and baseline["status"] == "available"
+                and treatment["status"] == "available"):
+            paired_usage_cases += 1
+            for field in TURN_USAGE_FIELDS:
+                usage_delta_values[field].append(
+                    treatment["usage"][field] - baseline["usage"][field]
+                )
+            usage_delta_values["uncached_input_tokens_proxy"].append(
+                treatment["usage"]["input_tokens"] - treatment["usage"]["cached_input_tokens"]
+                - baseline["usage"]["input_tokens"] + baseline["usage"]["cached_input_tokens"]
+            )
+            usage_delta_values["total_tokens_proxy"].append(
+                treatment["usage"]["input_tokens"] + treatment["usage"]["output_tokens"]
+                - baseline["usage"]["input_tokens"] - baseline["usage"]["output_tokens"]
+            )
+        wall_arms = wall_time_by_case[case_id]
+        baseline_wall, treatment_wall = wall_arms.get("baseline"), wall_arms.get("treatment")
+        if isinstance(baseline_wall, (int, float)) and isinstance(treatment_wall, (int, float)):
+            paired_wall_time_deltas.append(float(treatment_wall) - float(baseline_wall))
+    token_usage_comparison = {
+        "arms_by_status": usage_status_counts,
+        "paired_cases": paired_usage_cases,
+        "median_treatment_minus_baseline": {
+            field: _median(values) for field, values in usage_delta_values.items()
+        },
+        "interpretation": (
+            "Token counters are usage-volume proxies only; total_tokens_proxy is input_tokens plus output_tokens. "
+            "No billing-dollar estimate is made."
+        ),
+    }
+    total_wall_time_comparison = {
+        "paired_cases": len(paired_wall_time_deltas),
+        "median_treatment_minus_baseline_ms": _median(sorted(paired_wall_time_deltas)),
+        "measure": "Codex process wall time from process launch through completion; separate from first productive action.",
+    }
     task_quality_by_case: dict[str, dict[str, bool | None]] = {}
     for token, link in mapped.items():
         task_quality_by_case.setdefault(link["case_id"], {})[link["arm"]] = scores[token]["task_quality"]
@@ -1515,6 +1669,8 @@ def score_blind_pilot(
             "eligible_median_treatment_minus_baseline_ms": _median(eligible_sorted),
             "eligible_treatment_faster": sum(value < 0 for value in eligible_deltas),
         },
+        "token_usage": token_usage_comparison,
+        "total_wall_time": total_wall_time_comparison,
         "required_checks_preserved": {
             "rated": sum(value is not None for value in checks),
             "preserved": sum(value is True for value in checks),
