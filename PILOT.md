@@ -2,7 +2,7 @@
 
 ## Status
 
-**Acceptance: not yet passed.** The initial four synthetic CLI pairs (P01, P03, P05, P07) tied on blind task quality; later focused P05 pairs produced one baseline win and one treatment win. The 20-case study has not been run. A CLI prompt canary reached the first response before its first tool. One native Desktop `explorer` child reported correlated advice before its first tool; separate subagent probes were inconclusive or correctly abstained. No repeatable productivity or quality gain is established.
+**Acceptance: not yet passed.** The initial four synthetic CLI pairs (P01, P03, P05, P07) tied on blind task quality; later focused P05 pairs produced one baseline win and one treatment win. The 20-case study has not been run. A CLI prompt canary reached the first response before its first tool. Native Desktop `explorer` and published-0.1.18 `worker` children reported correlated advice before their first code tool in separate smokes; other subagent probes were inconclusive or correctly abstained. No repeatable productivity or quality gain is established.
 
 Use [PILOT_CASES.md](PILOT_CASES.md) for the planned synthetic case bank, [ROADMAP.md](ROADMAP.md) for the thresholds and remaining gates, and [TASKS.md](TASKS.md) for release receipts. Entries below are dated development evidence, including older private-release observations; later records do not erase earlier results. Paths to local experiment artifacts are historical maintainer records and are not downloadable project assets.
 
@@ -43,6 +43,12 @@ In the same Codex CLI 0.155.1 isolated read-only setup, `UserPromptSubmit` canar
 ### Current Desktop explorer abstention (2026-09-25)
 
 A fresh native Desktop `explorer` child was asked to identify the SubagentStart classification and context functions in the product code. The child said its original initial context had **no JevCompass advice ID**. A contemporaneous local metric recorded `SubagentStart` / `codebase` / `low-signal-skip` / 55.96 ms / trace `3d3a4f44`. This confirms the adapter was invoked and intentionally did not emit advice for the available singleton candidate. It does **not** test delivery of emitted `additionalContext` or establish usefulness. The CLI canary below also remains unconfirmed.
+
+### Published v0.1.18 Desktop role smoke (2026-09-25)
+
+The active Linux pipx install was upgraded from 0.1.16 to public 0.1.18; `doctor --json` passed with exactly `UserPromptSubmit` and `SubagentStart`, no Jev `PreToolUse` gate. With only generic available candidates, a new native `explorer` child reported `NO JEVCOMPASS ADVISORY` before its read-only code check; a contemporaneous `SubagentStart/codebase/low-signal-skip` metric took 49.57 ms. No advice ID exists to correlate that specific skip.
+
+After an explicit dry-run and installation of the two optional bundled skills on this maintainer profile, manual `coding/software/worker` advice listed `exec_command` and `jevcompass-focused-tests` as a local unranked shortlist. A new native Desktop `worker` child reported advice ID `96b34a1d` and those exact candidate IDs before its first read-only file check. The local metric matches `SubagentStart/coding/local`, trace `96b34a1d`, 56.79 ms. The child's preflight was sent by a collaboration message before its first shell read; this proves context visibility for that child, not actual skill use, Jev remote ranking, prompt-hook delivery, task-quality gain, or broad coverage. The optional skill pack changed the maintainer's profile and is not part of default installation.
 
 ### Isolated CLI SubagentStart canary (2026-09-25)
 
