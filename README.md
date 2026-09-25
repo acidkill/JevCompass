@@ -49,6 +49,21 @@ The installer copies only `jevcompass-focused-tests` and `jevcompass-regression-
 
 These skills provide task guidance, not test results or a guarantee of fewer regressions. A fresh isolated CLI profile recognized both skills before the first tool. Two synthetic matched pairs tied on blind quality, and a focused unittest retry tied on test results while the skill arm reached validation later. These small trials show discovery without a demonstrated speed or quality benefit; Desktop behavior remains unverified. This optional command exists on source `main` and is not yet in the published 0.1.15 package.
 
+## Enable optional Jev ranking
+
+JevCompass works without an OpenRouter key: it can offer a local, unranked shortlist or stay silent. To let Jev rank eligible candidate choices, provide an OpenRouter API key. On a system with a supported keyring, install the optional dependency and enter the key through the hidden terminal prompt:
+
+```bash
+pipx inject jevcompass 'keyring>=25'
+jevcompass auth status
+jevcompass auth set
+jevcompass doctor
+```
+
+For a new installation, `pipx install 'jevcompass[secure-store]'` includes the keyring dependency. If no supported keyring is available, supply `OPENROUTER_API_KEY` to the Codex process through your existing secret manager. Never paste a literal key into a hook command, repository file, or shell history. The environment variable takes precedence over the keyring; `jevcompass auth status` reports the source without printing the secret. `jevcompass auth delete` removes only the keyring entry after interactive confirmation.
+
+`jevcompass doctor` checks model metadata without a paid decision request. Run `jevcompass doctor --test-jev` only when you explicitly want one synthetic, billed API test. A configured key permits remote ranking for eligible tasks; it does not guarantee a recommendation or prove that a hook delivered one to Codex.
+
 ## Verify advice in a fresh session
 
 After `jevcompass install`, inspect the two registrations in Codex `/hooks`, trust them if prompted, and start a **new** Desktop or CLI session. For a focused check, give Codex a substantive task such as planning a small Python package and ask it to report any `JevCompass advice ID` and suggested IDs from its initial context **before its first tool call**. An absent ID means that session did not receive advice; `doctor` and local hook metrics alone cannot prove delivery. The advisor may intentionally stay silent when only a generic shell command is available.
