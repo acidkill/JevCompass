@@ -140,7 +140,8 @@ class CatalogTests(unittest.TestCase):
         for entry in reviewed:
             if entry["id"] in {"exec_command", "smem", "git"}:
                 entry["availability"] = "available"
-        with patch.object(catalog, "load_catalog", return_value=reviewed):
+        with patch.object(catalog, "load_catalog", return_value=reviewed), \
+                patch.object(catalog, "_inside_git_checkout", return_value=True):
             coding_ids = {item["id"] for item in catalog.candidates("code", "any", "python", limit=20)}
             review_ids = {item["id"] for item in catalog.candidates("review", "any", "python", limit=20)}
             planning_ids = {item["id"] for item in catalog.candidates("planning", "any", "general", limit=20)}
