@@ -59,7 +59,7 @@ class AdvisorTests(unittest.TestCase):
         output = advisor._context("UserPromptSubmit", [item["id"]], [item], "12345678", category="review")
         context = output["hookSpecificOutput"]["additionalContext"]
         self.assertIn("skill `create-plan`: Plan complex work (use when: multi-step plans; skip when: trivia)", context)
-        self.assertIn("Inspect task scope first. Read a chosen skill only when its use condition fits", context)
+        self.assertIn("Inspect task scope first. If a listed skill's use condition fits, read its SKILL.md before drafting or editing; otherwise skip it.", context)
         self.assertLessEqual(len(context), advisor.MAX_CONTEXT_CHARS)
 
         oversized = {**item, "use_when": "x" * 161}

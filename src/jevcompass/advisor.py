@@ -256,7 +256,7 @@ def _context(
     )
     if event == "UserPromptSubmit":
         prefix = source_note + "Optional tools and skills for this task; validate against the task and actual availability:\n"
-        suffix = "\nConfigured MCP entries must be confirmed connected in this session. Inspect task scope first. Read a chosen skill only when its use condition fits; follow required project instructions and tests. If you write a plan, include concise execution recommendations for the primary agent and useful subagents."
+        suffix = "\nConfigured MCP entries must be confirmed connected in this session. Inspect task scope first. If a listed skill's use condition fits, read its SKILL.md before drafting or editing; otherwise skip it. Follow required project instructions and tests. If you write a plan, include concise execution recommendations for the primary agent and useful subagents."
     else:
         prefix = source_note + "Optional tools and skills for this agent role; validate them against your actual task and availability:\n"
         suffix = "\nConfigured MCP entries must be confirmed connected in this session. Inspect task scope first. Read a chosen skill only when its use condition fits. Follow the task brief and required project instructions."
