@@ -6,6 +6,10 @@
 
 Use [PILOT_CASES.md](PILOT_CASES.md) for the planned synthetic case bank, [ROADMAP.md](ROADMAP.md) for the thresholds and remaining gates, and [TASKS.md](TASKS.md) for release receipts. Entries below are dated development evidence, including older private-release observations; later records do not erase earlier results. Paths to local experiment artifacts are historical maintainer records and are not downloadable project assets.
 
+### VCR-252-U bounded test-order CLI pair runner (2026-09-25)
+
+The source runner uses randomized isolated Codex CLI arms on identical ParcelQuote copies and equal model/settings/key presence. Treatment explicitly invokes source JevCompass after editing and must still run the same full required suite as baseline. Receipts retain only validated rank IDs, observed exact focused/required test exits, completion time and token counters. A known seeded failure counts as a useful error only if an observed matching focused test exits nonzero and its output names the frozen failure; otherwise that timing is unscored. Changed source for both opaque arms is held in private files for independent blind review, with the arm mapping separate. Raw Codex events are not persisted. This is synthetic harness verification only; the live pair, quality score, actual cost provenance and native Desktop measurement remain open.
+
 ### VCR-252-T test-order coding fixture (2026-09-25)
 
 The fictional ParcelQuote fixture has a seeded partial-kilogram rounding defect. Unit and public CLI contract checks both fail for 1001 grams before the edit; an ephemeral reference repair passes all six required tests. A candidate-visible TESTING.md names two focused commands without a preferred order and requires the full suite. The evaluator rubric stays outside the copied fixture and was frozen before any paired agent call. Future treatment must ask JevCompass to order these test kinds after the edit, while baseline chooses unaided; both must run the same required command, and any choice time belongs in treatment timing. The fixture is a reproducible comparison target, not evidence of agent uptake, a useful error timing, or a quality gain.
