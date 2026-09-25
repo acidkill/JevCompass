@@ -6,6 +6,10 @@
 
 Use [PILOT_CASES.md](PILOT_CASES.md) for the planned synthetic case bank, [ROADMAP.md](ROADMAP.md) for the thresholds and remaining gates, and [TASKS.md](TASKS.md) for release receipts. Entries below are dated development evidence, including older private-release observations; later records do not erase earlier results. Paths to local experiment artifacts are historical maintainer records and are not downloadable project assets.
 
+### VCR-252-U5 local fast path after redundant remote choices (2026-09-25)
+
+The advisor now skips Jev when a Python change has exactly one unit and one contract candidate and the unit's local relevance is at least the contract's. It returns the unit first and retains every required command. This applies to the frozen ParcelQuote candidate set: the explicit CLI returns `no-remote-choice` with `unit, contract` and the full suite still listed. A stronger contract candidate, three or more candidates, and other surfaces remain eligible for remote comparison. The rule removes a roughly half-second remote call observed in three redundant choices, but a CLI command and agent behavior still cost time; no end-to-end speed gain is claimed until paired agent runs confirm it. This outcome also narrows future Jev use to cases where the candidate metadata can change the decision.
+
 ### VCR-252-U4 three validated remote test-order pairs (2026-09-25)
 
 With equal opted-in network settings and the frozen ParcelQuote fixture, three fresh randomized `gpt-6-luna` low CLI pairs yielded a treatment `remote-choice` from Jev in **596.32 ms**, **513.71 ms**, and **505.41 ms**. The locally validated ID order was `unit, contract` each time. Treatment and baseline both passed the full required six-test suite in all three pairs; the focused unit check passed in both arms of pairs 1 and 3. In pair 2, baseline omitted the requested focused check, so the runner marked that pair `failed` under the predeclared process gate even though its full suite passed. No expected boundary failure was observed after editing; time to first useful error remains unscored. Billing cost is unavailable.

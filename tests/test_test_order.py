@@ -87,6 +87,23 @@ class TestOrderTests(unittest.TestCase):
         self.assertEqual(result.ordered_ids, ("direct", "broad"))
         self.assertEqual(client.calls, [])
 
+    def test_python_unit_contract_fast_feedback_skips_remote_and_keeps_required(self):
+        client = FakeClient({"first": {"type": "choice", "choice": "t1", "confidence": 1.0}})
+        candidates = [
+            {"id": "contract", "kind": "contract", "command": "contract-check", "relevance": 0.8},
+            {"id": "unit", "kind": "unit", "command": "unit-check", "relevance": 0.8},
+        ]
+        required = [{"id": "full", "command": "full-suite"}]
+        result = rank_tests("python", candidates, required, client)
+        self.assertEqual(result.status, NO_REMOTE_CHOICE)
+        self.assertEqual(result.ordered_ids, ("unit", "contract"))
+        self.assertEqual(result.required, (RequiredTest("full-suite", "full"),))
+        self.assertEqual(client.calls, [])
+        # A contract candidate with stronger evidence remains eligible for remote ranking.
+        candidates[0]["relevance"] = 0.9
+        rank_tests("python", candidates, required, client)
+        self.assertEqual(len(client.calls), 1)
+
     def test_remote_choice_moves_candidate_first_and_preserves_required_commands(self):
         required = [
             {"id": "must-one", "command": "pytest tests/required_a.py"},
@@ -114,7 +131,7 @@ class TestOrderTests(unittest.TestCase):
         client = FakeClient({
             "first": {"type": "choice", "choice": "t2", "confidence": 0.9},
         })
-        result = rank_tests("python", [
+        result = rank_tests("api", [
             TestCandidate(TestKind.UNIT, "unit"),
             TestCandidate(TestKind.CONTRACT, "contract"),
         ], [], client)
