@@ -6,6 +6,10 @@
 
 Use [PILOT_CASES.md](PILOT_CASES.md) for the planned synthetic case bank, [ROADMAP.md](ROADMAP.md) for the thresholds and remaining gates, and [TASKS.md](TASKS.md) for release receipts. Entries below are dated development evidence, including older private-release observations; later records do not erase earlier results. Paths to local experiment artifacts are historical maintainer records and are not downloadable project assets.
 
+### Installed v0.1.22 native Desktop worker delivery (2026-09-25)
+
+The maintainer's pipx installation was upgraded from 0.1.20 to 0.1.22 with the production `hooks.json` SHA-256 unchanged. `doctor` reported exactly the two advisory hooks and no Jev PreToolUse gate. In this running Desktop host, a new named `worker` reported advice ID `9ceb0fdd` and candidate IDs `exec_command`, `jevcompass-focused-tests` in its initial context before its first tool. A matching redacted local metric recorded `SubagentStart/coding/local` at 54.64 ms and the same trace. A `luna_worker` reported no advice; the configured matcher explicitly covers only `explorer|worker`, so that silence is expected. This single role delivery smoke does not establish fresh Desktop `UserPromptSubmit` delivery, actual skill use, or paired benefit.
+
 ### Installed v0.1.21 testing delivery and source candidate (2026-09-25)
 
 A fresh installed-0.1.21 P01 pair with `gpt-6-luna` low, no optional skills and no OpenRouter key forwarded exited 0 in both arms. Its treatment classified `coding` and returned `low-signal-skip` in 5.32 ms; no agent-visible advice ID was expected or reported. Metadata-only receipts cannot establish task quality, so this pair is not counted as an effectiveness result.
