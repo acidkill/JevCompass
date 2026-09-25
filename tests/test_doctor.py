@@ -64,6 +64,25 @@ class DoctorTests(unittest.TestCase):
         for private_value in ("private-trace-token", "private prompt text", "/private/worktree", "private-secret"):
             self.assertNotIn(private_value, serialized)
 
+    def test_observation_reports_each_hook_without_leaking_metric_content(self):
+        with tempfile.TemporaryDirectory() as directory:
+            metric = Path(directory) / "advisor.jsonl"
+            metric.write_text("\n".join((
+                json.dumps({"event": "SubagentStart", "status": "low-signal-skip",
+                            "trace": "sensitive-trace", "prompt": "private task"}),
+                "invalid-json",
+                json.dumps({"event": "UserPromptSubmit", "status": "jev",
+                            "secret": "sensitive-secret"}),
+            )) + "\n")
+            with mock.patch.object(advisor, "LOG_PATH", metric):
+                observation = cli._hook_observation()
+        self.assertEqual(observation["event"], "UserPromptSubmit")
+        self.assertEqual(observation["recent_by_event"], {
+            "UserPromptSubmit": "jev", "SubagentStart": "low-signal-skip"})
+        serialized = json.dumps(observation)
+        for value in ("sensitive-trace", "private task", "sensitive-secret"):
+            self.assertNotIn(value, serialized)
+
     def test_doctor_reports_registered_hooks_without_claiming_observed_invocation(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

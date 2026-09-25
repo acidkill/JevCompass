@@ -70,38 +70,46 @@ def _selection_capacity(entries: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _hook_observation() -> dict[str, Any]:
-    """Return a bounded, redacted summary of the most recent local hook metric."""
-    allowed_events = {"UserPromptSubmit", "SubagentStart"}
+    """Return bounded, redacted last statuses per hook from the metric tail."""
+    allowed_events = ("UserPromptSubmit", "SubagentStart")
     allowed_statuses = {
         "cache", "jev", "local", "skip", "insufficient-candidates", "low-signal-skip",
         "classification-skip", "role-skip", "collab-plan", "collab-unavailable",
     }
+    empty = {"observed": False, "event": None, "log_modified_age_seconds": None,
+             "status": "unavailable", "recent_by_event": {}}
     try:
         stat = advisor.LOG_PATH.stat()
         with advisor.LOG_PATH.open("rb") as stream:
             stream.seek(max(0, stat.st_size - 65536))
             lines = stream.read(65536).splitlines()
     except OSError:
-        return {"observed": False, "event": None, "log_modified_age_seconds": None, "status": "unavailable"}
+        return empty
 
-    latest: dict[str, Any] | None = None
+    statuses: dict[str, str] = {}
+    latest_event: str | None = None
     for line in reversed(lines):
         try:
             record = json.loads(line)
         except (UnicodeDecodeError, json.JSONDecodeError):
             continue
-        if (isinstance(record, dict) and isinstance(record.get("event"), str)
-                and record.get("event") in allowed_events and isinstance(record.get("status"), str)
-                and record.get("status") in allowed_statuses):
-            latest = record
-            break
-    if latest is None:
-        return {"observed": False, "event": None, "log_modified_age_seconds": None, "status": "unavailable"}
+        if not isinstance(record, dict):
+            continue
+        event, status = record.get("event"), record.get("status")
+        if event in allowed_events and isinstance(status, str) and status in allowed_statuses:
+            if latest_event is None:
+                latest_event = event
+            statuses.setdefault(event, status)
+            if len(statuses) == len(allowed_events):
+                break
+    if latest_event is None:
+        return empty
     return {
         "observed": True,
-        "event": latest["event"],
+        "event": latest_event,
         "log_modified_age_seconds": max(0, int(time.time() - stat.st_mtime)),
-        "status": latest["status"],
+        "status": statuses[latest_event],
+        "recent_by_event": {event: statuses[event] for event in allowed_events if event in statuses},
     }
 
 
@@ -257,6 +265,10 @@ def main(argv: list[str] | None = None) -> int:
             observation = result["hook_observation"]
             if observation["observed"]:
                 print(f"- Hook invocation metric: {observation['event']}; log modified {observation['log_modified_age_seconds']}s ago; status {observation['status']}")
+                statuses = observation['recent_by_event']
+                print("- Recent metric status by hook: " + ", ".join(
+                    f"{event}={statuses.get(event, 'not observed in metric tail')}"
+                    for event in ("UserPromptSubmit", "SubagentStart")))
             else:
                 print("- Hook invocation metric: no safe record observed; status unavailable")
             print(f"- Hooks feature in base config: {result['hooks_feature']['base_config']} (active host policy and trust need separate verification)")

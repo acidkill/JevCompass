@@ -183,3 +183,4 @@ Important limits: the Codex event has no reliable task objective; the article th
 | ID | Task | Status | Exit checks |
 |---|---|---|---|
 | VCR-135 | Align first-user docs with v0.1.9 and precise CI evidence | Complete | README and ROADMAP cite v0.1.9 Linux checks. README, ROADMAP, RELEASE_NOTES and LAUNCH_KIT distinguish GitHub's exact runner-start annotation from the unverified account-side cause. No workflow, payment setting, or external release changed. |
+| VCR-136 | Show separate prompt and subagent hook status in doctor | Complete | Bounded local metric-tail parsing now reports the most recent allowlisted status for each hook separately without exposing traces, prompts, paths or secrets. A missing record is explicitly inconclusive. The doctor unit suite and full 172-test suite pass on local Linux Python 3.14. No claim of agent-visible delivery follows from a metric. |
