@@ -44,13 +44,20 @@ def arm_events(*, treatment: bool, triage_payload: str | None = None):
         command_event("item.completed", "initial", runner.FOCUSED_COMMAND,
                       exit_code=1, aggregated_output=initial_output),
     ]
+    events.extend([
+        command_event("item.started", "probe", runner.DISCRIMINATOR_COMMAND),
+        command_event(
+            "item.completed", "probe", runner.DISCRIMINATOR_COMMAND, exit_code=0,
+            aggregated_output="\n".join(runner.DISCRIMINATOR_OUTPUT),
+        ),
+    ])
     if treatment:
         command = " ".join(runner._triage_command(1))
         payload = triage_payload or json.dumps({
             "observed_exit_status": 1,
             "test_failed": True,
-            "status": "remote-choice",
-            "steps": [{"id": "import_path_changed"}, {"id": "import_module_missing"}],
+            "status": "no-remote-choice",
+            "steps": [{"id": "import_path_changed"}],
             "executed": False,
         })
         events.extend([
@@ -144,7 +151,16 @@ class TriagePairTests(unittest.TestCase):
             self.assertEqual(receipt["fixture_parity_sha256"][:8], receipt["arms"]["arm-a"]["fixture_sha256_before"][:8])
             self.assertTrue(all(arm["subsequent_focused_exit_code"] == 0 for arm in receipt["arms"].values()))
             self.assertTrue(all(arm["required_suite_exit"] == 0 for arm in receipt["arms"].values()))
-            self.assertTrue(any(arm["triage"]["status"] == "remote-choice" for arm in receipt["arms"].values()))
+            self.assertTrue(all(arm["discriminator_successful"] for arm in receipt["arms"].values()))
+            self.assertTrue(all(
+                isinstance(arm["first_successful_discriminator_ms"], (int, float))
+                for arm in receipt["arms"].values()
+            ))
+            self.assertTrue(any(
+                arm["triage"]["status"] == "no-remote-choice"
+                and arm["triage"]["candidate_ids"] == ["import_path_changed"]
+                for arm in receipt["arms"].values()
+            ))
             public = (output / "receipt.json").read_text(encoding="utf-8")
             for secret in (
                 "AUTH_SECRET_MARKER", "OPENROUTER_SECRET", "PRIVATE_RAW_OUTPUT",
@@ -190,11 +206,15 @@ class TriagePairTests(unittest.TestCase):
     def test_invalid_triage_ids_and_wrong_original_exit_are_unscored(self):
         for payload in (
             json.dumps({
-                "observed_exit_status": 1, "test_failed": True, "status": "remote-choice",
+                "observed_exit_status": 1, "test_failed": True, "status": "no-remote-choice",
                 "steps": [{"id": "unexpected"}], "executed": False,
             }),
             json.dumps({
-                "observed_exit_status": 0, "test_failed": False, "status": "remote-choice",
+                "observed_exit_status": 0, "test_failed": False, "status": "no-remote-choice",
+                "steps": [{"id": "import_path_changed"}], "executed": False,
+            }),
+            json.dumps({
+                "observed_exit_status": 1, "test_failed": True, "status": "remote-choice",
                 "steps": [{"id": "import_path_changed"}], "executed": False,
             }),
         ):
@@ -214,7 +234,134 @@ class TriagePairTests(unittest.TestCase):
         base = time.monotonic()
         receipt = runner._event_receipts(events, [base + i / 100 for i in range(4)], base)
         self.assertTrue(receipt["triage_cli_invocation_observed"])
-        self.assertFalse(receipt["triage_after_initial_failure"])
+        self.assertFalse(receipt["triage_after_discriminator"])
+        self.assertEqual(receipt["triage"], {"status": "unscored", "candidate_ids": []})
+
+    def test_discriminator_requires_exact_command_and_exact_success_output(self):
+        initial_output = (
+            "ERROR: test_store (unittest.loader._FailedTest.test_store)\n"
+            "ModuleNotFoundError: No module named 'parcelcache.codec'"
+        )
+
+        def receipt_for(command, output, exit_code=0):
+            events = [
+                command_event("item.started", "initial", runner.FOCUSED_COMMAND),
+                command_event("item.completed", "initial", runner.FOCUSED_COMMAND,
+                              exit_code=1, aggregated_output=initial_output),
+                command_event("item.started", "probe", command),
+                command_event("item.completed", "probe", command,
+                              exit_code=exit_code, aggregated_output=output),
+            ]
+            started = time.monotonic()
+            times = [started + index / 100 for index in range(len(events))]
+            return runner._event_receipts(events, times, started)
+
+        successful = receipt_for(
+            runner.DISCRIMINATOR_COMMAND, "\n".join(runner.DISCRIMINATOR_OUTPUT),
+        )
+        self.assertTrue(successful["discriminator_invocation_observed"])
+        self.assertTrue(successful["discriminator_successful"])
+        self.assertEqual(successful["first_successful_discriminator_ms"], 30.0)
+
+        unsupported = receipt_for(
+            "python -c \\\"print('package_present')\\\"",
+            "\n".join(runner.DISCRIMINATOR_OUTPUT),
+        )
+        self.assertFalse(unsupported["discriminator_invocation_observed"])
+        self.assertFalse(unsupported["discriminator_successful"])
+        self.assertIsNone(unsupported["first_successful_discriminator_ms"])
+
+        wrong_output = receipt_for(
+            runner.DISCRIMINATOR_COMMAND,
+            "package_present\ntarget_module_absent\nPRIVATE_UNVERIFIED_CLAIM",
+        )
+        self.assertTrue(wrong_output["discriminator_invocation_observed"])
+        self.assertFalse(wrong_output["discriminator_successful"])
+        self.assertIsNone(wrong_output["first_successful_discriminator_ms"])
+
+    def test_triage_before_verified_discriminator_is_rejected(self):
+        initial_output = (
+            "ERROR: test_store (unittest.loader._FailedTest.test_store)\n"
+            "ModuleNotFoundError: No module named 'parcelcache.codec'"
+        )
+        command = " ".join(runner._triage_command(1))
+        triage = json.dumps({
+            "observed_exit_status": 1,
+            "test_failed": True,
+            "status": "no-remote-choice",
+            "steps": [{"id": "import_path_changed"}],
+            "executed": False,
+        })
+        events = [
+            command_event("item.started", "initial", runner.FOCUSED_COMMAND),
+            command_event("item.completed", "initial", runner.FOCUSED_COMMAND,
+                          exit_code=1, aggregated_output=initial_output),
+            command_event("item.started", "triage", command),
+            command_event("item.completed", "triage", command,
+                          exit_code=0, aggregated_output=triage),
+            command_event("item.started", "probe", runner.DISCRIMINATOR_COMMAND),
+            command_event(
+                "item.completed", "probe", runner.DISCRIMINATOR_COMMAND, exit_code=0,
+                aggregated_output="\n".join(runner.DISCRIMINATOR_OUTPUT),
+            ),
+        ]
+        started = time.monotonic()
+        times = [started + index / 100 for index in range(len(events))]
+        receipt = runner._event_receipts(events, times, started)
+        self.assertTrue(receipt["discriminator_successful"])
+        self.assertTrue(receipt["triage_cli_invocation_observed"])
+        self.assertFalse(receipt["triage_after_discriminator"])
+        self.assertTrue(receipt["triage_invalid_invocation_observed"])
+        self.assertNotEqual(receipt["triage_output_status"], "valid_local_resolution")
+        self.assertEqual(receipt["triage"], {"status": "unscored", "candidate_ids": []})
+
+    def test_triage_command_requires_all_verified_observations(self):
+        initial_output = (
+            "ERROR: test_store (unittest.loader._FailedTest.test_store)\n"
+            "ModuleNotFoundError: No module named 'parcelcache.codec'"
+        )
+        valid = " ".join(runner._triage_command(1))
+        invalid = valid.replace(" --import-observation replacement_module_present", "")
+        payload = json.dumps({
+            "observed_exit_status": 1,
+            "test_failed": True,
+            "status": "no-remote-choice",
+            "steps": [{"id": "import_path_changed"}],
+            "executed": False,
+        })
+        events = [
+            command_event("item.started", "initial", runner.FOCUSED_COMMAND),
+            command_event("item.completed", "initial", runner.FOCUSED_COMMAND,
+                          exit_code=1, aggregated_output=initial_output),
+            command_event("item.started", "probe", runner.DISCRIMINATOR_COMMAND),
+            command_event("item.completed", "probe", runner.DISCRIMINATOR_COMMAND,
+                          exit_code=0, aggregated_output="\n".join(runner.DISCRIMINATOR_OUTPUT)),
+            command_event("item.started", "triage", invalid),
+            command_event("item.completed", "triage", invalid,
+                          exit_code=0, aggregated_output=payload),
+        ]
+        started = time.monotonic()
+        times = [started + index / 100 for index in range(len(events))]
+        receipt = runner._event_receipts(events, times, started)
+        self.assertTrue(receipt["discriminator_successful"])
+        self.assertTrue(receipt["triage_cli_invocation_observed"])
+        self.assertTrue(receipt["triage_invalid_invocation_observed"])
+        self.assertFalse(receipt["triage_after_discriminator"])
+        self.assertEqual(receipt["triage"], {"status": "unscored", "candidate_ids": []})
+
+    def test_triage_output_must_be_local_resolution_for_preserved_exit(self):
+        payload = json.dumps({
+            "observed_exit_status": 1,
+            "test_failed": True,
+            "status": "remote-choice",
+            "steps": [{"id": "import_path_changed"}],
+            "executed": False,
+        })
+        events, times, _ = arm_events(treatment=True, triage_payload=payload)
+        receipt = runner._event_receipts(events, times, times[0])
+        self.assertTrue(receipt["triage_after_discriminator"])
+        self.assertEqual(receipt["triage_cli_exit_code"], 0)
+        self.assertEqual(receipt["triage_output_status"], "invalid_output")
         self.assertEqual(receipt["triage"], {"status": "unscored", "candidate_ids": []})
 
     def test_unrelated_initial_failure_fails_even_when_later_checks_pass(self):
@@ -223,7 +370,7 @@ class TriagePairTests(unittest.TestCase):
             command_event(
                 "item.completed", "initial", runner.FOCUSED_COMMAND, exit_code=1,
                 aggregated_output=(
-                    "ERROR: test_store (unittest.loader._FailedTest.test_store)\\n"
+                    "ERROR: test_store (unittest.loader._FailedTest.test_store)\n"
                     "PermissionError: local fixture is unavailable"
                 ),
             ),
