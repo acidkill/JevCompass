@@ -649,7 +649,7 @@ def run_pair(
         "reasoning_effort": reasoning_effort,
         "timeout_seconds_per_arm": timeout,
         "openrouter_key_forwarded": bool(allow_openrouter_key),
-        "advisor_source": "installed-release" if installed_python is not None else "checkout",
+        "advisor_source": "installed-distribution" if installed_python is not None else "checkout",
         "advisor_version": EXPECTED_INSTALLED_VERSION if installed_python is not None else None,
         "sandbox": "read-only",
         "core_20_denominator_included": False,

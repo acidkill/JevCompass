@@ -224,6 +224,7 @@ def _context(
 ) -> dict[str, Any] | None:
     chosen = {item["id"]: item for item in items}
     lines = []
+    has_criteria = False
     for identifier in selected:
         item = chosen.get(identifier)
         if item is None:
@@ -232,7 +233,14 @@ def _context(
         if item.get("invocation") == "shell_command":
             lines.append(f"- local command `{identifier}`: {item['capability']} (run through `exec_command`; confirm it is available in this session){suffix}")
         else:
-            lines.append(f"- {item['kind']} `{identifier}`: {item['capability']}{suffix}")
+            criteria = ""
+            if item["kind"] == "skill":
+                use_when, avoid_when = item.get("use_when"), item.get("avoid_when")
+                if (isinstance(use_when, str) and isinstance(avoid_when, str)
+                        and len(use_when) <= 160 and len(avoid_when) <= 160):
+                    criteria = f" (use when: {use_when}; skip when: {avoid_when})"
+                    has_criteria = True
+            lines.append(f"- {item['kind']} `{identifier}`: {item['capability']}{criteria}{suffix}")
     if not lines:
         return None
 
@@ -242,16 +250,19 @@ def _context(
     )
     if event == "UserPromptSubmit":
         prefix = source_note + "Optional tools and skills for this task; validate against the task and actual availability:\n"
-        suffix = "\nConfigured MCP entries must be confirmed connected in this session. Read any chosen skill before use and follow required project instructions and tests. If you write a plan, include concise execution recommendations for the primary agent and useful subagents."
+        suffix = "\nConfigured MCP entries must be confirmed connected in this session. Inspect task scope first. Read a chosen skill only when its use condition fits; follow required project instructions and tests. If you write a plan, include concise execution recommendations for the primary agent and useful subagents."
     else:
         prefix = source_note + "Optional tools and skills for this agent role; validate them against your actual task and availability:\n"
-        suffix = "\nConfigured MCP entries must be confirmed connected in this session. Read any chosen skill before use. Follow the task brief and required project instructions."
+        suffix = "\nConfigured MCP entries must be confirmed connected in this session. Inspect task scope first. Read a chosen skill only when its use condition fits. Follow the task brief and required project instructions."
     if category == "source-review":
         suffix += " Verify current authoritative local sources and mark missing facts. Keep drafts unsent unless explicitly authorized."
     if category == "package-docs":
         suffix += " For Python package install docs, check project metadata and the existing README. Preserve its exact supported CLI help invocation (such as `python -m package --help`) unless a replacement is verified by running it. Check the documented test command; distinguish pre-existing test failures."
     context = (f"JevCompass advice ID: {trace}\n" if trace else "") + prefix + "\n".join(lines) + suffix
     if len(context) > MAX_CONTEXT_CHARS:
+        if has_criteria:
+            compact = [{**item, "use_when": None, "avoid_when": None} for item in items]
+            return _context(event, selected, compact, trace, selection_source, category)
         return None
     return {"hookSpecificOutput": {"hookEventName": event, "additionalContext": context}}
 

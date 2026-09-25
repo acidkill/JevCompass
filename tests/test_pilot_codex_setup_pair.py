@@ -155,7 +155,7 @@ class CodexSetupPairTests(unittest.TestCase):
                     skill_source=skill, installed_python=interpreter, rng=ReverseRandom(),
                 )
             verify.assert_called_once_with(interpreter)
-            self.assertEqual(result["advisor_source"], "installed-release")
+            self.assertEqual(result["advisor_source"], "installed-distribution")
             self.assertEqual(result["advisor_version"], "0.1.12")
             self.assertTrue(result["cases"]["C02"]["arms"]["treatment"]["hooks_configured"])
             self.assertFalse(result["cases"]["C02"]["arms"]["baseline"]["hooks_configured"])
