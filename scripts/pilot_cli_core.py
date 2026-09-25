@@ -90,7 +90,7 @@ BLIND_OUTCOME_KEYS = frozenset({
     "bash_syntax", "no_unset_output_path_defect",
     "install_instruction_coherent", "help_instruction_coherent",
     "help_command_exit", "test_instruction_exit", "contract_indicators",
-    "answer_indicator",
+    "scaffold_files_present", "smoke_unittest_exit", "answer_indicator",
 })
 PILOT_DIAGNOSTIC_CATEGORIES = frozenset({
     "api-design", "codebase", "codex-setup", "coding", "debugging", "documentation",

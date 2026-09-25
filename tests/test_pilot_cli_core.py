@@ -1065,6 +1065,34 @@ class PilotCliCoreTests(unittest.TestCase):
         self.assertEqual([item["path"] for item in artifact["files"]], list(runner.QUALITY_FILE_ALLOWLIST["P08"]))
         self.assertNotIn("private.txt", str(artifact))
 
+    def test_p08_blind_receipt_keeps_only_safe_scaffold_and_test_checks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            outcomes = {
+                "scaffold_files_present": True,
+                "smoke_unittest_exit": False,
+                "unittest_invocation_observed": True,
+                "unittest_completion_observed": True,
+                "private_command": "python -m unittest",
+            }
+            cases = {"P08": {"arms": {
+                "baseline": {"status": "completed", "exit_code": 0, "outcome_checks": outcomes},
+                "treatment": {"status": "completed", "exit_code": 0, "outcome_checks": outcomes},
+            }}}
+            runner.write_blind_receipts(cases, root / "blind")
+            receipts = [
+                json.loads(path.read_text(encoding="utf-8"))
+                for path in (root / "blind" / "receipts").glob("*.json")
+            ]
+        self.assertEqual(len(receipts), 2)
+        for receipt in receipts:
+            self.assertEqual(receipt["outcome_checks"], {
+                "scaffold_files_present": True, "smoke_unittest_exit": False,
+                "unittest_invocation_observed": True,
+                "unittest_completion_observed": True,
+            })
+            self.assertNotIn("private_command", str(receipt))
+
     def test_p08_outcome_records_scaffold_and_observed_unittest_exit(self):
         with tempfile.TemporaryDirectory() as directory:
             fixture = Path(directory)

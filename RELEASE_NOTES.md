@@ -1,3 +1,9 @@
+# Unreleased P08 receipt correction (no new package release)
+
+P08 blind receipts now retain allowlisted scaffold presence and observed unittest exit while dropping command content. In a fresh installed-v0.1.22 keyless CLI surrogate pair, both arms authored coherent packages and had recognized successful unittest exits; treatment reported local `exec_command`/`git` advice before first tool (`project-setup/local`, 10.46 ms). The blind quality scores were frozen before mapping (SHA-256 `d438a21996ab95d3cf39bf80902fe5915f10f01d165da1868f5b9e22a781b723`). This is a check-preservation observation, not a demonstrated speed/quality improvement or a Desktop P08 result. The published distribution is unchanged.
+
+---
+
 # Unreleased pilot harness evidence (no new package release)
 
 The CLI runner now includes a P08 project-scaffold surrogate in an isolated fixture with a three-file blind export and prospective unittest-exit observation. The planned P08 Desktop case remains open. On installed v0.1.22, a keyless randomized CLI pair tied on blind authored-package quality; treatment reported `exec_command`/`git` advice before first tool (`project-setup/local`, 8.11 ms). The original receipt did not assess test completion, and this small pair does not prove speed or quality benefit. The product distribution and hooks are unchanged. See [PILOT.md](PILOT.md).
