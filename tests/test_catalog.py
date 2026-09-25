@@ -391,5 +391,67 @@ shell_tool = false
                 )
             self.assertIn("second-root-skill", found)
 
+    def test_local_skill_overlay_requires_explicit_registration_and_is_private(self):
+        with tempfile.TemporaryDirectory() as directory:
+            user_home = Path(directory)
+            codex_home = user_home / "codex-profile"
+            skill_name = "private-curated-test-skill"
+            skill_file = codex_home / "skills" / skill_name / "SKILL.md"
+            skill_file.parent.mkdir(parents=True)
+            raw_content = "raw-skill-body-marker-71c2"
+            skill_file.write_text(
+                f"---\nname: {skill_name}\ndescription: raw-skill-description-marker-93a1\n---\n{raw_content}\n",
+                encoding="utf-8",
+            )
+            with patch.dict(catalog.os.environ, {"CODEX_HOME": str(codex_home)}, clear=True), \
+                    patch.object(Path, "home", return_value=user_home):
+                before_version = catalog.catalog_version()
+                self.assertNotIn(skill_name, {item["id"] for item in catalog.candidates("code", "guidance", "software", limit=50)})
+
+                catalog.register_local_skill(
+                    name=skill_name,
+                    capability="Review local code changes",
+                    use_when="The task asks for a focused source review",
+                    avoid_when="The task only asks to implement code",
+                    task_kinds=["code"],
+                    domains=["software"],
+                )
+
+                after_version = catalog.catalog_version()
+                self.assertNotEqual(before_version, after_version)
+                candidates = catalog.candidates("code", "guidance", "software", limit=50)
+                candidate = next(item for item in candidates if item["id"] == skill_name)
+                self.assertEqual(candidate["capability"], "Review local code changes")
+                self.assertEqual(candidate["catalog_version"], after_version)
+                rendered = repr(candidates)
+                for private_value in (raw_content, "raw-skill-description-marker-93a1", str(skill_file), str(codex_home)):
+                    self.assertNotIn(private_value, rendered)
+
+    def test_local_skill_registration_rejects_invalid_uninstalled_and_duplicate_entries(self):
+        with tempfile.TemporaryDirectory() as directory:
+            user_home = Path(directory)
+            codex_home = user_home / "codex-profile"
+            skill_name = "approved-overlay-skill"
+            skill_file = codex_home / "skills" / skill_name / "SKILL.md"
+            skill_file.parent.mkdir(parents=True)
+            skill_file.write_text(f"---\nname: {skill_name}\ndescription: installed helper\n---\n", encoding="utf-8")
+            with patch.dict(catalog.os.environ, {"CODEX_HOME": str(codex_home)}, clear=True), \
+                    patch.object(Path, "home", return_value=user_home):
+                metadata = {
+                    "capability": "Review local changes",
+                    "use_when": "The task asks for review",
+                    "avoid_when": "The task asks for implementation",
+                    "task_kinds": ["review"],
+                    "domains": ["software"],
+                }
+                with self.assertRaises(ValueError):
+                    catalog.register_local_skill(name="missing-overlay-skill", **metadata)
+                with self.assertRaises(ValueError):
+                    catalog.register_local_skill(name=skill_name, **{**metadata, "use_when": " "})
+
+                catalog.register_local_skill(name=skill_name, **metadata)
+                with self.assertRaises(ValueError):
+                    catalog.register_local_skill(name=skill_name, **metadata)
+
 if __name__ == "__main__":
     unittest.main()

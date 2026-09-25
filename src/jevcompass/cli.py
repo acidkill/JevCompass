@@ -11,7 +11,7 @@ import tomllib
 from typing import Any
 
 from . import __version__, advisor
-from .catalog import catalog_snapshot, catalog_version
+from .catalog import catalog_snapshot, catalog_version, register_local_skill
 from .paths import codex_profile_id, resolve_codex_home
 from .decisions import DecisionsClient, DecisionsError, model_status
 from .installer import (
@@ -259,6 +259,15 @@ def main(argv: list[str] | None = None) -> int:
     skills_sub = skills.add_subparsers(dest="skills_action", required=True)
     skills_install = skills_sub.add_parser("install", help="Install two reviewed, local workflow skills")
     skills_install.add_argument("--dry-run", action="store_true", help="Validate without writing skill files")
+    skills_add = skills_sub.add_parser("add", help="Register approved generic metadata for an installed skill")
+    skills_add.add_argument("name", help="Installed skill identifier (lowercase slug)")
+    for field in ("capability", "use-when", "avoid-when"):
+        skills_add.add_argument(f"--{field}", required=True)
+    skills_add.add_argument("--category", choices=CATEGORIES, required=True,
+                            help="Task category where this skill is useful")
+    skills_add.add_argument("--domain", choices=DOMAINS, required=True)
+    skills_add.add_argument("--approve-remote-metadata", action="store_true",
+                            help="Confirm these generic fields may be sent to OpenRouter for ranking")
     auth = sub.add_parser("auth", help="Manage the OpenRouter key in the system keyring")
     auth_sub = auth.add_subparsers(dest="auth_action", required=True)
     auth_sub.add_parser("status", help="Show redacted credential availability")
@@ -336,6 +345,22 @@ def main(argv: list[str] | None = None) -> int:
             print("Private integration and skill names, configuration values, and local paths are withheld.")
         return 0 if result["ok"] else 1
     if args.command == "skills":
+        if args.skills_action == "add":
+            preview = {"id": args.name, "capability": args.capability,
+                       "use_when": args.use_when, "avoid_when": args.avoid_when,
+                       "category": args.category, "domain": args.domain}
+            print("Metadata eligible for OpenRouter ranking: " + json.dumps(preview, sort_keys=True))
+            if not args.approve_remote_metadata:
+                print("No changes made. Review the fields, then repeat with --approve-remote-metadata.")
+                return 0
+            try:
+                register_local_skill(args.name, args.capability, args.use_when, args.avoid_when,
+                                     [advisor.CATALOG_TASKS[args.category]], [args.domain])
+            except (OSError, ValueError) as error:
+                print(f"JevCompass skill registration failed: {error}", file=sys.stderr)
+                return 1
+            print("Registered generic metadata for an installed skill. Read its SKILL.md before use.")
+            return 0
         from .skill_pack import install_skills
 
         try:

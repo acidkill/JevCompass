@@ -56,6 +56,20 @@ The installer copies only `jevcompass-focused-tests` and `jevcompass-regression-
 
 Suggestions for these skills are conditional on the task matching their guidance in `SKILL.md`; a suggestion is not a requirement. This remains an experiment with no demonstrated speed or quality benefit. In one source-built C05 pair, the agent read the suggested `create-plan` skill, but the blinded scores tied 6/7. This single result does not establish causality or effectiveness. Desktop behavior remains unverified. The skills and installer are included in v0.1.16 but are not installed unless you opt in. They are absent from v0.1.15.
 
+## Add your own installed skill
+
+The built-in catalog cannot know when a private skill fits your work. Register a short, generic description explicitly, after reading its `SKILL.md` and checking the fields you are willing to share:
+
+```bash
+jevcompass skills add my-review-skill \
+  --capability 'Review local code changes' \
+  --use-when 'The task calls for source review' \
+  --avoid-when 'The task only needs implementation' \
+  --category review --domain software
+```
+
+The first run previews the fields and makes **no change**. If those fields are safe to send to OpenRouter when optional remote ranking is enabled, repeat with `--approve-remote-metadata`. Registration writes only your descriptions to `CODEX_HOME/jevcompass/catalog.json` (normally `~/.codex/jevcompass/catalog.json`); it does not copy the skill body or path. Only an actually installed skill with matching name becomes a candidate. Keep descriptions generic: the skill ID, capability, use and avoid conditions may be sent to OpenRouter for ranking. Without an OpenRouter key, matching advice stays local. Remove an entry by editing that local JSON file; a changed catalog invalidates cached rankings. A suggestion never substitutes for reading the actual `SKILL.md`.
+
 ## Enable optional Jev ranking
 
 JevCompass works without an OpenRouter key: it can offer a local, unranked shortlist or stay silent. To let Jev rank eligible candidate choices, provide an OpenRouter API key. On a system with a supported keyring, install the optional dependency and enter the key through the hidden terminal prompt:
