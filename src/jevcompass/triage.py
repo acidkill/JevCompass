@@ -54,6 +54,17 @@ class HypothesisId(str, Enum):
     TIMEOUT_NONTERMINATING = "timeout_nonterminating"
 
 
+class ImportObservation(str, Enum):
+    """Allowlisted facts from a local, read-only import-spec check."""
+
+    PACKAGE_PRESENT = "package_present"
+    PACKAGE_ABSENT = "package_absent"
+    TARGET_MODULE_PRESENT = "target_module_present"
+    TARGET_MODULE_ABSENT = "target_module_absent"
+    REPLACEMENT_MODULE_PRESENT = "replacement_module_present"
+    REPLACEMENT_MODULE_ABSENT = "replacement_module_absent"
+
+
 @dataclass(frozen=True)
 class DiagnosticStep:
     """A locally authored next diagnostic action."""
@@ -170,18 +181,63 @@ def _valid_confidence(value: Any) -> bool:
     return math.isfinite(confidence) and CONFIDENCE_THRESHOLD <= confidence <= 1.0
 
 
+def _normalize_import_observations(
+    observations: Sequence[ImportObservation] | None,
+) -> tuple[ImportObservation, ...]:
+    if observations is None:
+        return ()
+    if (isinstance(observations, (str, bytes))
+            or not isinstance(observations, Sequence)
+            or any(not isinstance(item, ImportObservation) for item in observations)):
+        raise TypeError("import-observations-must-be-enums")
+    return tuple(dict.fromkeys(observations))
+
+
+def _contradictory_import_observations(
+    observations: Sequence[ImportObservation],
+) -> bool:
+    known = set(observations)
+    contradictions = (
+        (ImportObservation.PACKAGE_PRESENT, ImportObservation.PACKAGE_ABSENT),
+        (ImportObservation.TARGET_MODULE_PRESENT, ImportObservation.TARGET_MODULE_ABSENT),
+        (ImportObservation.REPLACEMENT_MODULE_PRESENT, ImportObservation.REPLACEMENT_MODULE_ABSENT),
+    )
+    if any(left in known and right in known for left, right in contradictions):
+        return True
+    return (
+        ImportObservation.PACKAGE_ABSENT in known
+        and bool(known.intersection({
+            ImportObservation.TARGET_MODULE_PRESENT,
+            ImportObservation.REPLACEMENT_MODULE_PRESENT,
+        }))
+    )
+
+
+def _import_path_is_locally_confirmed(
+    observations: Sequence[ImportObservation],
+) -> bool:
+    return {
+        ImportObservation.PACKAGE_PRESENT,
+        ImportObservation.TARGET_MODULE_ABSENT,
+        ImportObservation.REPLACEMENT_MODULE_PRESENT,
+    }.issubset(observations)
+
+
 def triage_failure(
     failure_kinds: Sequence[FailureKind],
     hypotheses: Sequence[HypothesisId],
     observed_exit_status: int,
     client: Any | None = None,
+    *,
+    import_observations: Sequence[ImportObservation] | None = None,
 ) -> TriageResult:
-    """Return up to two local diagnostic steps for a failing, ambiguous result.
+    """Return up to two diagnostic steps from allowlisted failure metadata.
 
-    Jev is queried only when at least two supplied hypotheses are allowlisted,
-    correspond to a supplied failure kind, and produce distinct diagnostics.
-    Raw output, prompts, paths, commands and free-form descriptions are not
-    accepted by this API or included in a Decisions request.
+    Import observations are fixed enum tokens from a local, read-only check.
+    A consistent package-present / target-absent / replacement-present result
+    rules out the missing-package hypothesis locally and skips Jev. Conflicting
+    observations abstain without a remote call. Raw names, paths, output,
+    prompts, commands, and free-form descriptions are never accepted.
     """
     if isinstance(observed_exit_status, bool) or not isinstance(observed_exit_status, int):
         raise TypeError("observed-exit-status-must-be-int")
@@ -193,19 +249,31 @@ def triage_failure(
             or not isinstance(hypotheses, Sequence)
             or any(not isinstance(hypothesis, HypothesisId) for hypothesis in hypotheses)):
         raise TypeError("hypotheses-must-be-enums")
+    observations = _normalize_import_observations(import_observations)
     if observed_exit_status == 0:
         return _empty_result(observed_exit_status)
 
     allowed_kinds = set(failure_kinds)
+    import_evidence_applies = FailureKind.IMPORT in allowed_kinds and bool(observations)
+    if import_evidence_applies and _contradictory_import_observations(observations):
+        return TriageResult(observed_exit_status, (), NO_REMOTE_CHOICE)
+
+    locally_confirmed_path = (
+        import_evidence_applies and _import_path_is_locally_confirmed(observations)
+    )
     plausible: list[_CatalogEntry] = []
     seen: set[HypothesisId] = set()
     for hypothesis in hypotheses:
         entry = CATALOG[hypothesis]
-        if entry.kind in allowed_kinds and hypothesis not in seen:
-            plausible.append(entry)
-            seen.add(hypothesis)
+        if entry.kind not in allowed_kinds or hypothesis in seen:
+            continue
+        seen.add(hypothesis)
+        if locally_confirmed_path and hypothesis is HypothesisId.IMPORT_MODULE_MISSING:
+            continue
+        plausible.append(entry)
+
     fallback = tuple(entry.step for entry in plausible[:2])
-    if not failure_kinds or len(plausible) < 2:
+    if locally_confirmed_path or not failure_kinds or len(plausible) < 2:
         return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE)
 
     ids = [entry.step.id.value for entry in plausible]
@@ -214,6 +282,8 @@ def triage_failure(
         "failure_kinds": [kind.value for kind in FailureKind if kind in allowed_kinds],
         "hypotheses": ids,
     }
+    if import_evidence_applies:
+        state["import_observations"] = [item.value for item in observations]
     questions = {
         "diagnostic": {
             "type": "choice",
