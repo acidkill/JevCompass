@@ -1,7 +1,7 @@
 """Supplemental isolated Codex CLI pairs (outside core-20 denominator).
 
 Only fixed metadata is written to stdout. Prompts, transcripts, source, paths, auth,
-and environment values stay out of receipts. C03 forwards a key only after explicit opt-in.
+and environment values stay out of receipts. C03 forwards a key to treatment only; C04 uses an equal key environment in both arms.
 """
 from __future__ import annotations
 
@@ -25,6 +25,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "codex_setup"
+RETRY_FIXTURE = ROOT / "tests" / "fixtures" / "retry_review"
 CORE_SCRIPT = ROOT / "scripts" / "pilot_cli_core.py"
 CASE_PROMPTS = {
     "C01": (
@@ -40,6 +41,14 @@ CASE_PROMPTS["C02"] = (
     "and only the candidate IDs if an advisory is present; otherwise report exactly "
     "NO JEVCOMPASS ADVISORY."
 )
+CASE_PROMPTS["C04"] = (
+    "Review the fictional retry.py against RETRY_CONTRACT.md and tests/test_retry.py. "
+    "Report up to three actionable defects, each with file and line, impact, and a specific "
+    "focused test that would expose it. Do not edit files or access network services. "
+    "Base findings only on the fixture. Before your first tool call, report the JevCompass "
+    "advice ID and only candidate IDs if present; otherwise report exactly "
+    "NO JEVCOMPASS ADVISORY."
+)
 CASE_PROMPTS["C03"] = (
     "Review the synthetic Python file counter.py for correctness and report the highest-priority "
     "finding with its line number. Before your first tool call, report the JevCompass advice ID "
@@ -49,13 +58,13 @@ CASE_PROMPTS["C03"] = (
 DEFAULT_TIMEOUT = 90
 MAX_TIMEOUT = 300
 MAX_SKILL_BYTES = 2 * 1024 * 1024
-EXPECTED_INSTALLED_VERSION = "0.1.12"
+EXPECTED_INSTALLED_VERSION = "0.1.13"
 REVIEW_SKILL_LAYOUTS = (
     ("developer-essentials", "1.0.4", "code-review-excellence"),
     ("security-scanning", "1.3.2", "security-requirement-extraction"),
 )
 CASE_IDS = ("C01", "R10")
-SELECTABLE_CASE_IDS = ("C01", "C02", "C03", "R10")
+SELECTABLE_CASE_IDS = ("C01", "C02", "C03", "C04", "R10")
 
 _spec = importlib.util.spec_from_file_location("pilot_cli_core_for_setup_pair", CORE_SCRIPT)
 if _spec is None or _spec.loader is None:
@@ -220,9 +229,9 @@ def _command(*, codex: str, model: str, reasoning_effort: str, prompt: str) -> l
 
 def _c03_action_telemetry(
     lines: list[str], *, event_times: list[float], start_monotonic: float,
-    fixture: Path, home: Path,
+    fixture: Path, home: Path, case_id: str = "C03",
 ) -> dict[str, Any]:
-    """Record only successful completed reads of the exact synthetic C03 targets.
+    """Record only successful completed reads of the exact synthetic review targets.
 
     Recognized commands are direct cat/head/tail/sed/nl reads, optionally as
     exactly two such commands joined by &&, with one exact bash/sh -lc wrapper
@@ -232,8 +241,12 @@ def _c03_action_telemetry(
     timings only; command text and paths are never returned.
     """
     candidate_ids = tuple(skill for _, _, skill in REVIEW_SKILL_LAYOUTS)
-    targets: dict[str, set[str]] = {
-        "counter": {os.path.normcase(os.path.abspath(fixture / "counter.py"))},
+    target_names = ("counter.py",) if case_id == "C03" else (
+        "retry.py", "RETRY_CONTRACT.md", "tests/test_retry.py"
+    ) if case_id == "C04" else ()
+    targets = {
+        name: {os.path.normcase(os.path.abspath(fixture / name))}
+        for name in target_names
     }
     candidate_targets: dict[str, set[str]] = {skill: set() for skill in candidate_ids}
     for package, version, skill in REVIEW_SKILL_LAYOUTS:
@@ -393,8 +406,7 @@ def _c03_action_telemetry(
             continue
         candidates = {os.path.normcase(os.path.abspath(fixture / operand)) for operand in operands}
         matched: list[str] = []
-        if candidates & targets["counter"]:
-            matched.append("counter")
+        matched.extend(name for name in target_names if candidates & targets[name])
         matched.extend(skill for skill in candidate_ids if candidates & candidate_targets[skill])
         if not matched:
             continue
@@ -407,13 +419,20 @@ def _c03_action_telemetry(
         for target in matched:
             observed_reads.setdefault(target, elapsed_ms)
 
-    return {
-        "counter_read_ms": observed_reads.get("counter"),
+    result: dict[str, Any] = {
         "candidate_skill_reads": [
             {"id": skill, "elapsed_ms": observed_reads[skill]}
             for skill in candidate_ids if skill in observed_reads
         ],
     }
+    if case_id == "C03":
+        result["counter_read_ms"] = observed_reads.get("counter.py")
+    else:
+        result["review_target_reads"] = [
+            {"id": name, "elapsed_ms": observed_reads[name]}
+            for name in target_names if name in observed_reads
+        ]
+    return result
 
 
 def _run_live_arm(
@@ -435,7 +454,7 @@ def _run_live_arm(
     env = _core._isolated_environment(home=home, isolated_python=isolated_python)
     if installed_python is not None:
         env.pop("PYTHONPATH", None)
-    if allow_openrouter_key and treatment and case_id == "C03":
+    if allow_openrouter_key and (treatment or case_id == "C04") and case_id in {"C03", "C04"}:
         env["OPENROUTER_API_KEY"] = os.environ["OPENROUTER_API_KEY"]
     started = time.monotonic()
     try:
@@ -476,11 +495,11 @@ def _run_live_arm(
         "first_action": parsed["first_action"],
         "advice_id_before_first_tool": parsed["advice_id_before_first_tool"],
     }
-    if case_id == "C03":
+    if case_id in {"C03", "C04"}:
         result["agent_reported_candidate_ids"] = parsed["agent_reported_candidate_ids"]
         result["action_telemetry"] = _c03_action_telemetry(
             lines, event_times=event_times, start_monotonic=started,
-            fixture=fixture, home=home,
+            fixture=fixture, home=home, case_id=case_id,
         )
     if treatment:
         result["advice_id"] = parsed["advice_id"]
@@ -502,8 +521,8 @@ def _run_live_arm(
 
 def _mock_arm(*, case_id: str, treatment: bool, skill_sha256: str) -> dict[str, Any]:
     """Return deterministic synthetic metadata; no Codex or network process is started."""
-    advice = treatment and case_id in {"C01", "C02", "C03"}
-    category = "review" if case_id == "C03" else "codex-setup" if case_id in {"C01", "C02"} else "none"
+    advice = treatment and case_id in {"C01", "C02", "C03", "C04"}
+    category = "review" if case_id in {"C03", "C04"} else "codex-setup" if case_id in {"C01", "C02"} else "none"
     return {
         "status": "not_run",
         "execution": "mocked",
@@ -605,25 +624,25 @@ def run_pair(
         raise ValueError("an explicit Codex model is required")
     if blind_dir is not None and mode != "run":
         raise ValueError("blind answer capture requires a live run")
-    if allow_openrouter_key and (mode != "run" or cases != ("C03",)):
-        raise ValueError("OpenRouter key forwarding is limited to a live C03-only pair")
-    if mode == "run" and "C03" in cases and not allow_openrouter_key:
-        raise ValueError("a live C03 pair requires explicit OpenRouter key forwarding opt-in")
-    if mode == "run" and "C03" in cases and installed_python is None:
-        raise ValueError("a live C03 pair requires the explicit installed v0.1.12 interpreter")
+    if allow_openrouter_key and (mode != "run" or cases not in {("C03",), ("C04",)}):
+        raise ValueError("OpenRouter key forwarding is limited to a live C03 or C04 pair")
+    if mode == "run" and any(case in cases for case in ("C03", "C04")) and not allow_openrouter_key:
+        raise ValueError("a live C03 or C04 pair requires explicit OpenRouter key forwarding opt-in")
+    if mode == "run" and any(case in cases for case in ("C03", "C04")) and installed_python is None:
+        raise ValueError("a live C03 or C04 pair requires the explicit installed v0.1.13 interpreter")
     if allow_openrouter_key and not os.environ.get("OPENROUTER_API_KEY"):
         raise ValueError("OpenRouter API key is unavailable")
     if installed_python is not None:
         if not installed_python.is_absolute() or not installed_python.is_file():
             raise ValueError("installed Python must be an existing absolute file")
         _check_installed_version(installed_python)
-    if not FIXTURE.is_dir():
-        raise FileNotFoundError("synthetic Codex setup fixture is unavailable")
+    if not FIXTURE.is_dir() or ("C04" in cases and not RETRY_FIXTURE.is_dir()):
+        raise FileNotFoundError("synthetic pilot fixture is unavailable")
 
     source_home = auth_root or _source_auth_root()
     skill_path = skill_source or _source_skill_root(source_home)
     skill_sha256 = _skill_digest(skill_path)
-    if "C03" in cases:
+    if any(case in cases for case in ("C03", "C04")):
         review_skills = review_skill_sources or _review_skill_sources(source_home)
         expected_ids = tuple(skill for _, _, skill in REVIEW_SKILL_LAYOUTS)
         actual_ids = tuple(Path(relative).name for _, relative in review_skills)
@@ -649,6 +668,7 @@ def run_pair(
         "reasoning_effort": reasoning_effort,
         "timeout_seconds_per_arm": timeout,
         "openrouter_key_forwarded": bool(allow_openrouter_key),
+        "openrouter_key_equal_between_arms": bool(allow_openrouter_key and cases == ("C04",)),
         "advisor_source": "installed-distribution" if installed_python is not None else "checkout",
         "advisor_version": EXPECTED_INSTALLED_VERSION if installed_python is not None else None,
         "sandbox": "read-only",
@@ -661,6 +681,8 @@ def run_pair(
         work = Path(temporary)
         for case_id in order:
             source_fixture = FIXTURE
+            if case_id == "C04":
+                source_fixture = RETRY_FIXTURE
             if case_id == "C03":
                 source_fixture = work / case_id / "synthetic-review-fixture"
                 _write_review_fixture(source_fixture)
@@ -713,7 +735,7 @@ def run_pair(
                         if "failure" in profile
                         else _mock_arm(case_id=case_id, treatment=treatment, skill_sha256=skill_sha256)
                     )
-                    if "failure" not in profile and case_id == "C03":
+                    if "failure" not in profile and case_id in {"C03", "C04"}:
                         arm_result["candidate_skills_installed"] = profile["candidate_skills_installed"]
                         arm_result["candidate_skill_digests"] = list(candidate_skill_digests)
                 else:
@@ -741,8 +763,8 @@ def run_pair(
                 "skill_copies_identical": skill_digests[0] == skill_digests[1],
                 "candidate_skill_digests": list(candidate_skill_digests),
                 "candidate_skill_copies_identical": True,
-                "fresh_jev_cache": case_id == "C03",
-                "pair_scope": "delivery smoke; treatment-only remote key, not efficacy comparison" if case_id == "C03" else "supplemental paired probe",
+                "fresh_jev_cache": case_id in {"C03", "C04"},
+                "pair_scope": ("delivery smoke; treatment-only remote key, not efficacy comparison" if case_id == "C03" else "matched synthetic review; equal key environment, blind outcome review required" if case_id == "C04" else "supplemental paired probe"),
                 "routine_negative_control": case_id == "R10",
                 "arms": arm_results,
             }
@@ -771,10 +793,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--case", action="append", choices=SELECTABLE_CASE_IDS,
                         help="select one or more cases; default is C01 and R10")
     parser.add_argument("--installed-python", type=Path,
-                        help="absolute interpreter path of installed JevCompass 0.1.12 release")
+                        help="absolute interpreter path of installed JevCompass 0.1.13 release")
     parser.add_argument(
         "--allow-openrouter-key", action="store_true",
-        help="explicitly forward OPENROUTER_API_KEY to the treatment arm of a live C03-only synthetic pair",
+        help="forward OPENROUTER_API_KEY for live C03 (treatment only) or C04 (both arms) synthetic pair",
     )
     args = parser.parse_args(argv)
     selected_mode = "dry-run" if args.dry_run else "mock" if args.mock else "run"

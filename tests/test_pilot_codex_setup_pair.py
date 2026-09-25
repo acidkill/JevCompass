@@ -156,7 +156,7 @@ class CodexSetupPairTests(unittest.TestCase):
                 )
             verify.assert_called_once_with(interpreter)
             self.assertEqual(result["advisor_source"], "installed-distribution")
-            self.assertEqual(result["advisor_version"], "0.1.12")
+            self.assertEqual(result["advisor_version"], "0.1.13")
             self.assertTrue(result["cases"]["C02"]["arms"]["treatment"]["hooks_configured"])
             self.assertFalse(result["cases"]["C02"]["arms"]["baseline"]["hooks_configured"])
             args, kwargs = launch.call_args
@@ -173,7 +173,7 @@ class CodexSetupPairTests(unittest.TestCase):
             with mock.patch.object(runner.subprocess, "run", return_value=mock.Mock(returncode=0, stdout="0.1.11\n")):
                 with self.assertRaisesRegex(RuntimeError, "does not match"):
                     runner._check_installed_version(interpreter)
-            with mock.patch.object(runner.subprocess, "run", return_value=mock.Mock(returncode=0, stdout="0.1.12\n")) as launch:
+            with mock.patch.object(runner.subprocess, "run", return_value=mock.Mock(returncode=0, stdout="0.1.13\n")) as launch:
                 runner._check_installed_version(interpreter)
             args, kwargs = launch.call_args
             self.assertEqual(args[0][1], "-I")
@@ -294,6 +294,77 @@ class CodexSetupPairTests(unittest.TestCase):
             self.assertFalse(result["openrouter_key_forwarded"])
             self.assertFalse(case["arms"]["treatment"]["model_called"])
             self.assertIn("NO JEVCOMPASS ADVISORY", runner.CASE_PROMPTS["C03"])
+
+    def test_c04_fixture_and_equal_key_environment(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            stock_skill = make_skill(root)
+            review_skills = make_review_skills(root)
+            from jevcompass.advisor import classify_task
+            self.assertEqual(classify_task(runner.CASE_PROMPTS["C04"]), ("review", "python"))
+            result = runner.run_pair(
+                mode="dry-run", model=None, cases=("C04",), auth_root=root,
+                skill_source=stock_skill, review_skill_sources=review_skills,
+                rng=ReverseRandom(),
+            )
+            case = result["cases"]["C04"]
+            self.assertTrue(case["fixture_copies_identical"])
+            self.assertTrue(case["candidate_skill_copies_identical"])
+            self.assertEqual(case["arms"]["baseline"]["candidate_skills_installed"],
+                             case["arms"]["treatment"]["candidate_skills_installed"])
+            self.assertFalse(result["core_20_denominator_included"])
+            self.assertIn("RETRY_CONTRACT.md", runner.CASE_PROMPTS["C04"])
+            self.assertTrue((runner.RETRY_FIXTURE / "tests" / "test_retry.py").is_file())
+
+            with mock.patch.dict("os.environ", {"OPENROUTER_API_KEY": "synthetic-secret"}):
+                prepared = {
+                    "auth_copied": True,
+                    "candidate_skills_installed": ["code-review-excellence", "security-requirement-extraction"],
+                    "isolated_python": root / "python",
+                }
+                with mock.patch.object(runner, "_prepare_profile", return_value=prepared), \
+                     mock.patch.object(runner._core, "_collect_events", return_value=([], [], None)), \
+                     mock.patch.object(runner._core, "read_safe_metrics", return_value=[]), \
+                     mock.patch.object(runner.subprocess, "Popen", return_value=mock.Mock(returncode=0)) as launch:
+                    for treatment in (False, True):
+                        runner._run_live_arm(
+                            codex="codex", model="synthetic-model", reasoning_effort="low",
+                            fixture=root, home=root / str(treatment), skill_source=stock_skill,
+                            skill_sha256=runner._skill_digest(stock_skill), case_id="C04", timeout=3,
+                            treatment=treatment, auth_source=root / "auth.json",
+                            candidate_skills=review_skills, allow_openrouter_key=True,
+                        )
+                    environments = [call.kwargs["env"] for call in launch.call_args_list]
+            self.assertEqual([env["OPENROUTER_API_KEY"] for env in environments],
+                             ["synthetic-secret", "synthetic-secret"])
+
+    def test_c04_action_telemetry_counts_only_successful_fixture_reads(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixture = root / "fixture"
+            home = root / "home"
+            events = []
+            for command, exit_code in [
+                (f"cat {fixture / 'retry.py'}", 0),
+                (f"sed -n '1,30p' {fixture / 'RETRY_CONTRACT.md'}", 0),
+                (f"nl -ba {fixture / 'tests/test_retry.py'}", 0),
+                (f"cat {fixture / 'retry.py'} | wc -l", 0),
+                (f"cat {fixture / 'retry.py'}", 1),
+            ]:
+                events.append(json.dumps({"type": "item.completed", "item": {
+                    "type": "command_execution", "command": command, "exit_code": exit_code,
+                }}))
+            telemetry = runner._c03_action_telemetry(
+                events, event_times=[4.1, 4.2, 4.3, 4.4, 4.5],
+                start_monotonic=4.0, fixture=fixture, home=home, case_id="C04",
+            )
+            self.assertEqual(telemetry["review_target_reads"], [
+                {"id": "retry.py", "elapsed_ms": 100.0},
+                {"id": "RETRY_CONTRACT.md", "elapsed_ms": 200.0},
+                {"id": "tests/test_retry.py", "elapsed_ms": 300.0},
+            ])
+            self.assertNotIn(str(root), json.dumps(telemetry))
+            self.assertNotIn("command", json.dumps(telemetry))
 
     def test_c02_preflight_is_same_prompt_in_both_arms_and_not_core_case(self):
         with tempfile.TemporaryDirectory() as temporary:
