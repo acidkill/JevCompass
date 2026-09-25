@@ -406,6 +406,25 @@ class TriagePairTests(unittest.TestCase):
             arm, treatment=False, artifact_changed=True,
         ))
 
+    def test_baseline_equivalent_diagnostic_does_not_require_exact_probe(self):
+        events, _, _ = arm_events(treatment=False)
+        events = [line for line in events if not (
+            '"id": "probe"' in line
+        )]
+        started = time.monotonic()
+        receipt = runner._event_receipts(
+            events, [started + index / 100 for index in range(len(events))], started,
+        )
+        arm = {"cli_status": "completed", **receipt}
+        self.assertFalse(arm["discriminator_successful"])
+        self.assertTrue(arm["initial_useful_error_match"])
+        self.assertTrue(runner._arm_passed(
+            arm, treatment=False, artifact_changed=True,
+        ))
+        self.assertFalse(runner._arm_passed(
+            arm, treatment=True, artifact_changed=True,
+        ))
+
     def test_timeout_marks_pair_failed_and_keeps_no_raw_output(self):
         with tempfile.TemporaryDirectory() as temp:
             receipt, output, _ = self._run_smoke(temp, failure="timeout")

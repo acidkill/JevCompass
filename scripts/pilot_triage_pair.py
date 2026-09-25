@@ -423,7 +423,6 @@ def _arm_passed(
         and arm.get("initial_focused_invocation_observed") is True
         and arm.get("initial_focused_exit_code") == 1
         and arm.get("initial_useful_error_match") is True
-        and arm.get("discriminator_successful") is True
         and arm.get("subsequent_focused_invocation_observed") is True
         and arm.get("subsequent_focused_exit_code") == 0
         and arm.get("required_suite_invocation_observed") is True
@@ -432,9 +431,12 @@ def _arm_passed(
     if not process_gate or not artifact_changed:
         return False
     if not treatment:
+        # Equivalent read-only diagnostics are allowed in the baseline task;
+        # the strict probe detector is treatment-specific and can be unscored.
         return not arm.get("triage_cli_invocation_observed")
     return (
-        arm.get("triage_after_discriminator") is True
+        arm.get("discriminator_successful") is True
+        and arm.get("triage_after_discriminator") is True
         and arm.get("triage_invalid_invocation_observed") is False
         and arm.get("triage_cli_exit_code") == 0
         and arm.get("triage_output_status") == "valid_local_resolution"
