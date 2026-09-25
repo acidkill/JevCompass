@@ -391,6 +391,56 @@ shell_tool = false
                 )
             self.assertIn("second-root-skill", found)
 
+    def test_ci_unittest_runner_replaces_global_pytest_candidate(self):
+        import os
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory)
+            subprocess.run(["git", "init", "-q", str(project)], check=True)
+            workflow = project / ".github" / "workflows" / "ci.yml"
+            workflow.parent.mkdir(parents=True)
+            workflow.write_text("""jobs:
+  test:
+    steps:
+      - run: python -m unittest discover -s tests
+""", encoding="utf-8")
+            original = Path.cwd()
+            try:
+                os.chdir(project)
+                with patch.object(catalog.shutil, "which", side_effect=lambda name: f"/bin/{name}"):
+                    entries = catalog.load_catalog()
+                    self.assertEqual(next(item["availability"] for item in entries if item["id"] == "unittest"), "available")
+                    self.assertEqual(next(item["availability"] for item in entries if item["id"] == "pytest"), "unavailable")
+                    ids = {item["id"] for item in catalog.candidates("testing", "any", "python", limit=20)}
+                    self.assertIn("unittest", ids)
+                    self.assertNotIn("pytest", ids)
+
+                    workflow.write_text("""jobs:
+  test:
+    steps:
+      - run: pytest -q
+""", encoding="utf-8")
+                    ids = {item["id"] for item in catalog.candidates("testing", "any", "python", limit=20)}
+                    self.assertIn("pytest", ids)
+                    self.assertNotIn("unittest", ids)
+
+                    workflow.write_text("""jobs:
+  test:
+    steps:
+      - run: python -m unittest discover -s tests
+      - run: pytest -q
+""", encoding="utf-8")
+                    ids = {item["id"] for item in catalog.candidates("testing", "any", "python", limit=20)}
+                    self.assertIn("pytest", ids)
+                    self.assertNotIn("unittest", ids)
+
+                    workflow.unlink()
+                    ids = {item["id"] for item in catalog.candidates("testing", "any", "python", limit=20)}
+                    self.assertIn("pytest", ids)
+                    self.assertNotIn("unittest", ids)
+            finally:
+                os.chdir(original)
+
+
     def test_local_skill_overlay_requires_explicit_registration_and_is_private(self):
         with tempfile.TemporaryDirectory() as directory:
             user_home = Path(directory)

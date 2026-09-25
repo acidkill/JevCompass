@@ -274,6 +274,7 @@ def catalog_snapshot() -> tuple[list[dict[str, Any]], dict[str, int]]:
     raw = json.loads((_HERE / "catalog_data.json").read_text(encoding="utf-8"))
     skills = discover_installed_skills(raw.get("discovery_limits"))
     servers = _configured_mcp_servers()
+    ci_runner = _ci_test_runner()
     entries = raw.get("entries", [])
     clean: list[dict[str, Any]] = []
     for entry in entries:
@@ -298,7 +299,10 @@ def catalog_snapshot() -> tuple[list[dict[str, Any]], dict[str, int]]:
                 item["availability"] = "available"
         elif kind == "command":
             item["invocation"] = "shell_command"
-            item["availability"] = "available" if shutil.which(spec.get("command", "")) else "unavailable"
+            supported = (item["id"] != "unittest" or ci_runner == "unittest") and (
+                item["id"] != "pytest" or ci_runner != "unittest"
+            )
+            item["availability"] = "available" if supported and shutil.which(spec.get("command", "")) else "unavailable"
         elif kind == "codex_shell":
             item["availability"] = "available" if _codex_shell_available() else "unavailable"
         elif kind == "mcp":
@@ -356,6 +360,45 @@ def _inside_git_checkout(start: Path | None = None) -> bool:
         return result.returncode == 0 and result.stdout.strip() == "true"
     except (OSError, subprocess.TimeoutExpired):
         return False
+
+
+_UNITTEST_COMMAND = re.compile(r"(?<![\w.-])python(?:3(?:\.\d+)?)?\s+-m\s+unittest(?:\s|$)")
+_PYTEST_COMMAND = re.compile(r"(?<![\w.-])(?:python(?:3(?:\.\d+)?)?\s+-m\s+)?pytest(?:\s|$)")
+
+
+def _ci_test_runner() -> str | None:
+    """Identify an unambiguous Python runner from bounded local CI commands.
+
+    This is only a relevance hint; project instructions remain authoritative.
+    CI content is never included in remote candidate metadata or logs.
+    """
+    try:
+        root_result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True, check=False, timeout=0.25,
+        )
+        if root_result.returncode:
+            return None
+        directory = Path(root_result.stdout.strip()) / ".github" / "workflows"
+        if not directory.is_dir():
+            return None
+        signals: set[str] = set()
+        for path in sorted(directory.iterdir())[:24]:
+            if path.suffix not in {".yml", ".yaml"} or path.is_symlink() or not path.is_file():
+                continue
+            if path.stat().st_size > 64_000:
+                continue
+            for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+                stripped = line.strip()
+                if not stripped or stripped.startswith("#"):
+                    continue
+                if _UNITTEST_COMMAND.search(stripped):
+                    signals.add("unittest")
+                if _PYTEST_COMMAND.search(stripped):
+                    signals.add("pytest")
+        return next(iter(signals)) if len(signals) == 1 else None
+    except (OSError, subprocess.TimeoutExpired):
+        return None
 
 
 def candidates(task_kind: str, role: str, domain: str | None = None, limit: int = 6) -> list[dict[str, Any]]:
