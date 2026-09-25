@@ -30,7 +30,7 @@ from typing import Any, Iterable
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "cli_core"
-CASE_IDS = ("P01", "P03", "P05", "P07", "R01", "R02", "R03", "R04", "R05", "R06")
+CASE_IDS = ("P01", "P03", "P05", "P07", "P08", "R01", "R02", "R03", "R04", "R05", "R06")
 PUBLISHED_PILOT_VERSION = "0.1.16"
 BUNDLED_SKILL_NAMES = ("jevcompass-focused-tests", "jevcompass-regression-review")
 PROMPTS = {
@@ -38,6 +38,7 @@ PROMPTS = {
     "P03": "Fix the Bash script's unset-variable defect and run a syntax check on the edited script.",
     "P05": "Update the Python project README's install instructions to match the current CLI help and existing test behavior.",
     "P07": "Design and write STATUS_API.md as an API contract for the Python POST /status endpoint. Specify required and optional JSON inputs, a validated status result, successful responses, and 4xx and 5xx response cases. Do not implement a server.",
+    "P08": "Create a new Python package repository scaffold in a new scaffoldpkg/ directory in this synthetic fixture. Add minimal pyproject.toml metadata, an importable src/scaffoldpkg module, and a focused unittest smoke test in tests/test_smoke.py. Run the test. Do not publish or contact external services.",
     "R01": "Print the current branch name in the synthetic fixture.",
     "R02": "Count the top-level files in the synthetic fixture.",
     "R03": "Check whether README.md exists in the synthetic fixture.",
@@ -47,7 +48,7 @@ PROMPTS = {
 }
 READ_ONLY_CASES = frozenset({"R01", "R02", "R03", "R04", "R05", "R06"})
 ROUTINE_CASES = frozenset({"R01", "R02", "R03", "R04", "R05", "R06"})
-PREFLIGHT_CASES = frozenset({"P01", "P03", "P05", "P07"})
+PREFLIGHT_CASES = frozenset({"P01", "P03", "P05", "P07", "P08"})
 PREFLIGHT_INSTRUCTION = (
     "Before your first tool call, report the JevCompass advice ID and only the candidate IDs. "
     "If no advisory is present, report exactly: NO JEVCOMPASS ADVISORY."
@@ -67,6 +68,7 @@ QUALITY_FILE_ALLOWLIST = {
     "P03": ("scripts/render_report.sh",),
     "P05": ("README.md",),
     "P07": ("STATUS_API.md",),
+    "P08": ("scaffoldpkg/pyproject.toml", "scaffoldpkg/src/scaffoldpkg/__init__.py", "scaffoldpkg/tests/test_smoke.py"),
 }
 PRIVATE_PATH_RE = re.compile(
     r"(?<![A-Za-z0-9])/(?:home|Users|root|tmp)/\S+"
@@ -410,6 +412,25 @@ def _fixture_outcome_checks(
             "help_instruction_coherent": help_matches,
             "help_command_exit": observed_exits.get("cli_help") == 0 if "cli_help" in observed_exits else None,
             "test_instruction_exit": observed_exits.get("fixture_tests") == 0 if "fixture_tests" in observed_exits else None,
+        }
+    if case_id == "P08":
+        try:
+            scaffold_files = all(
+                _read_fixture_relative(fixture, relative, MAX_BLIND_FILE_BYTES) is not None
+                for relative in QUALITY_FILE_ALLOWLIST["P08"]
+            )
+        except (OSError, ValueError):
+            scaffold_files = False
+        exit_code = observed_exits.get("fixture_tests")
+        return {
+            "scaffold_files_present": scaffold_files,
+            "smoke_unittest_exit": exit_code == 0 if exit_code is not None else None,
+            "unittest_invocation_observed": any(
+                event.get("command_check_started") == "fixture_tests" for event in events
+            ),
+            "unittest_completion_observed": any(
+                event.get("command_check_completed") == "fixture_tests" for event in events
+            ),
         }
     if case_id == "P07":
         try:
@@ -893,7 +914,7 @@ def _validate_quality_artifact(artifact: dict[str, Any], case_id: str) -> dict[s
         if not isinstance(relative, str) or relative not in allowed or relative in seen:
             raise ValueError("quality artifact contains a path outside its fixed allowlist")
         _validate_quality_text(content, MAX_BLIND_FILE_BYTES, "quality artifact file")
-        if case_id == "P07" and (PROMPTS[case_id] in content or PREFLIGHT_INSTRUCTION in content):
+        if case_id in {"P07", "P08"} and (PROMPTS[case_id] in content or PREFLIGHT_INSTRUCTION in content):
             raise ValueError("P07 quality artifact file must not include the task prompt or preflight transcript")
         seen.add(relative)
         files.append({"path": relative, "content": content})
@@ -1125,17 +1146,23 @@ def build_quality_artifact(
 ) -> dict[str, Any]:
     """Create a bounded artifact from fixed synthetic-fixture outputs only."""
     if case_id not in QUALITY_FILE_ALLOWLIST:
-        raise ValueError("quality artifacts are limited to P01/P03/P05/P07")
+        raise ValueError("quality artifacts are limited to explicitly allowlisted cases")
     artifact: dict[str, Any] = {
         "schema": "jevcompass-blind-cli-quality-v1",
         "case_id": case_id,
     }
     files: list[dict[str, str]] = []
     for relative in QUALITY_FILE_ALLOWLIST[case_id]:
-        updated = _read_fixture_relative(fixture, relative, MAX_BLIND_FILE_BYTES)
+        try:
+            updated = _read_fixture_relative(fixture, relative, MAX_BLIND_FILE_BYTES)
+        except FileNotFoundError:
+            updated = None
         if updated is None:
             continue
-        original = _read_fixture_relative(FIXTURE, relative, MAX_BLIND_FILE_BYTES)
+        try:
+            original = _read_fixture_relative(FIXTURE, relative, MAX_BLIND_FILE_BYTES)
+        except FileNotFoundError:
+            original = None  # Newly authored nested scaffold has no source directory.
         if updated == original:
             continue
         try:
@@ -1143,7 +1170,7 @@ def build_quality_artifact(
         except UnicodeDecodeError as error:
             raise ValueError("quality artifact file must contain UTF-8 text") from error
         _validate_quality_text(content, MAX_BLIND_FILE_BYTES, "quality artifact file")
-        if case_id == "P07" and (PROMPTS[case_id] in content or PREFLIGHT_INSTRUCTION in content):
+        if case_id in {"P07", "P08"} and (PROMPTS[case_id] in content or PREFLIGHT_INSTRUCTION in content):
             raise ValueError("P07 quality artifact file must not include the task prompt or preflight transcript")
         files.append({"path": relative, "content": content})
     artifact["files"] = files
@@ -1714,7 +1741,7 @@ def main(argv: list[str] | None = None) -> int:
                         help="opt in to equal OpenRouter key presence in both live installed-release arms")
     parser.add_argument(
         "--blind-quality-artifacts", action="store_true",
-        help="also write bounded, opaque fixture-output artifacts for P01/P03/P05/P07",
+        help="also write bounded, opaque fixture-output artifacts for P01/P03/P05/P07/P08",
     )
     parser.add_argument("--score-receipts", type=Path, help="score an existing blind receipt directory")
     parser.add_argument("--score-mapping", type=Path, help="private arm mapping for offline blind scoring")

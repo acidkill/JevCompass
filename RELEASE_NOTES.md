@@ -1,3 +1,9 @@
+# Unreleased pilot harness evidence (no new package release)
+
+The CLI runner now includes a P08 project-scaffold surrogate in an isolated fixture with a three-file blind export and prospective unittest-exit observation. The planned P08 Desktop case remains open. On installed v0.1.22, a keyless randomized CLI pair tied on blind authored-package quality; treatment reported `exec_command`/`git` advice before first tool (`project-setup/local`, 8.11 ms). The original receipt did not assess test completion, and this small pair does not prove speed or quality benefit. The product distribution and hooks are unchanged. See [PILOT.md](PILOT.md).
+
+---
+
 # Unreleased pilot harness clarification (no new package release)
 
 P07 now explicitly requests an authored `STATUS_API.md` while retaining its `api-design/python` preflight label. This changes the synthetic case wording, so older P07 pair scores remain historical. An unpublished API-contract skill prototype received local advice in two equal-profile source trials: the first produced no file in either arm, while the revised blind pair produced a valid baseline contract and no treatment file. Its catalog and bundled-skill edits were removed; the shipped package, hook configuration and optional two-skill installer remain as in v0.1.22. No speed, quality, or remote Jev benefit is claimed. See [PILOT.md](PILOT.md).

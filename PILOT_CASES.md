@@ -1,6 +1,6 @@
 # VCR-06D Synthetic Matched-Pair Case Bank
 
-**Status:** core case design and classifier preflight; supplemental C01/R10 CLI pair scored separately. P07 now asks explicitly for an authored `STATUS_API.md`; earlier P07 outcomes used different wording and remain historical, not directly comparable. See [PILOT.md](PILOT.md) for live delivery and pilot evidence and [ROADMAP.md](ROADMAP.md) for acceptance thresholds.
+**Status:** core case design and classifier preflight; supplemental C01/R10 CLI pair scored separately. P07 now asks explicitly for an authored `STATUS_API.md`; earlier P07 outcomes used different wording and remain historical, not directly comparable. The CLI runner also offers a P08 **surrogate** with an explicit nested package output under `scaffoldpkg/`; its observations do not count as the planned Desktop P08 host check. See [PILOT.md](PILOT.md) for live delivery and pilot evidence and [ROADMAP.md](ROADMAP.md) for acceptance thresholds.
 
 ## Purpose and boundary
 
@@ -34,6 +34,8 @@ Run each case in two arms with identical Codex version, model, permissions, temp
 | R04 | Routine negative control | CLI | No classification, no Jev call | Show the size of pyproject.toml in bytes in the synthetic fixture. |
 | R05 | Routine negative control | CLI | No classification, no Jev call | List the top-level Python files in the synthetic fixture. |
 | R06 | Routine negative control | CLI | No classification, no Jev call | Check whether README.md contains the word timeout. |
+
+The optional **CLI P08 surrogate** in `scripts/pilot_cli_core.py` writes the package into `scaffoldpkg/` inside the disposable fixture and exports only its allowlisted metadata, module and smoke-test files for blind review. It is a separate host observation; retain the Desktop assignment above for acceptance.
 
 The 20 core cases balance total host count at 10 each: four substantive prompts plus six routine controls on CLI, and four substantive prompts plus six supported-role subagent cases on Desktop. The CLI spawn path supplies only the generic `default` role, which the product intentionally skips, so role-level subagent usefulness is evaluated only on Desktop. R07–R09 are three additional Desktop routine pairs outside the 20-case core; they check that routine behavior is also silent on that host.
 
