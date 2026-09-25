@@ -28,10 +28,10 @@ jevcompass install
 jevcompass doctor
 ```
 
-Or install the [private v0.1.9 wheel](https://github.com/acidkill/JevCompass/releases/tag/v0.1.9) after downloading and verifying it:
+Or install the [private v0.1.10 wheel](https://github.com/acidkill/JevCompass/releases/tag/v0.1.10) after downloading and verifying it:
 
 ```bash
-pipx install ./jevcompass-0.1.9-py3-none-any.whl
+pipx install ./jevcompass-0.1.10-py3-none-any.whl
 jevcompass install
 jevcompass doctor
 ```
@@ -49,7 +49,7 @@ Once a PyPI release has been independently verified, the registry installation c
 | `UserPromptSubmit` | Substantive tasks in ordinary Codex sessions | Classifies a category locally; emits brief optional advice when the reviewed catalog has useful candidates. Short requests can be skipped. It does not infer the Plan UI mode. |
 | `SubagentStart` | Built-in `explorer` and `worker` roles | Suggests role-level candidates only when the signal is useful; generic and custom roles are skipped. The event has no subagent task text. |
 | `jevcompass recommend` | Short or ambiguous tasks, or manual use | Takes an explicit category, domain, and optional role; never accepts the raw prompt. |
-| `jevcompass doctor` | Setup and troubleshooting | Reports registration, local catalog capacity, model/key status and a redacted recent hook metric. |
+| `jevcompass doctor` | Setup and troubleshooting | Reports registration, local catalog capacity, model/key status and the latest redacted invocation status separately for each hook. |
 
 The hook adds **context, not control**. It never blocks shell, Git, Helm, or network commands, grants permissions, installs skills, or replaces required project instructions and tests. A locally configured MCP entry does not prove the tool is connected in the active session. Codex must confirm each recommendation is usable and read the selected `SKILL.md`.
 
@@ -93,7 +93,7 @@ Categories: `infrastructure`, `debugging`, `testing`, `research`, `api-design`, 
 
 Task classification and catalog discovery happen locally. A Decisions request contains an allowlisted category, domain, role, criteria, and generic descriptions of a small set of reviewed candidates. It does **not** include the prompt, source code, diffs, repository paths, memory contents, local integration names, or private skill descriptions. OpenRouter receives the API key in the HTTPS authorization header when a remote request occurs. Review its service terms and data handling for your use case. A configured MCP entry is not automatically recommended merely because it appears in `config.toml`.
 
-The local cache and metrics live under `~/.cache/jevcompass` and `~/.local/state/jevcompass`. Cache entries contain allowlisted selection metadata; metrics record safe event/category/outcome/timing details and a short advice ID. Simple skipped prompts need not create a metric. `doctor` reports the most recent safe status for each hook found in the bounded metric tail; `not observed in metric tail` is inconclusive, while `low-signal-skip` means the adapter ran and intentionally withheld advice. The displayed log age belongs to the file's most recent write, not to each hook event. A metric proves the adapter ran, **not** that the agent saw advice. To confirm delivery, ask the agent at the beginning of a fresh session whether a JevCompass advice ID appeared before its first tool and correlate it with the local metric. `JEV_ADVISOR_DIAGNOSTIC=1` temporarily adds sanitized event-mode diagnostics. Never paste private prompts or credentials into issue reports.
+The local cache and metrics live under `~/.cache/jevcompass` and `~/.local/state/jevcompass`. Cache entries contain allowlisted selection metadata; metrics record safe event/category/outcome/timing details and a short advice ID. Simple skipped prompts need not create a metric. `doctor` reports the most recent safe status separately for each hook found in the bounded metric tail; `not observed in metric tail` is inconclusive, while `low-signal-skip` means the adapter ran and intentionally withheld advice. The displayed log age belongs to the file's most recent write, not to each hook event. A metric proves the adapter ran, **not** that the agent saw advice. From a source checkout, `python scripts/probe_hook_delivery.py --event prompt` or `--event subagent` runs an isolated synthetic CLI canary with a temporary profile and workspace. Its summary exposes status and event ordering only. A probe with no observed hook, child, or spawn event is inconclusive; it does not diagnose production hook delivery. To confirm real delivery, ask the agent at the beginning of a fresh session whether a JevCompass advice ID appeared before its first tool and correlate it with the local metric. `JEV_ADVISOR_DIAGNOSTIC=1` temporarily adds sanitized event-mode diagnostics. Never paste private prompts or credentials into issue reports.
 
 ### If you see no advice
 
@@ -107,7 +107,7 @@ Report failures with the Codex host/version, OS, Python version, category, redac
 
 ## Current evidence and limits
 
-Local unit, packaging, and Linux pipx checks have been run for the private v0.1.9 release. Four matched synthetic CLI task pairs (P01, P03, P05, P07) tied in blind quality ratings; this does not establish a speed or quality improvement. A fresh CLI advice ID was observed before first tool use and a named-role Desktop subagent delivery was observed in a separate host smoke. Fresh Desktop **prompt** delivery, macOS runtime behavior, broad usefulness, and active-session MCP availability remain unverified. The stronger 20-pair study is planned in [ROADMAP.md](ROADMAP.md); detailed observations live in [PILOT.md](PILOT.md).
+Local Linux unit, packaging, and isolated pipx checks are recorded for private releases in `TASKS.md`; the current private GitHub release is v0.1.10. Four matched synthetic CLI task pairs (P01, P03, P05, P07) tied in blind quality ratings; this does not establish a speed or quality improvement. Doctor's per-hook metrics show adapter invocation status, not agent-visible advice. The isolated prompt/subagent diagnostic probes test synthetic canaries; recent subagent probe runs did not observe a child or delivery, so they do not establish SubagentStart delivery or failure. Fresh Desktop **prompt** delivery, macOS runtime behavior, broad usefulness, and active-session MCP availability remain unverified. The stronger 20-pair study is planned in [ROADMAP.md](ROADMAP.md); detailed observations live in [PILOT.md](PILOT.md).
 
 The GitHub repository is private and has no open-source license. The reported PyPI Trusted Publisher is pending; no production registry artifact has been verified. GitHub CI jobs did not start: run 36057531458 reports failed recent account payments or a spending limit, before any workflow step. The account's included-minutes display alone does not resolve this status; the exact account-side cause is not verified. The package is available today only to collaborators with repository or wheel access. [Release and adoption tasks](TASKS.md) distinguish completed work from open checks.
 

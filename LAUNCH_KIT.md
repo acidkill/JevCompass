@@ -17,7 +17,7 @@ This file contains draft copy and a launch checklist. Nothing here is an announc
 - A local shortlist when remote selection is unavailable. The advisor stays quiet when only a generic shell suggestion remains.
 - `jevcompass doctor` explains the installed hooks and local candidate capacity. `jevcompass recommend` accepts an explicit category and domain.
 
-These are product behaviors, not measured productivity gains. Four synthetic CLI task pairs tied on quality; broader efficacy and current Desktop prompt delivery remain to be measured.
+These are product behaviors, not measured productivity gains. Doctor now reports a bounded recent invocation status separately for each hook. A source-checkout script can run isolated synthetic prompt and subagent canaries; unobserved child events are inconclusive, and neither diagnostic establishes actual advice delivery. Four synthetic CLI task pairs tied on quality; broader efficacy and current Desktop prompt delivery remain to be measured.
 
 ## GitHub About
 
@@ -69,7 +69,7 @@ The recorded CLI 0.1.8 example is advice ID `a14d8368` with a local fallback and
 
 ## Launch readiness
 
-- [x] Private GitHub wheel/sdist and active Linux pipx installation verified at v0.1.9 (Linux scope and limits are recorded in `TASKS.md`).
+- [x] Private GitHub wheel/sdist and isolated Linux pipx installation verified at v0.1.10 (Linux scope and limits are recorded in `TASKS.md`).
 - [x] One fresh CLI v0.1.8 agent-visible advice ID confirmed before its first tool.
 - [ ] Resolve GitHub's payment-or-spending-limit runner-start annotation and run the declared Linux/macOS checks.
 - [ ] Verify a fresh Desktop prompt receives advice before the agent's first tool.
