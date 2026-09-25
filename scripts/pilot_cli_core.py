@@ -18,6 +18,7 @@ from pathlib import Path
 import random
 import re
 import secrets
+import shlex
 import selectors
 import shutil
 import stat
@@ -96,6 +97,7 @@ BLIND_LIMITATION = "Metadata-only receipts cannot establish blinded task correct
 BLIND_OUTCOME_KEYS = frozenset({
     "focused_unittest_exit", "unittest_invocation_observed", "unittest_completion_observed",
     "ci_unittest_command_exit", "ci_unittest_invocation_observed", "ci_unittest_completion_observed",
+    "equivalent_unittest_command_exit", "equivalent_unittest_invocation_observed", "equivalent_unittest_completion_observed",
     "bash_syntax", "no_unset_output_path_defect",
     "bash_syntax_command_exit", "bash_syntax_invocation_observed", "bash_syntax_completion_observed",
     "install_instruction_coherent", "help_instruction_coherent",
@@ -401,8 +403,18 @@ def _answer_indicator(case_id: str, text: str | None, fixture: Path) -> bool | N
 
 def _command_check_kind(command: str) -> str | None:
     lowered = command.lower()
-    if re.search(r"\bpython(?:3(?:\.\d+)?)?\s+-m\s+unittest\s+discover\s+-s\s+tests\s+-v\b", lowered):
+    # Codex CLI wraps shell calls in bash -lc. Parse only that wrapper or a
+    # bare standalone command; never credit chains or arbitrary discovery roots.
+    try:
+        argv = shlex.split(command)
+        if len(argv) == 3 and argv[0] in {"bash", "/bin/bash", "/usr/bin/bash"} and argv[1] == "-lc":
+            argv = shlex.split(argv[2])
+    except ValueError:
+        argv = []
+    if argv == ["python", "-m", "unittest", "discover", "-s", "tests", "-v"]:
         return "ci_unittest"
+    if argv == ["python", "-m", "unittest", "discover", "-s", "tests"]:
+        return "ci_unittest_equivalent"
     if "unittest" in lowered and "discover" in lowered and "tests" in lowered:
         return "fixture_tests"
     if re.search(r"\bbash\s+-n\b", lowered) and "render_report.sh" in lowered:
@@ -422,10 +434,11 @@ def _fixture_outcome_checks(
     for event in events:
         check = event.get("command_check")
         exit_code = event.get("exit_code")
-        if check in {"fixture_tests", "ci_unittest", "cli_help", "bash_syntax_check"} and isinstance(exit_code, int) and not isinstance(exit_code, bool):
+        if check in {"fixture_tests", "ci_unittest", "ci_unittest_equivalent", "cli_help", "bash_syntax_check"} and isinstance(exit_code, int) and not isinstance(exit_code, bool):
             observed_exits[check] = exit_code
     if case_id == "P09":
         exit_code = observed_exits.get("ci_unittest")
+        equivalent_exit = observed_exits.get("ci_unittest_equivalent")
         return {
             "ci_unittest_command_exit": exit_code == 0 if exit_code is not None else None,
             "ci_unittest_invocation_observed": any(
@@ -434,16 +447,23 @@ def _fixture_outcome_checks(
             "ci_unittest_completion_observed": any(
                 event.get("command_check_completed") == "ci_unittest" for event in events
             ),
+            "equivalent_unittest_command_exit": equivalent_exit == 0 if equivalent_exit is not None else None,
+            "equivalent_unittest_invocation_observed": any(
+                event.get("command_check_started") == "ci_unittest_equivalent" for event in events
+            ),
+            "equivalent_unittest_completion_observed": any(
+                event.get("command_check_completed") == "ci_unittest_equivalent" for event in events
+            ),
         }
     if case_id == "P01":
-        exit_code = observed_exits.get("fixture_tests")
+        exit_code = observed_exits.get("ci_unittest", observed_exits.get("ci_unittest_equivalent", observed_exits.get("fixture_tests")))
         return {
             "focused_unittest_exit": exit_code == 0 if exit_code is not None else None,
             "unittest_invocation_observed": any(
-                event.get("command_check_started") == "fixture_tests" for event in events
+                event.get("command_check_started") in {"fixture_tests", "ci_unittest", "ci_unittest_equivalent"} for event in events
             ),
             "unittest_completion_observed": any(
-                event.get("command_check_completed") == "fixture_tests" for event in events
+                event.get("command_check_completed") in {"fixture_tests", "ci_unittest", "ci_unittest_equivalent"} for event in events
             ),
         }
     if case_id == "P03":
@@ -489,7 +509,8 @@ def _fixture_outcome_checks(
             "install_instruction_coherent": install_matches,
             "help_instruction_coherent": help_matches,
             "help_command_exit": observed_exits.get("cli_help") == 0 if "cli_help" in observed_exits else None,
-            "test_instruction_exit": observed_exits.get("fixture_tests") == 0 if "fixture_tests" in observed_exits else None,
+            "test_instruction_exit": (observed_exits.get("ci_unittest", observed_exits.get("ci_unittest_equivalent", observed_exits.get("fixture_tests"))) == 0
+                                      if {"ci_unittest", "ci_unittest_equivalent", "fixture_tests"}.intersection(observed_exits) else None),
         }
     if case_id == "P08":
         try:
@@ -499,15 +520,15 @@ def _fixture_outcome_checks(
             )
         except (OSError, ValueError):
             scaffold_files = False
-        exit_code = observed_exits.get("fixture_tests")
+        exit_code = observed_exits.get("ci_unittest", observed_exits.get("ci_unittest_equivalent", observed_exits.get("fixture_tests")))
         return {
             "scaffold_files_present": scaffold_files,
             "smoke_unittest_exit": exit_code == 0 if exit_code is not None else None,
             "unittest_invocation_observed": any(
-                event.get("command_check_started") == "fixture_tests" for event in events
+                event.get("command_check_started") in {"fixture_tests", "ci_unittest", "ci_unittest_equivalent"} for event in events
             ),
             "unittest_completion_observed": any(
-                event.get("command_check_completed") == "fixture_tests" for event in events
+                event.get("command_check_completed") in {"fixture_tests", "ci_unittest", "ci_unittest_equivalent"} for event in events
             ),
         }
     if case_id == "P07":

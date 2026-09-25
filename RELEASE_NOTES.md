@@ -1,6 +1,6 @@
 # Unreleased supplemental P09 coding pilot (no package release)
 
-The source-only P09 fixture removes README test-runner guidance and adds local unittest CI; it does not change the default 20-case bank. Two blinded randomized source pairs tied on authored helper quality. Baseline had observed successful exact CI command in both; treatment had no observed exact command. One treatment reported candidate IDs before first tool, the other did not. The retained privacy-safe receipts cannot rule out an equivalent command; neither pair qualifies for completed-task speed benefit. See [PILOT.md](PILOT.md).
+The source-only P09 fixture removes README test-runner guidance and adds local unittest CI; it does not change the default 20-case bank. Two blinded source pairs tied on authored quality, but their substring detector cannot establish exact standalone CI invocation, equivalence or chains after raw events were discarded. A controlled probe identified Codex CLI's `bash -lc` wrapper. The corrected source parser recognizes only that simple wrapper or a bare command, and records exact CI and unverbose equivalent suite separately without retaining command text. A fresh pair tied on blind code quality: treatment ran exact CI, baseline the equivalent suite; advised treatment took 55.60 s versus 29.38 s. No speed or cost benefit is established. See [PILOT.md](PILOT.md).
 
 ---
 

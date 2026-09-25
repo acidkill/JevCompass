@@ -687,14 +687,40 @@ class PilotCliCoreTests(unittest.TestCase):
             self.assertNotIn("python -m unittest discover", readme)
             self.assertIn("python -m unittest discover -s tests -v", workflow)
             self.assertEqual(runner._command_check_kind("python -m unittest discover -s tests -v"), "ci_unittest")
-            self.assertEqual(runner._command_check_kind("python -m unittest discover -s tests"), "fixture_tests")
+            self.assertEqual(runner._command_check_kind("python -m unittest discover -s tests"), "ci_unittest_equivalent")
+            self.assertEqual(runner._command_check_kind("/usr/bin/bash -lc 'python -m unittest discover -s tests -v'"), "ci_unittest")
+            self.assertEqual(runner._command_check_kind('bash -lc "python -m unittest discover -s tests"'), "ci_unittest_equivalent")
+            for unsafe in (
+                "python -m unittest discover -s tests/unit",
+                "python -m unittest discover -s tests -k one",
+                "python -m unittest tests.test_text",
+                "python -m unittest discover -s tests && echo done",
+                "python -m unittest discover -s tests -v; echo done",
+                "/usr/bin/bash -lc 'python -m unittest discover -s tests -v && echo done'",
+                "/usr/bin/bash -lc 'cd /tmp/other && python -m unittest discover -s tests -v'",
+            ):
+                self.assertNotIn(runner._command_check_kind(unsafe), {"ci_unittest", "ci_unittest_equivalent"})
+            equivalent = runner._fixture_outcome_checks("P09", fixture, None, [
+                {"command_check_started": "ci_unittest_equivalent"},
+                {"command_check_completed": "ci_unittest_equivalent",
+                 "command_check": "ci_unittest_equivalent", "exit_code": 0},
+            ])
+            self.assertIsNone(equivalent["ci_unittest_command_exit"])
+            self.assertTrue(equivalent["equivalent_unittest_command_exit"])
+            self.assertTrue(runner._fixture_outcome_checks("P01", fixture, None, [
+                {"command_check_started": "ci_unittest"},
+                {"command_check_completed": "ci_unittest", "command_check": "ci_unittest", "exit_code": 0},
+            ])["focused_unittest_exit"])
             checks = runner._fixture_outcome_checks("P09", fixture, None, [
                 {"command_check_started": "ci_unittest"},
                 {"command_check_completed": "ci_unittest", "command_check": "ci_unittest", "exit_code": 0},
             ])
             self.assertEqual(checks, {"ci_unittest_command_exit": True,
                                       "ci_unittest_invocation_observed": True,
-                                      "ci_unittest_completion_observed": True})
+                                      "ci_unittest_completion_observed": True,
+                                      "equivalent_unittest_command_exit": None,
+                                      "equivalent_unittest_invocation_observed": False,
+                                      "equivalent_unittest_completion_observed": False})
             self.assertIsNone(runner._fixture_outcome_checks("P09", fixture, None)["ci_unittest_command_exit"])
 
     def test_event_parser_correlates_test_start_and_completion_without_retaining_command(self):
@@ -712,7 +738,7 @@ class PilotCliCoreTests(unittest.TestCase):
                                            event_times=[start] * len(lines))
         self.assertEqual(parsed["events"][1]["command_check"], "fixture_tests")
         self.assertEqual(parsed["events"][1]["exit_code"], 1)
-        self.assertEqual(parsed["events"][3]["command_check_completed"], "fixture_tests")
+        self.assertEqual(parsed["events"][3]["command_check_completed"], "ci_unittest_equivalent")
         self.assertNotIn("exit_code", parsed["events"][3])
         self.assertNotIn("private-token", json.dumps(parsed))
         checks = runner._fixture_outcome_checks("P01", Path("."), None, parsed["events"])
