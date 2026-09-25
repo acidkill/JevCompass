@@ -160,6 +160,17 @@ def rank_tests(
     mandatory = tuple(_required(item) for item in required)
     fallback = _local_order(local_candidates)
 
+    # A single Python unit check and a public contract check have a clear
+    # local fast-feedback order when the unit is at least as relevant. The
+    # matched coding pilot saw three remote calls choose this same order,
+    # adding latency without changing the check or the mandatory suite.
+    if (normalized_surface is ChangedSurface.PYTHON and len(local_candidates) == 2
+            and {item.kind for item in local_candidates} == {TestKind.UNIT, TestKind.CONTRACT}):
+        unit = next(item for item in local_candidates if item.kind is TestKind.UNIT)
+        contract = next(item for item in local_candidates if item.kind is TestKind.CONTRACT)
+        if unit.relevance >= contract.relevance:
+            return TestOrderResult((unit, contract), mandatory, NO_REMOTE_CHOICE)
+
     # Same-kind commands are indistinguishable to the remote service; don't ask it
     # to choose among alternatives represented by identical safe metadata.
     candidate_kinds = {candidate.kind for candidate in local_candidates}
