@@ -18,8 +18,10 @@ Requirements: Python 3.11 or newer, [pipx](https://pipx.pypa.io/stable/installat
 
 ```bash
 pipx install jevcompass
-jevcompass recommend --category review --domain python
+jevcompass doctor
 ```
+
+Start with `jevcompass doctor` to see which representative tasks have enough locally available candidates for a recommendation. Before hook installation it may exit nonzero because the hooks are not registered yet; the capacity report is still useful. Then try a manual request only when the report shows a useful choice for that task; for example, run `jevcompass recommend --category coding --domain python` when **coding_python** reports `decision candidates` or `local candidates`. A clean profile may report `low signal skip` or `silent`, in which case that request can correctly return no recommendation.
 
 To install from source instead, clone this repository and run `pipx install .` from the checkout. For a reproducible release, use `pipx install jevcompass==0.1.16`; check [releases](https://github.com/acidkill/JevCompass/releases) for the current verified version. The latest source on `main` may contain unreleased changes.
 
@@ -37,10 +39,15 @@ jevcompass doctor
 
 ## Optional skills for everyday coding
 
-**Experimental and explicitly opt-in:** versions before 0.1.16 do not include this command. Version 0.1.16 includes two bundled workflows for focused tests and regression review, but installs neither unless you explicitly request them:
+**Experimental and explicitly opt-in:** versions before 0.1.16 do not include this command. If `doctor` reports `coding_python: low signal skip`, you can preview the optional bundled skills before deciding whether to install them:
 
 ```bash
 jevcompass skills install --dry-run
+```
+
+The dry run does not install anything, and installing skills does not guarantee a recommendation. Install only if you choose to:
+
+```bash
 jevcompass skills install
 jevcompass doctor
 ```

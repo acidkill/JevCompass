@@ -310,6 +310,9 @@ def main(argv: list[str] | None = None) -> int:
                               for label, item in capacity.items())
             print(f"- Local choice capacity: {modes}")
             print("  This reflects discovered candidates, not active-session access or measured usefulness.")
+            coding_python = capacity["coding_python"]
+            if coding_python["mode"] == "low_signal_skip":
+                print("  Python coding has low local choice capacity. To inspect the optional bundled skills, run `jevcompass skills install --dry-run`; installation is opt-in and never automatic.")
             hooks_check = result["hooks_json"]
             registered = ", ".join(hooks_check["registered_advisory_hooks"]) or "none"
             print(f"- Hooks registered: {registered}; legacy Jev PreToolUse gate {'present' if hooks_check['pretool_jev_gate'] else 'absent'}")
