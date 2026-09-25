@@ -9,7 +9,10 @@ import shutil
 from .paths import resolve_codex_home
 
 
-SKILL_NAMES = ("jevcompass-focused-tests", "jevcompass-regression-review")
+SKILL_NAMES = (
+    "jevcompass-focused-tests", "jevcompass-regression-review",
+    "jevcompass-plan-implementation", "jevcompass-plan-cutover",
+)
 
 
 def skill_root() -> Path:
