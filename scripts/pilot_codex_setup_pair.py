@@ -252,7 +252,7 @@ def _final_answer(lines: list[str]) -> str | None:
     return answer
 
 
-def _write_blind_answers(directory: Path, entries: list[dict[str, str]]) -> int:
+def _write_blind_answers(directory: Path, entries: list[dict[str, str]]) -> tuple[int, int]:
     """Store only validated synthetic answers; keep arm mapping in a separate private file."""
     absolute = Path(os.path.abspath(directory))
     if absolute == ROOT or ROOT in absolute.parents or absolute.exists():
@@ -260,14 +260,22 @@ def _write_blind_answers(directory: Path, entries: list[dict[str, str]]) -> int:
     if not absolute.name.startswith("jevcompass-"):
         raise ValueError("blind output directory must start with jevcompass-")
     validated = []
+    rejected = 0
     for entry in entries:
-        answer = _core._validate_quality_text(
-            entry["answer"], _core.MAX_BLIND_ANSWER_BYTES, "synthetic answer",
-        )
-        if any(prompt in answer for prompt in CASE_PROMPTS.values()):
-            raise ValueError("blind answer contains a full pilot prompt")
-        if _core.TRACE_RE.search(answer):
-            raise ValueError("blind answer reveals the treatment identifier")
+        answer = entry["answer"]
+        fixture_root = entry.get("fixture_root")
+        if fixture_root:
+            answer = answer.replace(fixture_root, "<fixture>")
+        answer = _core.TRACE_RE.sub("", answer).strip()
+        try:
+            answer = _core._validate_quality_text(
+                answer, _core.MAX_BLIND_ANSWER_BYTES, "synthetic answer",
+            )
+            if not answer or any(prompt in answer for prompt in CASE_PROMPTS.values()):
+                raise ValueError("blind answer is empty or contains a full prompt")
+        except ValueError:
+            rejected += 1
+            continue
         validated.append({**entry, "answer": answer})
     fd, _ = _core._private_directory_fd(absolute)
     try:
@@ -281,7 +289,7 @@ def _write_blind_answers(directory: Path, entries: list[dict[str, str]]) -> int:
         )
     finally:
         os.close(fd)
-    return len(validated)
+    return len(validated), rejected
 
 
 def run_pair(
@@ -388,7 +396,10 @@ def run_pair(
                         answer_sink=captured_answer,
                     )
                     if captured_answer:
-                        blind_entries.append({"case": case_id, "arm": label, "answer": captured_answer[-1]})
+                        blind_entries.append({
+                            "case": case_id, "arm": label, "answer": captured_answer[-1],
+                            "fixture_root": str(fixture_copy),
+                        })
                 arm_results[label] = arm_result
             result["cases"][case_id] = {
                 "arm_order": arm_order,
@@ -405,7 +416,9 @@ def run_pair(
         ):
             result["status"] = "failed"
         if blind_dir is not None:
-            result["blind_answer_count"] = _write_blind_answers(blind_dir, blind_entries)
+            accepted, rejected = _write_blind_answers(blind_dir, blind_entries)
+            result["blind_answer_count"] = accepted
+            result["blind_answer_rejected_count"] = rejected
     return result
 
 

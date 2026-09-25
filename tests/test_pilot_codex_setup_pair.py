@@ -162,7 +162,7 @@ class CodexSetupPairTests(unittest.TestCase):
                 {"case": "C01", "arm": "baseline", "answer": "Fixture citation: docs/verification.md"},
                 {"case": "C01", "arm": "treatment", "answer": "Fixture citation: docs/hook-requirements.md"},
             ])
-            self.assertEqual(count, 2)
+            self.assertEqual(count, (2, 0))
             self.assertEqual(stat.S_IMODE(directory.stat().st_mode), 0o700)
             mapping = json.loads((directory / "mapping.json").read_text(encoding="utf-8"))
             self.assertEqual({item["arm"] for item in mapping}, {"baseline", "treatment"})
@@ -173,16 +173,19 @@ class CodexSetupPairTests(unittest.TestCase):
                 self.assertEqual(stat.S_IMODE(answer.stat().st_mode), 0o600)
                 self.assertNotIn(entry["arm"], answer.name)
             self.assertEqual(stat.S_IMODE((directory / "mapping.json").stat().st_mode), 0o600)
-            with self.assertRaises(ValueError):
-                runner._write_blind_answers(root / "jevcompass-other", [
-                    {"case": "C01", "arm": "baseline", "answer": "api_key=synthetic-secret"},
-                ])
-            self.assertFalse((root / "jevcompass-other").exists())
-            with self.assertRaises(ValueError):
-                runner._write_blind_answers(root / "jevcompass-revealed", [
-                    {"case": "C01", "arm": "treatment", "answer": "JevCompass advice ID: abcdef12"},
-                ])
-            self.assertFalse((root / "jevcompass-revealed").exists())
+            rejected = runner._write_blind_answers(root / "jevcompass-other", [
+                {"case": "C01", "arm": "baseline", "answer": "api_key=synthetic-secret"},
+            ])
+            self.assertEqual(rejected, (0, 1))
+            self.assertFalse(list((root / "jevcompass-other").glob("*.txt")))
+            sanitized = runner._write_blind_answers(root / "jevcompass-sanitized", [
+                {"case": "C01", "arm": "treatment", "answer": "JevCompass advice ID: abcdef12\nSee /tmp/jevcompass-codex-setup-abc/fixture/docs/verification.md", "fixture_root": "/tmp/jevcompass-codex-setup-abc/fixture"},
+            ])
+            self.assertEqual(sanitized, (1, 0))
+            artifact = next((root / "jevcompass-sanitized").glob("*.txt")).read_text(encoding="utf-8")
+            self.assertIn("<fixture>/docs/verification.md", artifact)
+            self.assertNotIn("abcdef12", artifact)
+            self.assertNotIn("/tmp/", artifact)
 
     def test_final_answer_ignores_partial_and_tool_events(self):
         lines = [
