@@ -70,6 +70,7 @@ DEFAULT_TIMEOUT = 90
 MAX_TIMEOUT = 300
 MAX_SKILL_BYTES = 2 * 1024 * 1024
 EXPECTED_INSTALLED_VERSION = "0.1.13"
+SUPPORTED_INSTALLED_VERSIONS = ("0.1.13", "0.1.15")
 REVIEW_SKILL_LAYOUTS = (
     ("developer-essentials", "1.0.4", "code-review-excellence"),
     ("security-scanning", "1.3.2", "security-requirement-extraction"),
@@ -88,8 +89,15 @@ _core = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_core)
 
 
-def _check_installed_version(python: Path) -> None:
-    """Prove the explicit interpreter resolves the tested release, not this checkout."""
+def _check_installed_version(
+    python: Path, expected_version: str = EXPECTED_INSTALLED_VERSION,
+) -> None:
+    """Prove the explicit interpreter resolves the selected tested release, not this checkout."""
+    if expected_version not in SUPPORTED_INSTALLED_VERSIONS:
+        raise ValueError(
+            "installed version must be one of the tested releases: "
+            + ", ".join(SUPPORTED_INSTALLED_VERSIONS)
+        )
     env = {key: os.environ[key] for key in ("PATH", "LANG", "LC_ALL", "LC_CTYPE") if key in os.environ}
     try:
         result = subprocess.run(
@@ -100,8 +108,10 @@ def _check_installed_version(python: Path) -> None:
         )
     except (OSError, subprocess.TimeoutExpired) as error:
         raise RuntimeError("installed JevCompass version could not be verified") from error
-    if result.returncode != 0 or result.stdout.strip() != EXPECTED_INSTALLED_VERSION:
-        raise RuntimeError("installed JevCompass version does not match the tested release")
+    if result.returncode != 0 or result.stdout.strip() != expected_version:
+        raise RuntimeError(
+            f"installed JevCompass version does not match selected tested release {expected_version}"
+        )
 
 
 def _skill_digest(source: Path) -> str:
@@ -714,10 +724,16 @@ def run_pair(
     reasoning_effort: str = "medium", codex: str | None = None,
     rng: Any = None, auth_root: Path | None = None, skill_source: Path | None = None,
     blind_dir: Path | None = None, cases: tuple[str, ...] = CASE_IDS,
-    installed_python: Path | None = None, allow_openrouter_key: bool = False,
+    installed_python: Path | None = None, installed_version: str = EXPECTED_INSTALLED_VERSION,
+    allow_openrouter_key: bool = False,
     review_skill_sources: tuple[tuple[Path, str], ...] | None = None,
     planning_skill_sources: tuple[tuple[Path, str], ...] | None = None,
 ) -> dict[str, Any]:
+    if installed_version not in SUPPORTED_INSTALLED_VERSIONS:
+        raise ValueError(
+            "installed version must be one of the tested releases: "
+            + ", ".join(SUPPORTED_INSTALLED_VERSIONS)
+        )
     if mode not in {"run", "mock", "dry-run"}:
         raise ValueError("mode must be run, mock, or dry-run")
     if not cases or len(set(cases)) != len(cases) or any(case not in SELECTABLE_CASE_IDS for case in cases):
@@ -735,13 +751,13 @@ def run_pair(
     if mode == "run" and any(case in cases for case in ("C03", "C04", "C05")) and not allow_openrouter_key:
         raise ValueError("a live C03, C04, or C05 pair requires explicit OpenRouter key forwarding opt-in")
     if mode == "run" and any(case in cases for case in ("C03", "C04", "C05")) and installed_python is None:
-        raise ValueError("a live C03, C04, or C05 pair requires the explicit installed v0.1.13 interpreter")
+        raise ValueError("a live C03, C04, or C05 pair requires --installed-python for the selected tested version (default 0.1.13)")
     if allow_openrouter_key and not os.environ.get("OPENROUTER_API_KEY"):
         raise ValueError("OpenRouter API key is unavailable")
     if installed_python is not None:
         if not installed_python.is_absolute() or not installed_python.is_file():
             raise ValueError("installed Python must be an existing absolute file")
-        _check_installed_version(installed_python)
+        _check_installed_version(installed_python, installed_version)
     if not FIXTURE.is_dir() or ("C04" in cases and not RETRY_FIXTURE.is_dir()) or ("C05" in cases and not WEBHOOK_FIXTURE.is_dir()):
         raise FileNotFoundError("synthetic pilot fixture is unavailable")
 
@@ -785,7 +801,7 @@ def run_pair(
         "openrouter_key_forwarded": bool(allow_openrouter_key),
         "openrouter_key_equal_between_arms": bool(allow_openrouter_key and cases in {("C04",), ("C05",)}),
         "advisor_source": "installed-distribution" if installed_python is not None else "checkout",
-        "advisor_version": EXPECTED_INSTALLED_VERSION if installed_python is not None else None,
+        "advisor_version": installed_version if installed_python is not None else None,
         "sandbox": "read-only",
         "core_20_denominator_included": False,
         "receipt_scope": "redacted metadata only; no prompts, answers, source, paths, auth, or secrets",
@@ -911,7 +927,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--case", action="append", choices=SELECTABLE_CASE_IDS,
                         help="select one or more cases; default is C01 and R10")
     parser.add_argument("--installed-python", type=Path,
-                        help="absolute interpreter path of installed JevCompass 0.1.13 release")
+                        help="absolute interpreter path of the installed JevCompass release selected below")
+    parser.add_argument(
+        "--installed-version", choices=SUPPORTED_INSTALLED_VERSIONS,
+        default=EXPECTED_INSTALLED_VERSION,
+        help="tested installed JevCompass version to verify (default: %(default)s)",
+    )
     parser.add_argument(
         "--allow-openrouter-key", action="store_true",
         help="forward OPENROUTER_API_KEY for live C03 (treatment only) or C04/C05 (both arms) synthetic pairs",
@@ -925,7 +946,7 @@ def main(argv: list[str] | None = None) -> int:
             mode=selected_mode, model=args.model, timeout=args.timeout,
             reasoning_effort=args.reasoning_effort, blind_dir=args.blind_dir,
             cases=tuple(args.case) if args.case else CASE_IDS,
-            installed_python=args.installed_python,
+            installed_python=args.installed_python, installed_version=args.installed_version,
             allow_openrouter_key=args.allow_openrouter_key,
         )
     except FileNotFoundError as error:
@@ -938,9 +959,15 @@ def main(argv: list[str] | None = None) -> int:
             "auth_unavailable" if "auth" in message else
             "openrouter_key_unavailable" if "OpenRouter" in message else
             "codex_unavailable" if "CLI" in message else
-            "model_required" if "model" in message else "setup_failed"
+            "model_required" if "model" in message else
+            "installed_version_mismatch" if "version does not match" in message else
+            "installed_version_unverified" if "version could not be verified" in message else
+            "setup_failed"
         )
-        print(json.dumps({"pilot": "jevcompass-codex-setup-supplement", **_safe_failure(code)}))
+        failure = _safe_failure(code)
+        if code.startswith("installed_version_"):
+            failure["expected_advisor_version"] = args.installed_version
+        print(json.dumps({"pilot": "jevcompass-codex-setup-supplement", **failure}))
         return 1
     except (OSError, ValueError):
         print(json.dumps({"pilot": "jevcompass-codex-setup-supplement", **_safe_failure("setup_failed")}))

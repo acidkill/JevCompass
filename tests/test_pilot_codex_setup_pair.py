@@ -177,7 +177,7 @@ class CodexSetupPairTests(unittest.TestCase):
                     mode="dry-run", model=None, cases=("C02",), auth_root=root,
                     skill_source=skill, installed_python=interpreter, rng=ReverseRandom(),
                 )
-            verify.assert_called_once_with(interpreter)
+            verify.assert_called_once_with(interpreter, "0.1.13")
             self.assertEqual(result["advisor_source"], "installed-distribution")
             self.assertEqual(result["advisor_version"], "0.1.13")
             self.assertTrue(result["cases"]["C02"]["arms"]["treatment"]["hooks_configured"])
@@ -188,6 +188,36 @@ class CodexSetupPairTests(unittest.TestCase):
             self.assertNotIn("PYTHONPATH", kwargs["env"])
             self.assertNotIn("OPENROUTER_API_KEY", kwargs["env"])
             self.assertIn(".codex", kwargs["env"]["CODEX_HOME"])
+
+    def test_installed_version_015_is_accepted_and_reported(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            skill = make_skill(root)
+            make_planning_skills(root)
+            interpreter = root / "installed-python"
+            interpreter.write_text("synthetic", encoding="utf-8")
+            with mock.patch.object(runner, "_source_auth_root", return_value=root), \
+                 mock.patch.object(runner, "_source_skill_root", return_value=skill), \
+                 mock.patch.object(runner, "_check_installed_version") as verify, \
+                 mock.patch.object(runner.subprocess, "run", return_value=mock.Mock(returncode=0)), \
+                 contextlib.redirect_stdout(io.StringIO()) as output:
+                status = runner.main([
+                    "--dry-run", "--case", "C05", "--installed-python", str(interpreter),
+                    "--installed-version", "0.1.15",
+                ])
+            verify.assert_called_once_with(interpreter, "0.1.15")
+            self.assertEqual(status, 0)
+            result = json.loads(output.getvalue())
+            self.assertEqual(result["advisor_source"], "installed-distribution")
+            self.assertEqual(result["advisor_version"], "0.1.15")
+            case = result["cases"]["C05"]
+            self.assertTrue(case["fixture_copies_identical"])
+            self.assertEqual(
+                case["arms"]["baseline"]["candidate_skills_installed"],
+                case["arms"]["treatment"]["candidate_skills_installed"],
+            )
+            self.assertFalse(case["arms"]["baseline"]["hooks_configured"])
+            self.assertTrue(case["arms"]["treatment"]["hooks_configured"])
 
     def test_installed_version_must_match_exact_release(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -201,6 +231,13 @@ class CodexSetupPairTests(unittest.TestCase):
             args, kwargs = launch.call_args
             self.assertEqual(args[0][1], "-I")
             self.assertNotIn("PYTHONPATH", kwargs["env"])
+            with mock.patch.object(runner.subprocess, "run", return_value=mock.Mock(returncode=0, stdout="0.1.15\n")):
+                runner._check_installed_version(interpreter, "0.1.15")
+            with mock.patch.object(runner.subprocess, "run", return_value=mock.Mock(returncode=0, stdout="0.1.13\n")):
+                with self.assertRaisesRegex(RuntimeError, "0.1.15"):
+                    runner._check_installed_version(interpreter, "0.1.15")
+            with self.assertRaisesRegex(ValueError, "tested releases"):
+                runner._check_installed_version(interpreter, "0.9.9")
 
     def test_c03_review_fixture_and_installed_profile_expose_two_skill_candidates(self):
         with tempfile.TemporaryDirectory() as temporary:
