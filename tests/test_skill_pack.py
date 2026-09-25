@@ -7,7 +7,8 @@ import unittest
 from unittest import mock
 
 from jevcompass import cli
-from jevcompass.catalog import load_catalog
+from jevcompass import advisor
+from jevcompass.catalog import candidates, load_catalog
 from jevcompass.skill_pack import SKILL_NAMES, install_skills
 
 
@@ -21,12 +22,16 @@ class SkillPackTests(unittest.TestCase):
             hooks.write_text('{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"smem"}]}]}}')
             original = hooks.read_bytes()
             with mock.patch.dict(os.environ, {"CODEX_HOME": str(codex)}):
-                self.assertIn("2 new", install_skills(dry_run=True))
+                self.assertIn("4 new", install_skills(dry_run=True))
                 self.assertFalse((codex / "skills").exists())
-                self.assertIn("Installed 2", install_skills())
+                self.assertIn("Installed 4", install_skills())
                 self.assertIn("no files changed", install_skills())
                 self.assertEqual(hooks.read_bytes(), original)
                 entries = {item["id"]: item for item in load_catalog()}
+                planning = candidates(task_kind="planning", role="any", domain="general", limit=20)
+                choices = advisor._questions(planning)
+                self.assertTrue({"jevcompass-plan-implementation", "jevcompass-plan-cutover"}
+                                <= set(choices["skill"]["criteria"]))
                 for name in SKILL_NAMES:
                     path = codex / "skills" / name / "SKILL.md"
                     self.assertTrue(path.is_file())
