@@ -1,3 +1,13 @@
+# JevCompass v0.1.17
+
+This update makes the first useful recommendation reproducible in a fresh profile: `doctor` points to the optional two-skill pack, and the README shows a keyless local shortlist without pretending that a candidate is a measured benefit. Installed custom skills can now be added to a per-profile catalog with `jevcompass skills add`. The command previews short generic fields, requires explicit `--approve-remote-metadata` to save, and never copies the skill body or path. Only installed names become candidates; editing the local catalog changes the cache key.
+
+The default install still has two nonblocking advisory hooks. The optional skill pack and custom-skill registration require explicit user action. Remote Jev ranking is optional and may send approved generic candidate metadata to OpenRouter. A fresh Desktop prompt, macOS runtime, and a repeatable speed or quality gain remain unverified; see [PILOT.md](PILOT.md).
+
+Install with `pipx install jevcompass==0.1.17`, then run `jevcompass install --dry-run`, `jevcompass install`, and `jevcompass doctor`. Read [README.md](README.md) for the optional skill and key setup. The source release is gated by the Python suite, distribution audit, isolated pipx install, and green hosted CI before tagging and registry publication.
+
+---
+
 # JevCompass v0.1.16
 
 This release adds conditional guidance to read a suggested skill's `SKILL.md` when its use condition matches the task (PR #63). It also includes an explicitly opt-in, experimental `jevcompass skills install` command for two bundled coding workflows. The default installation continues to register two nonblocking advisory hooks. Skills are never installed automatically, and advice does not run a skill or replace required project instructions and checks. Install with `pipx install jevcompass==0.1.16`, inspect `jevcompass install --dry-run`, run `jevcompass install` and `jevcompass doctor`, then review `/hooks` in a fresh Codex session. Only after reading the bundled skill files, opt in with `jevcompass skills install --dry-run` and `jevcompass skills install` if desired.
