@@ -47,7 +47,7 @@ jevcompass doctor
 
 The installer copies only `jevcompass-focused-tests` and `jevcompass-regression-review` into your Codex skill directory. With the default profile it uses `~/.agents/skills`; with `CODEX_HOME` set it uses that profile's `skills/` directory. It never changes hooks, executes scripts, calls Jev, or overwrites a different skill with the same name. Identical repeats are no-ops. Read the bundled `SKILL.md` files before enabling them, and start a fresh Codex session if they do not appear. Remove those two directories yourself after checking their contents if you no longer want the skills.
 
-These skills provide task guidance, not test results or a guarantee of fewer regressions. An isolated local check confirmed that the coding and review candidate lists include them after installation; agent use and outcome benefit remain to be measured.
+These skills provide task guidance, not test results or a guarantee of fewer regressions. A fresh isolated CLI profile recognized both skills; in two synthetic tasks the agent named the relevant skill before its first tool. Wider agent use, Desktop behavior, and outcome benefit remain to be measured.
 
 ## Verify advice in a fresh session
 
