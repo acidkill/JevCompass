@@ -33,7 +33,7 @@ For a host check, use an isolated Codex profile (`CODEX_HOME`), run `jevcompass 
 
 ## Pull request gate
 
-Work on a focused branch and open a pull request. The single `ubuntu-slim` CI job runs the complete unit suite and package-content check on Python 3.11. Merge only when every required CI check is green; local tests alone do not satisfy this gate. Python 3.12–3.14 and macOS checks are release validation, not a six-runner matrix on every change. If GitHub stops a job before its first step, keep the PR unmerged and report that account-side runner status separately from a test failure.
+Work on a focused branch and open a pull request. The single `ubuntu-slim` CI job runs the complete Python `unittest` suite on Python 3.11 for each pull request. Distribution checks remain a separate release validation. Merge only when every required CI check is green; local tests alone do not satisfy this gate. Python 3.12–3.14 and macOS checks are release validation, not a six-runner matrix on every change. If GitHub stops a job before its first step, keep the PR unmerged and report that account-side runner status separately from a test failure.
 
 ## Propose changes
 

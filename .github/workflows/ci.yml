@@ -1,5 +1,5 @@
 name: CI
-on: [pull_request, workflow_dispatch]
+on: pull_request
 permissions:
   contents: read
 concurrency:
@@ -14,9 +14,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: python -m pip install --upgrade build
       - run: python -m unittest discover -s tests -v
         env:
           PYTHONPATH: src
-      - run: python -m build
-      - run: python tools/check_distribution.py
