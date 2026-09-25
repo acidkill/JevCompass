@@ -1,3 +1,9 @@
+# Unreleased supplemental P09 coding pilot (no package release)
+
+The source-only P09 fixture removes README test-runner guidance and adds local unittest CI; it does not change the default 20-case bank. Two blinded randomized source pairs tied on authored helper quality. Baseline had observed successful exact CI command in both; treatment had no observed exact command. One treatment reported candidate IDs before first tool, the other did not. The retained privacy-safe receipts cannot rule out an equivalent command; neither pair qualifies for completed-task speed benefit. See [PILOT.md](PILOT.md).
+
+---
+
 # Unreleased coding test-signal relevance (no package release)
 
 The source advisor omits duplicate focused-test and runner suggestions when a coding task gives an exact test command, except when the task expressly asks to choose tests. The unittest candidate now covers Python coding only when local CI unambiguously requires unittest. A randomized source P01 negative control returned no advice (4.49 ms), both arms passed blind quality and unittest; treatment 16.97 s versus baseline 22.24 s does not demonstrate recommendation benefit. Frozen score SHA-256: `a701e203b86a0c4e2b3be69b3815baeac5646ad9ad684c58da758b2c2600ebef`.

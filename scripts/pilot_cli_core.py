@@ -30,11 +30,13 @@ from typing import Any, Iterable
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "cli_core"
-CASE_IDS = ("P01", "P03", "P05", "P07", "P08", "R01", "R02", "R03", "R04", "R05", "R06")
+CORE_CASE_IDS = ("P01", "P03", "P05", "P07", "P08", "R01", "R02", "R03", "R04", "R05", "R06")
+CASE_IDS = CORE_CASE_IDS + ("P09",)  # Supplemental CI-guided coding pair.
 PUBLISHED_PILOT_VERSION = "0.1.16"
 BUNDLED_SKILL_NAMES = ("jevcompass-focused-tests", "jevcompass-regression-review")
 PROMPTS = {
     "P01": "Implement normalize_whitespace so empty input stays empty and repeated whitespace is collapsed and trimmed. Run the existing test suite with python -m unittest discover -s tests; it includes tests/test_text.py. Do not add duplicate tests.",
+    "P09": "Implement normalize_whitespace in this Python project so empty input stays empty and repeated whitespace is collapsed and trimmed. Follow repository instructions and run its required validation. Do not add duplicate tests.",
     "P03": "Fix scripts/render_report.sh so running it without OUTPUT_PATH uses a safe default or exits with a clear missing-path error before expanding the variable. Run bash -n scripts/render_report.sh.",
     "P05": "Update the Python project README's install instructions to match the current CLI help and existing test behavior.",
     "P07": "Design and write STATUS_API.md as an API contract for the Python POST /status endpoint. Specify required and optional JSON inputs, a validated status result, successful responses, and 4xx and 5xx response cases. Do not implement a server.",
@@ -48,7 +50,7 @@ PROMPTS = {
 }
 READ_ONLY_CASES = frozenset({"R01", "R02", "R03", "R04", "R05", "R06"})
 ROUTINE_CASES = frozenset({"R01", "R02", "R03", "R04", "R05", "R06"})
-PREFLIGHT_CASES = frozenset({"P01", "P03", "P05", "P07", "P08"})
+PREFLIGHT_CASES = frozenset({"P01", "P03", "P05", "P07", "P08", "P09"})
 PREFLIGHT_INSTRUCTION = (
     "Before your first tool call, report the JevCompass advice ID and only the candidate IDs. "
     "If no advisory is present, report exactly: NO JEVCOMPASS ADVISORY."
@@ -70,6 +72,7 @@ MAX_PILOT_DIAGNOSTICS_BYTES = 16 * 1024
 MAX_PILOT_METRIC_BYTES = 64 * 1024
 QUALITY_FILE_ALLOWLIST = {
     "P01": ("tinytext/text.py", "tests/test_text.py"),
+    "P09": ("tinytext/text.py", "tests/test_text.py"),
     "P03": ("scripts/render_report.sh",),
     "P05": ("README.md",),
     "P07": ("STATUS_API.md",),
@@ -92,6 +95,7 @@ EDIT_COMMAND_RE = re.compile(r"\b(?:apply_patch|tee|install|touch)\b|(?:^|\s)(?:
 BLIND_LIMITATION = "Metadata-only receipts cannot establish blinded task correctness."
 BLIND_OUTCOME_KEYS = frozenset({
     "focused_unittest_exit", "unittest_invocation_observed", "unittest_completion_observed",
+    "ci_unittest_command_exit", "ci_unittest_invocation_observed", "ci_unittest_completion_observed",
     "bash_syntax", "no_unset_output_path_defect",
     "bash_syntax_command_exit", "bash_syntax_invocation_observed", "bash_syntax_completion_observed",
     "install_instruction_coherent", "help_instruction_coherent",
@@ -133,12 +137,22 @@ def fixture_digest(root: Path) -> str:
     return digest.hexdigest()
 
 
-def copy_fixture(source: Path, destination: Path) -> str:
+def copy_fixture(source: Path, destination: Path, *, case_id: str | None = None) -> str:
     if not source.is_dir():
         raise FileNotFoundError("synthetic CLI fixture is unavailable")
     if any("expected" in path.name.lower() for path in source.rglob("*")):
         raise ValueError("fixture unexpectedly contains evaluator material")
     shutil.copytree(source, destination)
+    if case_id == "P09":
+        readme = destination / "README.md"
+        content = readme.read_text(encoding="utf-8")
+        old = "Run tests with `python -m unittest discover -s tests`."
+        if content.count(old) != 1:
+            raise ValueError("P09 fixture README test instruction changed")
+        readme.write_text(content.replace(old, "See the local CI workflow for required validation."), encoding="utf-8")
+        workflow = destination / ".github" / "workflows" / "ci.yml"
+        workflow.parent.mkdir(parents=True)
+        workflow.write_text("name: fixture-ci\non: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: python -m unittest discover -s tests -v\n", encoding="utf-8")
     # R01 needs a real, inert local branch; no commit or network operation.
     with tempfile.TemporaryDirectory(prefix="jevcompass-git-template-") as template:
         initialized = subprocess.run(
@@ -387,6 +401,8 @@ def _answer_indicator(case_id: str, text: str | None, fixture: Path) -> bool | N
 
 def _command_check_kind(command: str) -> str | None:
     lowered = command.lower()
+    if re.search(r"\bpython(?:3(?:\.\d+)?)?\s+-m\s+unittest\s+discover\s+-s\s+tests\s+-v\b", lowered):
+        return "ci_unittest"
     if "unittest" in lowered and "discover" in lowered and "tests" in lowered:
         return "fixture_tests"
     if re.search(r"\bbash\s+-n\b", lowered) and "render_report.sh" in lowered:
@@ -406,8 +422,19 @@ def _fixture_outcome_checks(
     for event in events:
         check = event.get("command_check")
         exit_code = event.get("exit_code")
-        if check in {"fixture_tests", "cli_help", "bash_syntax_check"} and isinstance(exit_code, int) and not isinstance(exit_code, bool):
+        if check in {"fixture_tests", "ci_unittest", "cli_help", "bash_syntax_check"} and isinstance(exit_code, int) and not isinstance(exit_code, bool):
             observed_exits[check] = exit_code
+    if case_id == "P09":
+        exit_code = observed_exits.get("ci_unittest")
+        return {
+            "ci_unittest_command_exit": exit_code == 0 if exit_code is not None else None,
+            "ci_unittest_invocation_observed": any(
+                event.get("command_check_started") == "ci_unittest" for event in events
+            ),
+            "ci_unittest_completion_observed": any(
+                event.get("command_check_completed") == "ci_unittest" for event in events
+            ),
+        }
     if case_id == "P01":
         exit_code = observed_exits.get("fixture_tests")
         return {
@@ -1654,8 +1681,9 @@ def score_blind_pilot(
     if sum(case_id.startswith("P") for case_id in by_case) < 4:
         missing_evidence.append("The CLI core has fewer than four eligible prompt pairs.")
     case_ids = {link["case_id"] for link in mapped.values()}
-    if len(case_ids) < len(CASE_IDS):
-        missing_evidence.append(f"Only {len(case_ids)} of {len(CASE_IDS)} CLI core cases are present.")
+    core_present = len(case_ids.intersection(CORE_CASE_IDS))
+    if core_present < len(CORE_CASE_IDS):
+        missing_evidence.append(f"Only {core_present} of {len(CORE_CASE_IDS)} CLI core cases are present.")
     if sum(case_id.startswith("R") for case_id in case_ids) < len(ROUTINE_CASES):
         missing_evidence.append("The six routine negative-control cases are incomplete.")
     if any(set(arms) != {"baseline", "treatment"} for arms in by_case.values()):
@@ -1713,7 +1741,7 @@ def score_blind_pilot(
 
 def run_pilot(
     *, mode: str, model: str | None, reasoning_effort: str = "medium",
-    timeout: int = DEFAULT_TIMEOUT, cases: Iterable[str] = CASE_IDS,
+    timeout: int = DEFAULT_TIMEOUT, cases: Iterable[str] = CORE_CASE_IDS,
     codex: str | None = None, rng: Any = None, preflight: bool = False,
     blind_dir: str | Path | None = None, blind_quality_artifacts: bool = False,
     installed_python: Path | None = None, installed_version: str = PUBLISHED_PILOT_VERSION,
@@ -1723,7 +1751,7 @@ def run_pilot(
         raise ValueError(f"timeout must be between 1 and {MAX_TIMEOUT} seconds")
     case_list = list(cases)
     if not case_list or any(case not in CASE_IDS for case in case_list) or len(set(case_list)) != len(case_list):
-        raise ValueError("cases must be a non-empty unique subset of P01/P03/P05/P07/R01-R06")
+        raise ValueError("cases must be a non-empty unique subset of supported case IDs")
     if mode not in {"mock", "dry-run", "run"}:
         raise ValueError("mode must be mock, dry-run, or run")
     if mode == "run" and not model:
@@ -1769,7 +1797,7 @@ def run_pilot(
                 home = workspace / f"{label}-home"
                 home.mkdir(mode=0o700)
                 fixture_copy = workspace / f"{label}-fixture"
-                digests.append(copy_fixture(FIXTURE, fixture_copy))
+                digests.append(copy_fixture(FIXTURE, fixture_copy, case_id=case_id))
                 arms[label] = (home, fixture_copy)
             if digests[0] != digests[1]:
                 raise RuntimeError("paired fixture copies differ")
@@ -1915,13 +1943,13 @@ def main(argv: list[str] | None = None) -> int:
                         help="opt in to equal OpenRouter key presence in both live installed-release arms")
     parser.add_argument(
         "--blind-quality-artifacts", action="store_true",
-        help="also write bounded, opaque fixture-output artifacts for P01/P03/P05/P07/P08",
+        help="also write bounded, opaque fixture-output artifacts for P01/P03/P05/P07/P08/P09",
     )
     parser.add_argument("--score-receipts", type=Path, help="score an existing blind receipt directory")
     parser.add_argument("--score-mapping", type=Path, help="private arm mapping for offline blind scoring")
     parser.add_argument("--score-file", type=Path, help="blind human score JSON with task_quality bool/null for each opaque arm token")
     parser.add_argument("--score-sha256", help="precommitted SHA-256 of the exact human score file bytes")
-    parser.add_argument("--cases", nargs="+", choices=CASE_IDS, default=list(CASE_IDS))
+    parser.add_argument("--cases", nargs="+", choices=CASE_IDS, default=list(CORE_CASE_IDS))
     args = parser.parse_args(argv)
     score_args = (args.score_receipts, args.score_mapping, args.score_file, args.score_sha256)
     if any(value is not None for value in score_args):
