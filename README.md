@@ -154,6 +154,7 @@ Evidence is deliberately limited to the environments tested:
 - A fresh isolated Codex CLI 0.155.1 session with installed 0.1.19 reported `exec_command` and `unittest` with correlated advice ID `215744b8` before its first tool (`UserPromptSubmit/testing/local`, 33.66 ms). The fictional fixture's required unittest suite failed an existing assertion; this is local advice delivery, not remote ranking or measured benefit.
 - A 0.1.19 installed-package P01 coding pair with equal opt-in skills delivered local advice before first tool, but neither arm recorded a required unittest exit. A quality correction after unblinding cannot support a blind outcome claim. See [PILOT.md](PILOT.md).
 - One repeated 0.1.19 P01 pair froze an anonymous quality assessment before mapping: both helpers passed. Treatment had correlated local advice and a recognized successful unittest; baseline test execution was unobserved. This limited result does not prove that advice caused the difference or improve overall outcomes.
+- A separate installed 0.1.19 P05 documentation pair tied on blind README quality. Treatment suggested only `exec_command`; a required fixture unittest failure was observed there, while baseline validation remained unobserved. Productive-action timing and advice benefit were not established.
 - macOS runtime behavior and broad usefulness remain unverified.
 
 These checks do not establish that recommendations improve outcomes. If you test JevCompass, please share a reproducible example of advice that helped—or a case where silence was the right result.
