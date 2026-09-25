@@ -155,6 +155,7 @@ Evidence is deliberately limited to the environments tested:
 - A 0.1.19 installed-package P01 coding pair with equal opt-in skills delivered local advice before first tool, but neither arm recorded a required unittest exit. A quality correction after unblinding cannot support a blind outcome claim. See [PILOT.md](PILOT.md).
 - One repeated 0.1.19 P01 pair froze an anonymous quality assessment before mapping: both helpers passed. Treatment had correlated local advice and a recognized successful unittest; baseline test execution was unobserved. This limited result does not prove that advice caused the difference or improve overall outcomes.
 - A separate installed 0.1.19 P05 documentation pair tied on blind README quality. Treatment suggested only `exec_command`; a required fixture unittest failure was observed there, while baseline validation remained unobserved. Productive-action timing and advice benefit were not established.
+- A fresh installed 0.1.20 Codex CLI 0.155.1 P05 smoke reported no advisory before its first tool; the matching `package-docs/low-signal-skip` hook metric took 5.73 ms, and the fictional CLI help check exited 0. This validates abstention, not a speed or quality benefit.
 - macOS runtime behavior and broad usefulness remain unverified.
 
 These checks do not establish that recommendations improve outcomes. If you test JevCompass, please share a reproducible example of advice that helped—or a case where silence was the right result.
