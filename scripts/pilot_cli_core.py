@@ -37,7 +37,7 @@ PROMPTS = {
     "P01": "Implement a small Python helper that normalizes whitespace in a string, and add focused tests for empty input and repeated spaces.",
     "P03": "Fix the Bash script's unset-variable defect and run a syntax check on the edited script.",
     "P05": "Update the Python project README's install instructions to match the current CLI help and existing test behavior.",
-    "P07": "Design an API contract for a Python endpoint that accepts a request and returns a validated status result; include input and error cases.",
+    "P07": "Design and write STATUS_API.md as an API contract for the Python POST /status endpoint. Specify required and optional JSON inputs, a validated status result, successful responses, and 4xx and 5xx response cases. Do not implement a server.",
     "R01": "Print the current branch name in the synthetic fixture.",
     "R02": "Count the top-level files in the synthetic fixture.",
     "R03": "Check whether README.md exists in the synthetic fixture.",
