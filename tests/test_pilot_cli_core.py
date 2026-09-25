@@ -677,6 +677,26 @@ class PilotCliCoreTests(unittest.TestCase):
         self.assertEqual(parsed["events"][0]["exit_code"], 0)
         self.assertNotIn("secret-token", json.dumps(parsed))
 
+    def test_p09_fixture_locates_required_test_only_in_local_ci(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory) / "fixture"
+            runner.copy_fixture(runner.FIXTURE, fixture, case_id="P09")
+            readme = (fixture / "README.md").read_text(encoding="utf-8")
+            workflow = (fixture / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+            self.assertNotIn("python -m unittest discover", runner.PROMPTS["P09"])
+            self.assertNotIn("python -m unittest discover", readme)
+            self.assertIn("python -m unittest discover -s tests -v", workflow)
+            self.assertEqual(runner._command_check_kind("python -m unittest discover -s tests -v"), "ci_unittest")
+            self.assertEqual(runner._command_check_kind("python -m unittest discover -s tests"), "fixture_tests")
+            checks = runner._fixture_outcome_checks("P09", fixture, None, [
+                {"command_check_started": "ci_unittest"},
+                {"command_check_completed": "ci_unittest", "command_check": "ci_unittest", "exit_code": 0},
+            ])
+            self.assertEqual(checks, {"ci_unittest_command_exit": True,
+                                      "ci_unittest_invocation_observed": True,
+                                      "ci_unittest_completion_observed": True})
+            self.assertIsNone(runner._fixture_outcome_checks("P09", fixture, None)["ci_unittest_command_exit"])
+
     def test_event_parser_correlates_test_start_and_completion_without_retaining_command(self):
         start = time.monotonic()
         lines = [
@@ -854,6 +874,7 @@ class PilotCliCoreTests(unittest.TestCase):
     def test_frozen_cli_case_bank_labels_match_current_local_classifier(self):
         expected = {
             "P01": ("coding", "python"),
+            "P09": ("coding", "python"),
             "P03": ("debugging", "shell"),
             "P05": ("package-docs", "python"),
             "P07": ("api-design", "python"),
@@ -866,7 +887,7 @@ class PilotCliCoreTests(unittest.TestCase):
 
     def test_routine_controls_are_read_only_and_case_sandbox_is_explicit(self):
         self.assertEqual(runner.READ_ONLY_CASES, {"R01", "R02", "R03", "R04", "R05", "R06"})
-        self.assertEqual({case for case in runner.CASE_IDS if runner._case_settings(case)["sandbox"] == "workspace-write"}, {"P01", "P03", "P05", "P07", "P08"})
+        self.assertEqual({case for case in runner.CASE_IDS if runner._case_settings(case)["sandbox"] == "workspace-write"}, {"P01", "P03", "P05", "P07", "P08", "P09"})
         self.assertEqual(runner.ROUTINE_CASES, {"R01", "R02", "R03", "R04", "R05", "R06"})
 
     def test_installed_release_is_exact_and_credential_free_during_version_check(self):

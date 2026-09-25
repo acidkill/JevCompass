@@ -26,6 +26,8 @@ Start with `jevcompass doctor` to see which representative tasks have enough loc
 
 To install from source instead, clone this repository and run `pipx install .` from the checkout. For the verified release, use `pipx install jevcompass==0.1.22`; check [releases](https://github.com/acidkill/JevCompass/releases) for the latest version. Version 0.1.22 puts validated candidate IDs immediately after the advice ID. It passed 276 Python tests, hosted CI, Trusted Publishing and a fresh registry pipx setup. One isolated CLI session on the published package reported `exec_command` and `unittest` before first tool; broader host-level impact is unmeasured.
 
+A supplemental CI-guided Python coding pilot found correct code in both arms but did not observe the exact required CI command in the JevCompass arms, including one with advice visible before first tool. This is an open validation gap, not evidence of faster completed tasks. [Pilot evidence](PILOT.md) has the blind receipts and limits.
+
 When a coding task already states an exact test command, the source advisor skips duplicate test-selection hints. For a Python repository whose CI clearly runs unittest, the source catalog can now offer that runner for coding tasks without a prescribed test command. This relevance change is not a measured speed gain. [Pilot evidence](PILOT.md) records the control pair.
 
 The published advice wording remains unchanged. An experimental compact source-checkout variant shortened one synthetic context but was slower than no advisor in one quality-tied P01 pair; it is not a recommended efficiency setting. [Pilot evidence](PILOT.md) records the limits.

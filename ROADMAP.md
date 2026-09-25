@@ -14,6 +14,8 @@ Published 0.1.21 treats shell-invoked commands as companions to the executor rat
 
 ## Efficiency experiments
 
+The supplemental P09 coding comparison exposed an exact-CI-validation gap: baseline ran the fixture CI command in two pairs, while treatment produced correct code but did not have that exact check observed. One treatment received advice before first tool; another had no confirmed delivery. Prioritize exact CI command guidance and safe equivalence observation before another completion-time claim. [PILOT.md](PILOT.md) records both paired receipts.
+
 The source advisor now skips redundant testing advice when a coding prompt prescribes an exact runner, and offers unittest for Python code changes only with unambiguous local unittest CI. A P01 negative control with silent treatment passed quality and checks in both arms; 16.97 s treatment versus 22.24 s baseline cannot establish advice benefit. Next run advised pairs without a prescribed command and compare completion time, quality and required checks; see [PILOT.md](PILOT.md).
 
 A fresh randomized pair of completed simple P01/P03 tasks with equal bundled skills found P01 treatment slower despite local advice (20.60 versus 13.79 seconds), and P03 treatment faster without advice (15.57 versus 18.10 seconds). Both arms passed blind source quality and their required commands. More balanced, advised pairs with first productive action and remote overhead are needed before an efficiency claim; see [PILOT.md](PILOT.md).
