@@ -70,7 +70,7 @@ DEFAULT_TIMEOUT = 90
 MAX_TIMEOUT = 300
 MAX_SKILL_BYTES = 2 * 1024 * 1024
 EXPECTED_INSTALLED_VERSION = "0.1.13"
-SUPPORTED_INSTALLED_VERSIONS = ("0.1.13", "0.1.15")
+SUPPORTED_INSTALLED_VERSIONS = ("0.1.13", "0.1.15", "0.1.16")
 REVIEW_SKILL_LAYOUTS = (
     ("developer-essentials", "1.0.4", "code-review-excellence"),
     ("security-scanning", "1.3.2", "security-requirement-extraction"),
