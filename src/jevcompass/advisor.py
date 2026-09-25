@@ -324,6 +324,7 @@ def select_advice(
     name: str, category: str, domain: str, role: str, trace: str | None = None,
     security_relevant: bool = False,
     test_command_supplied: bool = False,
+    test_selection_requested: bool = False,
 ) -> dict[str, Any] | None:
     _load_advice_dependencies()
     started = time.monotonic()
@@ -335,6 +336,11 @@ def select_advice(
     if category == "coding" and test_command_supplied:
         # Selecting tests again is redundant when the task prescribes the runner.
         pool = [item for item in pool if item["id"] not in {"jevcompass-focused-tests", "unittest", "pytest"}]
+    elif (name == "UserPromptSubmit" and category == "coding" and not test_selection_requested
+          and any(item["id"] == "unittest" for item in pool)):
+        # The available unittest candidate already tells the agent to run the
+        # exact local CI command; another skill read adds no runner guidance.
+        pool = [item for item in pool if item["id"] != "jevcompass-focused-tests"]
     if category == "codex-setup":
         # Office-document tooling is a broad `document` match, not Codex setup guidance.
         pool = [item for item in pool if item["id"] == "openai-docs"]
@@ -428,12 +434,14 @@ def evaluate(event: dict[str, Any], trace: str | None = None) -> dict[str, Any] 
     started = time.monotonic()
     security_relevant = False
     test_command_supplied = False
+    test_selection_requested = False
     if name == "UserPromptSubmit":
         prompt = event.get("prompt")
         parsed = classify_task(prompt)
         security_relevant = isinstance(prompt, str) and bool(SECURITY_INTENT.search(prompt))
+        test_selection_requested = isinstance(prompt, str) and bool(TEST_SELECTION_INTENT.search(prompt))
         test_command_supplied = (isinstance(prompt, str) and bool(EXPLICIT_TEST_COMMAND.search(prompt))
-                                 and not bool(TEST_SELECTION_INTENT.search(prompt)))
+                                 and not test_selection_requested)
         if parsed is None:
             if trace:
                 _metric(name, "none", "classification-skip", started, trace)
@@ -467,7 +475,8 @@ def evaluate(event: dict[str, Any], trace: str | None = None) -> dict[str, Any] 
     else:
         return None
     return select_advice(name, category, domain, role, trace,
-                         security_relevant=security_relevant, test_command_supplied=test_command_supplied)
+                         security_relevant=security_relevant, test_command_supplied=test_command_supplied,
+                         test_selection_requested=test_selection_requested)
 
 
 def hook_main() -> int:
