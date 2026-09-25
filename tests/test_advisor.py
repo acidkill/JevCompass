@@ -374,6 +374,19 @@ class AdvisorTests(unittest.TestCase):
             self.assertIsNone(advisor.evaluate({"hook_event_name": "UserPromptSubmit", "prompt": prompt}))
         judge.assert_not_called()
 
+    def test_supplemental_codex_setup_pair_routing(self):
+        setup = ("Plan how to configure Codex Desktop hooks and Codex CLI skills for fictional OrbitNote "
+                 "using only the synthetic repository files. Explain the two advisory triggers, install and trust "
+                 "checks, and what remains unverified. Do not edit host files or contact network services; "
+                 "cite the fixture files for each step.")
+        routine = "Check whether docs/verification.md exists in the synthetic fixture."
+        self.assertEqual(advisor.classify_task(setup), ("codex-setup", "codex"))
+        self.assertIsNone(advisor.classify_task(routine))
+        fixture = Path(__file__).parent / "fixtures" / "codex_setup"
+        self.assertTrue((fixture / "README.md").is_file())
+        self.assertTrue((fixture / "docs" / "hook-requirements.md").is_file())
+        self.assertTrue((fixture / "docs" / "verification.md").is_file())
+
     def test_codex_troubleshooting_sends_only_allowlisted_metadata_to_jev(self):
         secret = "private-codex-config-value-7b31"
         prompt = ("Debug why Codex Desktop ignores the UserPromptSubmit hook after changing settings; "

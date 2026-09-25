@@ -59,6 +59,19 @@ For each pair, record whether the first useful action found the right source, wh
 
 Local classifier preflight for the W02 text is `source-review/general`, while a Python implementation review remains `review/python`. In a clean no-skill profile the source-review pool has only the built-in shell tool; if the reviewed documents skill is installed, it may also be considered. These local checks do not prove that the recommendation improves a real draft.
 
+## Supplemental Codex setup pair (outside the 20-case core)
+
+C01 tests the v0.1.12 `codex-setup` category on a fully fictional [OrbitNote fixture](tests/fixtures/codex_setup/). Both arms receive the same installed stock `openai-docs` skill, model, permission mode, and byte-identical fixture; only JevCompass hooks differ. Do not include C01 or its routine control in the core 20-case denominator.
+
+| Case | Host | Local expectation | Exact synthetic task |
+|---|---|---|---|
+| C01 | CLI | `codex-setup / codex` | Plan how to configure Codex Desktop hooks and Codex CLI skills for fictional OrbitNote using only the synthetic repository files. Explain the two advisory triggers, install and trust checks, and what remains unverified. Do not edit host files or contact network services; cite the fixture files for each step. |
+| R10 | CLI routine control | No classification, no Jev call | Check whether docs/verification.md exists in the synthetic fixture. |
+
+Precommitted C01 review criteria: name both `UserPromptSubmit` and `SubagentStart`; keep routine commands outside Jev `PreToolUse`; preserve and back up other hooks; distinguish registration/logging from agent-visible advice ID before the first tool in a fresh Desktop and CLI session; say explicitly that no installation or host validation occurred; cite the fixture files. Reject invented host settings, real machine changes, network actions, disclosure of private data, or a claim of measured benefit. The evaluator should score two anonymized outputs before seeing which arm had hooks, and separately record first productive action, treatment advice ID/candidate availability, hook latency, and mandatory checks. A keyword indicator or one matched pair does not prove a quality improvement. R10 must remain silent. The fixture deliberately makes no claim that Desktop and CLI use different configuration paths; verify actual host behavior from official documentation when needed.
+
+The local classifier preflight for C01 is `codex-setup/codex` and R10 returns `None`; this checks only the routing contract. No Codex arm has been scored for this supplemental pair yet.
+
 ## Fixture and scoring rules
 
 - Use an empty temporary project root for P08; use identical fixture snapshots for both arms of every other case.
