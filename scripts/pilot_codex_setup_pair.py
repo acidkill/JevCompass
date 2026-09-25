@@ -33,10 +33,16 @@ CASE_PROMPTS = {
     ),
     "R10": "Check whether docs/verification.md exists in the synthetic fixture.",
 }
+CASE_PROMPTS["C02"] = (
+    CASE_PROMPTS["C01"] + " Before your first tool call, report the JevCompass advice ID "
+    "and only the candidate IDs if an advisory is present; otherwise report exactly "
+    "NO JEVCOMPASS ADVISORY."
+)
 DEFAULT_TIMEOUT = 90
 MAX_TIMEOUT = 300
 MAX_SKILL_BYTES = 2 * 1024 * 1024
 CASE_IDS = ("C01", "R10")
+SELECTABLE_CASE_IDS = ("C01", "C02", "R10")
 
 _spec = importlib.util.spec_from_file_location("pilot_cli_core_for_setup_pair", CORE_SCRIPT)
 if _spec is None or _spec.loader is None:
@@ -210,7 +216,7 @@ def _run_live_arm(
 
 def _mock_arm(*, case_id: str, treatment: bool, skill_sha256: str) -> dict[str, Any]:
     """Return deterministic synthetic metadata; no Codex or network process is started."""
-    advice = treatment and case_id == "C01"
+    advice = treatment and case_id in {"C01", "C02"}
     return {
         "status": "not_run",
         "execution": "mocked",
@@ -296,10 +302,12 @@ def run_pair(
     *, mode: str, model: str | None, timeout: int = DEFAULT_TIMEOUT,
     reasoning_effort: str = "medium", codex: str | None = None,
     rng: Any = None, auth_root: Path | None = None, skill_source: Path | None = None,
-    blind_dir: Path | None = None,
+    blind_dir: Path | None = None, cases: tuple[str, ...] = CASE_IDS,
 ) -> dict[str, Any]:
     if mode not in {"run", "mock", "dry-run"}:
         raise ValueError("mode must be run, mock, or dry-run")
+    if not cases or len(set(cases)) != len(cases) or any(case not in SELECTABLE_CASE_IDS for case in cases):
+        raise ValueError("cases must be unique selected pilot IDs")
     if timeout < 1 or timeout > MAX_TIMEOUT:
         raise ValueError(f"timeout must be between 1 and {MAX_TIMEOUT} seconds")
     if reasoning_effort not in {"low", "medium", "high", "xhigh"}:
@@ -321,7 +329,7 @@ def run_pair(
     if mode == "run" and not auth_source.is_file():
         raise RuntimeError("Codex auth.json is unavailable")
 
-    order = list(CASE_IDS)
+    order = list(cases)
     (rng or random.SystemRandom()).shuffle(order)
     result: dict[str, Any] = {
         "pilot": "jevcompass-codex-setup-supplement",
@@ -431,6 +439,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--reasoning-effort", choices=("low", "medium", "high", "xhigh"), default="medium")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT, help=f"per-arm timeout, maximum {MAX_TIMEOUT}s")
     parser.add_argument("--blind-dir", type=Path, help="new private directory outside the repository for blinded synthetic answers")
+    parser.add_argument("--case", action="append", choices=SELECTABLE_CASE_IDS,
+                        help="select one or more cases; default is C01 and R10")
     args = parser.parse_args(argv)
     selected_mode = "dry-run" if args.dry_run else "mock" if args.mock else "run"
     if selected_mode == "run" and not args.model:
@@ -439,6 +449,7 @@ def main(argv: list[str] | None = None) -> int:
         result = run_pair(
             mode=selected_mode, model=args.model, timeout=args.timeout,
             reasoning_effort=args.reasoning_effort, blind_dir=args.blind_dir,
+            cases=tuple(args.case) if args.case else CASE_IDS,
         )
     except FileNotFoundError as error:
         code = "skill_unavailable" if "skill" in str(error) else "fixture_unavailable"

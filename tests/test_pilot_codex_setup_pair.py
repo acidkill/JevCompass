@@ -124,6 +124,24 @@ class CodexSetupPairTests(unittest.TestCase):
             self.assertTrue(result["cases"]["C01"]["arms"]["treatment"]["hooks_configured"])
             self.assertTrue(result["cases"]["R10"]["routine_negative_control"])
 
+    def test_c02_preflight_is_same_prompt_in_both_arms_and_not_core_case(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            skill = make_skill(root)
+            result = runner.run_pair(
+                mode="mock", model=None, cases=("C02",), auth_root=root,
+                skill_source=skill, rng=ReverseRandom(),
+            )
+            self.assertEqual(result["case_order"], ["C02"])
+            self.assertFalse(result["core_20_denominator_included"])
+            self.assertTrue(result["cases"]["C02"]["arms"]["treatment"]["advice_id_before_first_tool"])
+            self.assertFalse(result["cases"]["C02"]["arms"]["baseline"]["advice_id_before_first_tool"])
+            self.assertIn("NO JEVCOMPASS ADVISORY", runner.CASE_PROMPTS["C02"])
+            self.assertNotIn("NO JEVCOMPASS ADVISORY", runner.CASE_PROMPTS["C01"])
+            command = runner._command(codex="codex", model="model", reasoning_effort="low",
+                                      prompt=runner.CASE_PROMPTS["C02"])
+            self.assertEqual(command[-1], runner.CASE_PROMPTS["C02"])
+
     def test_stock_skill_source_uses_system_skill_when_user_skill_is_absent(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
