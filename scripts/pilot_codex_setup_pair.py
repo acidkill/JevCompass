@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import random
+import secrets
 import shutil
 import stat
 import subprocess
@@ -141,7 +142,7 @@ def _command(*, codex: str, model: str, reasoning_effort: str, prompt: str) -> l
 def _run_live_arm(
     *, codex: str, model: str, reasoning_effort: str, fixture: Path, home: Path,
     skill_source: Path, skill_sha256: str, case_id: str, timeout: int,
-    treatment: bool, auth_source: Path,
+    treatment: bool, auth_source: Path, answer_sink: list[str] | None = None,
 ) -> dict[str, Any]:
     profile = _prepare_profile(
         home=home, skill_source=skill_source, skill_sha256=skill_sha256,
@@ -200,6 +201,10 @@ def _run_live_arm(
         result["failure"] = failure
     elif process.returncode != 0:
         result["failure"] = "codex_nonzero_exit"
+    elif answer_sink is not None:
+        answer = _final_answer(lines)
+        if answer is not None:
+            answer_sink.append(answer)
     return result
 
 
@@ -231,10 +236,59 @@ def _mock_arm(*, case_id: str, treatment: bool, skill_sha256: str) -> dict[str, 
     }
 
 
+def _final_answer(lines: list[str]) -> str | None:
+    """Select the last completed assistant message, excluding raw tool output."""
+    answer = None
+    for line in lines:
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(event, dict) or event.get("type") != "item.completed":
+            continue
+        kind, text_value, _ = _core.extract_event(event)
+        if kind == "assistant" and text_value:
+            answer = text_value
+    return answer
+
+
+def _write_blind_answers(directory: Path, entries: list[dict[str, str]]) -> int:
+    """Store only validated synthetic answers; keep arm mapping in a separate private file."""
+    absolute = Path(os.path.abspath(directory))
+    if absolute == ROOT or ROOT in absolute.parents or absolute.exists():
+        raise ValueError("blind output must be a new directory outside the repository")
+    if not absolute.name.startswith("jevcompass-"):
+        raise ValueError("blind output directory must start with jevcompass-")
+    validated = []
+    for entry in entries:
+        answer = _core._validate_quality_text(
+            entry["answer"], _core.MAX_BLIND_ANSWER_BYTES, "synthetic answer",
+        )
+        if any(prompt in answer for prompt in CASE_PROMPTS.values()):
+            raise ValueError("blind answer contains a full pilot prompt")
+        if _core.TRACE_RE.search(answer):
+            raise ValueError("blind answer reveals the treatment identifier")
+        validated.append({**entry, "answer": answer})
+    fd, _ = _core._private_directory_fd(absolute)
+    try:
+        mapping = []
+        for entry in validated:
+            token = secrets.token_hex(12)
+            _core._write_new_file_at(fd, f"{token}.txt", entry["answer"].encode("utf-8"), 0o600)
+            mapping.append({"token": token, "case": entry["case"], "arm": entry["arm"]})
+        _core._write_new_file_at(
+            fd, "mapping.json", json.dumps(mapping, sort_keys=True).encode("utf-8"), 0o600,
+        )
+    finally:
+        os.close(fd)
+    return len(validated)
+
+
 def run_pair(
     *, mode: str, model: str | None, timeout: int = DEFAULT_TIMEOUT,
     reasoning_effort: str = "medium", codex: str | None = None,
     rng: Any = None, auth_root: Path | None = None, skill_source: Path | None = None,
+    blind_dir: Path | None = None,
 ) -> dict[str, Any]:
     if mode not in {"run", "mock", "dry-run"}:
         raise ValueError("mode must be run, mock, or dry-run")
@@ -244,6 +298,8 @@ def run_pair(
         raise ValueError("reasoning effort is invalid")
     if mode == "run" and not model:
         raise ValueError("an explicit Codex model is required")
+    if blind_dir is not None and mode != "run":
+        raise ValueError("blind answer capture requires a live run")
     if not FIXTURE.is_dir():
         raise FileNotFoundError("synthetic Codex setup fixture is unavailable")
 
@@ -273,6 +329,7 @@ def run_pair(
         "receipt_scope": "redacted metadata only; no prompts, answers, source, paths, auth, or secrets",
         "cases": {},
     }
+    blind_entries: list[dict[str, str]] = []
     with tempfile.TemporaryDirectory(prefix="jevcompass-codex-setup-") as temporary:
         work = Path(temporary)
         for case_id in order:
@@ -322,12 +379,16 @@ def run_pair(
                     )
                 else:
                     assert executable and model
+                    captured_answer: list[str] | None = [] if blind_dir is not None else None
                     arm_result = _run_live_arm(
                         codex=executable, model=model, reasoning_effort=reasoning_effort,
                         fixture=fixture_copy, home=home, skill_source=skill_path,
                         skill_sha256=skill_sha256, case_id=case_id, timeout=timeout,
                         treatment=treatment, auth_source=auth_source,
+                        answer_sink=captured_answer,
                     )
+                    if captured_answer:
+                        blind_entries.append({"case": case_id, "arm": label, "answer": captured_answer[-1]})
                 arm_results[label] = arm_result
             result["cases"][case_id] = {
                 "arm_order": arm_order,
@@ -343,6 +404,8 @@ def run_pair(
             for arm in case["arms"].values()
         ):
             result["status"] = "failed"
+        if blind_dir is not None:
+            result["blind_answer_count"] = _write_blind_answers(blind_dir, blind_entries)
     return result
 
 
@@ -354,6 +417,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--model", help="same explicit Codex model for both arms (required for live execution)")
     parser.add_argument("--reasoning-effort", choices=("low", "medium", "high", "xhigh"), default="medium")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT, help=f"per-arm timeout, maximum {MAX_TIMEOUT}s")
+    parser.add_argument("--blind-dir", type=Path, help="new private directory outside the repository for blinded synthetic answers")
     args = parser.parse_args(argv)
     selected_mode = "dry-run" if args.dry_run else "mock" if args.mock else "run"
     if selected_mode == "run" and not args.model:
@@ -361,7 +425,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         result = run_pair(
             mode=selected_mode, model=args.model, timeout=args.timeout,
-            reasoning_effort=args.reasoning_effort,
+            reasoning_effort=args.reasoning_effort, blind_dir=args.blind_dir,
         )
     except FileNotFoundError as error:
         code = "skill_unavailable" if "skill" in str(error) else "fixture_unavailable"
