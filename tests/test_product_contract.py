@@ -219,5 +219,61 @@ print("cli-imported" if "jevcompass.cli" in sys.modules else "fast-path")
             self.assertEqual(len(hooks["hooks"]["SubagentStart"]), 1)
             self.assertFalse((Path(directory) / ".codex" / "hooks.json").exists())
 
+    def test_spawn_advice_opt_in_is_exact_idempotent_and_preserved_on_reinstall(self):
+        command = "/usr/bin/python3 -m jevcompass hook"
+        base = {"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [
+            {"type": "command", "command": "smem pretool", "timeout": 9},
+        ]}]}}
+        opted_in = installer.merge_hooks(base, command, spawn_advice=True)
+        spawn_groups = opted_in["hooks"]["PreToolUse"]
+        spawn_groups = [group for group in spawn_groups if group.get("matcher") == installer.SPAWN_ADVICE_MATCHER]
+        self.assertEqual(len(spawn_groups), 1)
+        spawn_hook = spawn_groups[0]["hooks"][0]
+        self.assertEqual(spawn_hook, {"type": "command", "command": command, "timeout": 2})
+        self.assertEqual(installer.merge_hooks(opted_in, command), opted_in)
+        self.assertEqual(installer.merge_hooks(opted_in, command, spawn_advice=True), opted_in)
+
+        disabled = installer.merge_hooks(opted_in, command, spawn_advice=False)
+        self.assertFalse(any(
+            handler.get("command") == command
+            for group in disabled["hooks"].get("PreToolUse", [])
+            for handler in group.get("hooks", [])
+        ))
+        self.assertEqual(disabled["hooks"]["PreToolUse"][0], base["hooks"]["PreToolUse"][0])
+
+    def test_install_default_pair_and_explicit_disable_preserve_unrelated_pretool_hooks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            path = home / ".codex/hooks.json"
+            path.parent.mkdir(parents=True)
+            path.write_text(json.dumps({"hooks": {"PreToolUse": [{
+                "matcher": "Bash", "hooks": [{"type": "command", "command": "smem audit"}],
+            }]}}))
+            with mock.patch.object(installer.shutil, "which", return_value=None):
+                installer.install(home=home, spawn_advice=True)
+                first = json.loads(path.read_text())
+                installer.install(home=home)
+                preserved = json.loads(path.read_text())
+                installer.install(home=home, spawn_advice=False)
+                final = json.loads(path.read_text())
+
+        command = advisor.hook_command()
+        self.assertEqual(first, preserved)
+        self.assertEqual(len(preserved["hooks"]["UserPromptSubmit"]), 1)
+        self.assertEqual(len(preserved["hooks"]["SubagentStart"]), 1)
+        self.assertEqual(final["hooks"]["PreToolUse"], [{
+            "matcher": "Bash", "hooks": [{"type": "command", "command": "smem audit"}],
+        }])
+        for event in ("UserPromptSubmit", "SubagentStart"):
+            self.assertTrue(any(
+                handler.get("command") == command
+                for group in final["hooks"][event]
+                for handler in group.get("hooks", [])
+            ))
+
+    def test_install_cli_spawn_flags_are_mutually_exclusive(self):
+        with self.assertRaises(SystemExit):
+            cli.main(["install", "--spawn-advice", "--disable-spawn-advice"])
+
 if __name__ == "__main__":
     unittest.main()

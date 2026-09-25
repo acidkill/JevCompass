@@ -65,6 +65,7 @@ Your shortlist depends on the tools and skills actually installed. An unranked f
 
 - **Prompt hook:** `UserPromptSubmit` classifies an eligible prompt locally, then checks reviewed candidates discovered on the machine. Explicit Codex Desktop/CLI hook or skill setup can point to the installed `openai-docs` skill; routine prompts and unavailable skills can remain silent.
 - **Subagent hook:** `SubagentStart` can suggest role-level candidates for Codex's built-in `explorer` and `worker` roles. That event does not include the subagent's task text.
+- **Optional spawn advice:** `jevcompass install --spawn-advice` adds a narrowly matched `PreToolUse` hook for agent creation only (`Agent`, `spawn_agent`, or `collaborationspawn_agent`). It locally classifies readable child task text or a descriptive `task_name`, then sends only coarse metadata and reviewed candidate descriptions to Jev. It never gates a spawn, shell, Git, Helm, or network command. If neither field provides a clear category or no useful candidates exist, it stays silent. A normal reinstall preserves the opt-in; `jevcompass install --disable-spawn-advice` removes it. Review and trust the updated hook in `/hooks`, then start a fresh session. This is experimental and disabled by default; verify the child sees an advice ID before its first tool before relying on it.
 - **Manual mode:** `jevcompass recommend --category CATEGORY --domain DOMAIN [--role ROLE]` requests advice using explicit metadata. Use `jevcompass recommend --help` for accepted values.
 - **Uncertainty:** Local fallback advice is labeled unranked. If there is no useful candidate, JevCompass can stay silent. A configured MCP server is not assumed to be callable in the active session.
 - **Control:** Advice does not run tools or skills, change permissions, block commands, or replace project instructions and required checks.
@@ -85,7 +86,7 @@ Remote ranking is optional. Without a key or a reliable Jev response, JevCompass
 - Linux: local runtime and CLI checks have been performed.
 - macOS: targeted, but runtime behavior has not been verified.
 - Windows: not a verified target.
-- Codex Desktop and CLI: the project registers `UserPromptSubmit` and `SubagentStart` hooks, but host delivery is version-, trust-, and session-dependent. Fresh Desktop prompt delivery and broad subagent coverage remain unverified.
+- Codex Desktop and CLI: the default installation registers `UserPromptSubmit` and `SubagentStart`; optional agent-spawn advice adds only a narrowly matched `PreToolUse` hook. Host delivery is version-, trust-, and session-dependent. Fresh Desktop prompt delivery and broad subagent coverage remain unverified.
 
 JevCompass does not infer Codex Plan UI mode. Check `/hooks` and start a fresh session after installation or a Codex upgrade.
 
@@ -96,6 +97,7 @@ Evidence is deliberately limited to the environments tested:
 - A fresh isolated Codex CLI 0.155.1 smoke using the published v0.1.12 wheel received `openai-docs` advice before its first tool, with a matching local hook ID. Additional synthetic CLI pairs confirmed remote Jev advice IDs before the first tool. The published v0.1.13 wheel adds bounded skill use/skip conditions; these checks do not prove broad coverage or effectiveness.
 - The initial four blinded synthetic CLI pairs tied on task quality. Later focused pairs had mixed results, including one baseline win and one treatment win; no repeatable speed or quality improvement has been demonstrated.
 - One native Desktop `explorer` child reported an advice ID before its first tool in a correlated smoke test. Other subagent probes were inconclusive, and fresh Desktop prompt delivery has not been confirmed.
+- A source-checkout CLI experiment with the optional spawn hook placed an advice ID in the child's own context and first message before its first tool. The host encoded the child message, so the adapter used a descriptive task name. This experiment has not been verified in a published wheel or Desktop and did not demonstrate an outcome benefit.
 - macOS runtime behavior and broad usefulness remain unverified.
 
 These checks do not establish that recommendations improve outcomes. If you test JevCompass, please share a reproducible example of advice that helped—or a case where silence was the right result.

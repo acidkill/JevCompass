@@ -12,7 +12,7 @@ import unittest
 from unittest import mock
 
 from jevcompass import advisor, cli
-from jevcompass.installer import SUBAGENT_MATCHER
+from jevcompass.installer import SPAWN_ADVICE_MATCHER, SUBAGENT_MATCHER
 
 
 class DoctorTests(unittest.TestCase):
@@ -170,6 +170,54 @@ class DoctorTests(unittest.TestCase):
                 result = cli.doctor()
         self.assertFalse(result["hooks_json"]["ok"])
         self.assertEqual(result["hooks_json"]["registered_advisory_hooks"], ["UserPromptSubmit"])
+
+    def test_doctor_accepts_canonical_optional_spawn_advice(self):
+        with tempfile.TemporaryDirectory() as directory:
+            codex_home = Path(directory)
+            command = advisor.hook_command()
+            (codex_home / "hooks.json").write_text(json.dumps({"hooks": {
+                "UserPromptSubmit": [{"hooks": [{"command": command}]}],
+                "SubagentStart": [{"matcher": SUBAGENT_MATCHER, "hooks": [{"command": command}]}],
+                "PreToolUse": [
+                    {"matcher": SPAWN_ADVICE_MATCHER, "hooks": [
+                        {"type": "command", "command": command, "timeout": 2},
+                    ]},
+                    {"matcher": "Bash", "hooks": [{"type": "command", "command": "smem pretool"}]},
+                ],
+            }}))
+            with mock.patch.dict(os.environ, {"CODEX_HOME": str(codex_home)}), \
+                    mock.patch.object(cli, "model_status", return_value="available"), \
+                    mock.patch.object(cli, "catalog_snapshot", return_value=([{"id": "exec_command"}], {
+                        "curated_entries": 1, "available_tools": 1, "available_skills": 0,
+                        "configured_mcp_servers": 0, "discovered_skills": 0, "unavailable_entries": 0,
+                    })):
+                result = cli.doctor()
+        self.assertTrue(result["hooks_json"]["ok"])
+        self.assertFalse(result["hooks_json"]["pretool_jev_gate"])
+        self.assertEqual(result["hooks_json"]["spawn_advice"], {"registered": True, "safe": True})
+
+    def test_doctor_flags_malformed_product_pretool_without_calling_it_legacy_gate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            codex_home = Path(directory)
+            command = advisor.hook_command()
+            (codex_home / "hooks.json").write_text(json.dumps({"hooks": {
+                "UserPromptSubmit": [{"hooks": [{"command": command}]}],
+                "SubagentStart": [{"matcher": SUBAGENT_MATCHER, "hooks": [{"command": command}]}],
+                "PreToolUse": [{"matcher": "^Agent$", "hooks": [
+                    {"type": "command", "command": command, "timeout": 5},
+                ]}],
+            }}))
+            with mock.patch.dict(os.environ, {"CODEX_HOME": str(codex_home)}), \
+                    mock.patch.object(cli, "model_status", return_value="available"), \
+                    mock.patch.object(cli, "catalog_snapshot", return_value=([{"id": "exec_command"}], {
+                        "curated_entries": 1, "available_tools": 1, "available_skills": 0,
+                        "configured_mcp_servers": 0, "discovered_skills": 0, "unavailable_entries": 0,
+                    })):
+                result = cli.doctor()
+        self.assertFalse(result["hooks_json"]["ok"])
+        self.assertFalse(result["hooks_json"]["pretool_jev_gate"])
+        self.assertTrue(result["hooks_json"]["malformed_product_pretool"])
+        self.assertEqual(result["hooks_json"]["spawn_advice"], {"registered": False, "safe": False})
 
     def test_doctor_reports_hooks_disabled_in_base_config(self):
         with tempfile.TemporaryDirectory() as directory:

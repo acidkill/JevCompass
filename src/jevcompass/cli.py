@@ -14,7 +14,13 @@ from . import __version__, advisor
 from .catalog import catalog_snapshot, catalog_version
 from .paths import resolve_codex_home
 from .decisions import DecisionsClient, DecisionsError, model_status
-from .installer import SUBAGENT_MATCHER, install
+from .installer import (
+    SPAWN_ADVICE_MATCHER,
+    SUBAGENT_MATCHER,
+    _is_legacy_gate,
+    _is_product_hook,
+    install,
+)
 from .credentials import auth_main, credential_status
 
 
@@ -71,7 +77,7 @@ def _selection_capacity(entries: list[dict[str, Any]]) -> dict[str, Any]:
 
 def _hook_observation() -> dict[str, Any]:
     """Return bounded, redacted last statuses per hook from the metric tail."""
-    allowed_events = ("UserPromptSubmit", "SubagentStart")
+    allowed_events = ("UserPromptSubmit", "SubagentStart", "PreToolUse")
     allowed_statuses = {
         "cache", "jev", "local", "skip", "insufficient-candidates", "low-signal-skip",
         "classification-skip", "role-skip", "collab-plan", "collab-unavailable",
@@ -149,7 +155,13 @@ def doctor(*, test_jev: bool = False) -> dict[str, Any]:
             "version": catalog_version(),
         },
         "selection_capacity": _selection_capacity(entries),
-        "hooks_json": {"ok": False, "registered_advisory_hooks": [], "pretool_jev_gate": False},
+        "hooks_json": {
+            "ok": False,
+            "registered_advisory_hooks": [],
+            "pretool_jev_gate": False,
+            "spawn_advice": {"registered": False, "safe": True},
+            "malformed_product_pretool": False,
+        },
         "hook_observation": _hook_observation(),
     }
     try:
@@ -162,15 +174,39 @@ def doctor(*, test_jev: bool = False) -> dict[str, Any]:
                    if event_name != "SubagentStart" or group.get("matcher") == SUBAGENT_MATCHER
                    for handler in group.get("hooks", [])):
                 registered.append(event_name)
+        pretool_groups = hooks.get("PreToolUse", [])
         pretool = any(
-            "jev" in handler.get("command", "").lower()
-            for group in hooks.get("PreToolUse", [])
+            _is_legacy_gate(handler.get("command", ""))
+            for group in pretool_groups if isinstance(group, dict)
             for handler in group.get("hooks", [])
+            if isinstance(group.get("hooks", []), list) and isinstance(handler, dict)
+        )
+        product_pretool = [
+            (group, handler)
+            for group in pretool_groups if isinstance(group, dict)
+            for handler in group.get("hooks", [])
+            if isinstance(group.get("hooks", []), list)
+            and isinstance(handler, dict) and _is_product_hook(handler.get("command", ""))
+        ]
+        canonical_spawn = any(
+            group.get("matcher") == SPAWN_ADVICE_MATCHER
+            and handler.get("command") == hook_command
+            and handler.get("timeout") == 2
+            for group, handler in product_pretool
+        )
+        malformed_product_pretool = any(
+            group.get("matcher") != SPAWN_ADVICE_MATCHER
+            or handler.get("command") != hook_command
+            or handler.get("timeout") != 2
+            for group, handler in product_pretool
         )
         checks["hooks_json"] = {
-            "ok": registered == ["UserPromptSubmit", "SubagentStart"] and not pretool,
+            "ok": registered == ["UserPromptSubmit", "SubagentStart"]
+            and not pretool and not malformed_product_pretool,
             "registered_advisory_hooks": registered,
             "pretool_jev_gate": pretool,
+            "spawn_advice": {"registered": canonical_spawn, "safe": not malformed_product_pretool},
+            "malformed_product_pretool": malformed_product_pretool,
         }
     except (OSError, ValueError, TypeError, AttributeError):
         pass
@@ -207,8 +243,17 @@ def main(argv: list[str] | None = None) -> int:
     doctor_parser = sub.add_parser("doctor", help="Check local runtime, catalog, and hook registration")
     doctor_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
     doctor_parser.add_argument("--test-jev", action="store_true", help="Send one synthetic, billed Jev request")
-    installer = sub.add_parser("install", help="Merge the two advisory hooks")
+    installer = sub.add_parser("install", help="Merge JevCompass advisory hooks")
     installer.add_argument("--dry-run", action="store_true", help="Validate planned changes without writing files")
+    spawn_group = installer.add_mutually_exclusive_group()
+    spawn_group.add_argument(
+        "--spawn-advice", action="store_true", default=None,
+        help="Opt in to nonblocking advice before agent spawn tools",
+    )
+    spawn_group.add_argument(
+        "--disable-spawn-advice", action="store_false", dest="spawn_advice",
+        help="Remove the JevCompass spawn advice hook",
+    )
     auth = sub.add_parser("auth", help="Manage the OpenRouter key in the system keyring")
     auth_sub = auth.add_subparsers(dest="auth_action", required=True)
     auth_sub.add_parser("status", help="Show redacted credential availability")
@@ -262,14 +307,18 @@ def main(argv: list[str] | None = None) -> int:
             print("  This reflects discovered candidates, not active-session access or measured usefulness.")
             hooks_check = result["hooks_json"]
             registered = ", ".join(hooks_check["registered_advisory_hooks"]) or "none"
-            print(f"- Hooks registered: {registered}; Jev PreToolUse gate {'present' if hooks_check['pretool_jev_gate'] else 'absent'}")
+            print(f"- Hooks registered: {registered}; legacy Jev PreToolUse gate {'present' if hooks_check['pretool_jev_gate'] else 'absent'}")
+            spawn = hooks_check["spawn_advice"]
+            print(f"- Optional spawn advice: {'registered' if spawn['registered'] else 'not registered'}")
+            if not spawn["safe"]:
+                print("  Malformed JevCompass PreToolUse hook registration needs repair.")
             observation = result["hook_observation"]
             if observation["observed"]:
                 print(f"- Hook invocation metric: {observation['event']}; log modified {observation['log_modified_age_seconds']}s ago; status {observation['status']}")
                 statuses = observation['recent_by_event']
                 print("- Recent metric status by hook: " + ", ".join(
                     f"{event}={statuses.get(event, 'not observed in metric tail')}"
-                    for event in ("UserPromptSubmit", "SubagentStart")))
+                    for event in ("UserPromptSubmit", "SubagentStart", "PreToolUse")))
             else:
                 print("- Hook invocation metric: no safe record observed; status unavailable")
             print(f"- Hooks feature in base config: {result['hooks_feature']['base_config']} (active host policy and trust need separate verification)")
@@ -282,7 +331,7 @@ def main(argv: list[str] | None = None) -> int:
         return auth_main(args.auth_action)
     if args.command == "install":
         try:
-            result = install(dry_run=args.dry_run)
+            result = install(dry_run=args.dry_run, spawn_advice=args.spawn_advice)
         except (OSError, ValueError, RuntimeError) as error:
             print(f"JevCompass install failed: {error}", file=sys.stderr)
             return 1

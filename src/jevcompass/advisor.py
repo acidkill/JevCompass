@@ -41,6 +41,8 @@ ROLE_CATEGORIES = {
     "explorer": ("codebase", "software"),
     "worker": ("coding", "software"),
 }
+SPAWN_TOOL_NAMES = frozenset({"Agent", "spawn_agent", "collaborationspawn_agent"})
+SPAWN_TEXT_LIMIT = 10_000
 CATALOG_TASKS = {
     "infrastructure": "ops",
     "debugging": "debug",
@@ -350,6 +352,35 @@ def select_advice(name: str, category: str, domain: str, role: str, trace: str |
     return output
 
 
+def _spawn_intent(event: dict[str, Any]) -> tuple[str, str, str] | None:
+    """Derive only bounded category/domain/role from a pending subagent call locally."""
+    if event.get("tool_name") not in SPAWN_TOOL_NAMES:
+        return None
+    arguments = event.get("tool_input")
+    if not isinstance(arguments, dict):
+        return None
+    message = arguments.get("message")
+    title = arguments.get("task_name")
+    texts: list[str] = []
+    # Current Codex hosts can encode the child message as a single opaque token.
+    # Natural-language messages have separated words; never decode or log the token.
+    if (isinstance(message, str) and MIN_TASK_CHARS <= len(message) <= SPAWN_TEXT_LIMIT
+            and re.search(r"\s", message) and len(re.findall(r"\b\w+\b", message)) >= 5):
+        texts.append(message)
+    if isinstance(title, str) and MIN_TASK_CHARS <= len(title) <= 160:
+        normalized = re.sub(r"[_-]+", " ", title)
+        if len(re.findall(r"\b\w+\b", normalized)) >= 2:
+            texts.append(normalized)
+    parsed = next((result for text in texts if (result := classify_task(text)) is not None), None)
+    if parsed is None:
+        return None
+    category, domain = parsed
+    if domain == "general" and category in {"coding", "debugging", "testing", "infrastructure", "codebase"}:
+        domain = "software"
+    role = arguments.get("agent_type")
+    return category, domain, role if role in {"explorer", "worker"} else "subagent"
+
+
 def evaluate(event: dict[str, Any], trace: str | None = None) -> dict[str, Any] | None:
     name = event.get("hook_event_name")
     started = time.monotonic()
@@ -370,6 +401,13 @@ def evaluate(event: dict[str, Any], trace: str | None = None) -> dict[str, Any] 
                 _metric(name, "none", "role-skip", started, trace)
             return None
         category, domain = ROLE_CATEGORIES[role]
+    elif name == "PreToolUse":
+        intent = _spawn_intent(event)
+        if intent is None:
+            if trace:
+                _metric(name, "none", "classification-skip", started, trace)
+            return None
+        category, domain, role = intent
     else:
         return None
     return select_advice(name, category, domain, role, trace)
@@ -386,12 +424,13 @@ def hook_main() -> int:
             diagnostic = os.environ.get("JEV_ADVISOR_DIAGNOSTIC") == "1"
             name = event.get("hook_event_name")
             eligible = ((name == "UserPromptSubmit" and classify_task(event.get("prompt")) is not None)
-                        or (name == "SubagentStart" and event.get("agent_type") in ROLE_CATEGORIES))
+                        or (name == "SubagentStart" and event.get("agent_type") in ROLE_CATEGORIES)
+                        or (name == "PreToolUse" and _spawn_intent(event) is not None))
             trace = secrets.token_hex(4) if eligible or diagnostic else None
             if diagnostic:
                 mode = event.get("permission_mode")
                 collaboration = event.get("collaboration_mode")
-                _metric(name if name in {"UserPromptSubmit", "SubagentStart"} else "unknown",
+                _metric(name if name in {"UserPromptSubmit", "SubagentStart", "PreToolUse"} else "unknown",
                         mode if mode in {"default", "plan", "acceptEdits", "dontAsk", "bypassPermissions"} else "unknown",
                         "collab-plan" if collaboration == "plan" else "collab-unavailable", time.monotonic(), trace)
             output = evaluate(event, trace)

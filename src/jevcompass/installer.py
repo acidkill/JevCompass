@@ -19,6 +19,7 @@ from .paths import resolve_codex_home
 LEGACY_GATE_COMMANDS = {"npx -y jev-use hook gate", "jev-use hook gate"}
 ADVISOR_EVENTS = ("UserPromptSubmit", "SubagentStart")
 SUBAGENT_MATCHER = "^(explorer|worker)$"
+SPAWN_ADVICE_MATCHER = "^(Agent|spawn_agent|collaborationspawn_agent)$"
 
 
 def _is_product_hook(command: str) -> bool:
@@ -41,13 +42,27 @@ def _is_legacy_gate(command: str) -> bool:
     return len(words) == 1 and Path(words[0]).name == "codex-jev-risk-router"
 
 
-def merge_hooks(data: dict[str, Any], command: str) -> dict[str, Any]:
+def _is_spawn_advice_group(group: dict[str, Any], command: str) -> bool:
+    if group.get("matcher") != SPAWN_ADVICE_MATCHER:
+        return False
+    handlers = group.get("hooks", [])
+    return isinstance(handlers, list) and any(
+        isinstance(handler, dict)
+        and (handler.get("command") == command or _is_product_hook(handler.get("command", "")))
+        for handler in handlers
+    )
+
+
+def merge_hooks(
+    data: dict[str, Any], command: str, spawn_advice: bool | None = None,
+) -> dict[str, Any]:
     """Return a config copy with only JevCompass hooks added and legacy Jev gate removed."""
     result = json.loads(json.dumps(data))
     hooks = result.setdefault("hooks", {})
     if not isinstance(hooks, dict):
         raise ValueError("hooks.json: 'hooks' must be an object")
 
+    existing_spawn_advice = False
     for event in ("PreToolUse", *ADVISOR_EVENTS):
         groups = hooks.get(event, [])
         if not isinstance(groups, list):
@@ -61,15 +76,20 @@ def merge_hooks(data: dict[str, Any], command: str) -> dict[str, Any]:
             if not isinstance(handlers, list):
                 kept_groups.append(group)
                 continue
+            is_spawn_group = event == "PreToolUse" and _is_spawn_advice_group(group, command)
+            existing_spawn_advice = existing_spawn_advice or is_spawn_group
             retained = []
             for handler in handlers:
                 if not isinstance(handler, dict):
                     retained.append(handler)
                     continue
                 current = handler.get("command", "")
-                remove = _is_legacy_gate(current) if event == "PreToolUse" else (
-                    current == command or _is_product_hook(current)
-                )
+                if event == "PreToolUse":
+                    remove = _is_legacy_gate(current) or (is_spawn_group and (
+                        current == command or _is_product_hook(current)
+                    ))
+                else:
+                    remove = current == command or _is_product_hook(current)
                 if not remove:
                     retained.append(handler)
             if retained:
@@ -85,6 +105,12 @@ def merge_hooks(data: dict[str, Any], command: str) -> dict[str, Any]:
         "matcher": SUBAGENT_MATCHER,
         "hooks": [handler],
     })
+    enable_spawn_advice = existing_spawn_advice if spawn_advice is None else spawn_advice
+    if enable_spawn_advice:
+        hooks.setdefault("PreToolUse", []).append({
+            "matcher": SPAWN_ADVICE_MATCHER,
+            "hooks": [{"type": "command", "command": command, "timeout": 2}],
+        })
     return result
 
 
@@ -112,8 +138,10 @@ def _write_hooks(path: Path, data: dict[str, Any]) -> Path | None:
     return backup
 
 
-def install(*, dry_run: bool = False, home: Path | None = None) -> str:
-    """Register the packaged Python advisor in two non-blocking Codex hooks."""
+def install(
+    *, dry_run: bool = False, home: Path | None = None, spawn_advice: bool | None = None,
+) -> str:
+    """Register standard hooks and optionally opt in to spawn advice."""
     config_home = home / ".codex" if home is not None else resolve_codex_home()
     if sys.version_info < (3, 11):
         raise RuntimeError("Python 3.11 or newer is required")
@@ -128,11 +156,11 @@ def install(*, dry_run: bool = False, home: Path | None = None) -> str:
     if not isinstance(current, dict):
         raise ValueError("hooks.json must contain a JSON object")
     command = advisor.hook_command()
-    merged = merge_hooks(current, command)
+    merged = merge_hooks(current, command, spawn_advice=spawn_advice)
     if dry_run:
-        return "Install plan valid: merge UserPromptSubmit/SubagentStart; no files changed"
+        return "Install plan valid; no files changed"
 
     backup = _write_hooks(hooks_path, merged)
     if backup:
-        return f"Installed two advisory hooks; backed up existing hooks.json to {backup.name}"
-    return "Installed two advisory hooks"
+        return f"Installed advisory hooks; backed up existing hooks.json to {backup.name}"
+    return "Installed advisory hooks"
