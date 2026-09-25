@@ -322,6 +322,37 @@ class DoctorTests(unittest.TestCase):
         self.assertTrue(result["jev_model"]["ok"])
         self.assertTrue(result["ok"])
 
+    def test_doctor_offers_optional_skill_dry_run_only_for_low_signal_python(self):
+        cases = (
+            ([{"id": "exec_command", "kind": "tool", "availability": "available",
+              "task_kinds": ["code"], "domains": ["general", "software"]}], True),
+            ([
+                {"id": "exec_command", "kind": "tool", "availability": "available",
+                 "task_kinds": ["code"], "domains": ["general", "software"]},
+                {"id": "python-testing-patterns", "kind": "skill", "availability": "available",
+                 "task_kinds": ["code"], "domains": ["python"]},
+            ], False),
+        )
+        for entries, expects_guidance in cases:
+            with self.subTest(expects_guidance=expects_guidance), \
+                    mock.patch.dict(os.environ, {}, clear=True), \
+                    mock.patch.object(cli, "model_status", return_value="unavailable"), \
+                    mock.patch.object(cli, "catalog_snapshot", return_value=(entries, {
+                        "curated_entries": len(entries), "available_tools": 1,
+                        "available_skills": len(entries) - 1, "configured_mcp_servers": 0,
+                        "discovered_skills": len(entries) - 1, "unavailable_entries": 0,
+                    })):
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output):
+                    cli.main(["doctor"])
+            guidance = output.getvalue()
+            self.assertEqual(
+                "jevcompass skills install --dry-run" in guidance,
+                expects_guidance,
+            )
+            if expects_guidance:
+                self.assertIn("installation is opt-in and never automatic", guidance)
+
     def test_doctor_fails_when_metadata_confirms_model_missing(self):
         with tempfile.TemporaryDirectory() as directory:
             codex_home = Path(directory)
