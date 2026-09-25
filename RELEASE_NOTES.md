@@ -1,3 +1,26 @@
+# JevCompass v0.1.13
+
+Skill advice now includes concise catalog conditions for when to use or skip a suggested skill. The agent is prompted to inspect task scope before opening one, which helps avoid treating every suggestion as mandatory. If these conditions would exceed the advisory size limit, JevCompass keeps the shorter bounded advice. The two hooks remain optional and nonblocking; routine shell and Git commands stay outside them.
+
+Synthetic Codex CLI checks have confirmed a remote Jev choice and advice ID reaching an agent before its first tool. A local build of this change ran three small review pairs without a candidate skill read before source inspection, but their source-read times were mixed. These observations do not establish a productivity or quality improvement. The full evidence and limitations are in [PILOT.md](PILOT.md).
+
+## Install from the GitHub release
+
+Download the v0.1.13 wheel from [GitHub releases](https://github.com/acidkill/JevCompass/releases), verify its SHA-256 against the release asset digest, then run:
+
+```bash
+pipx install ./jevcompass-0.1.13-py3-none-any.whl
+jevcompass install --dry-run
+jevcompass install
+jevcompass doctor
+```
+
+Review and trust the two advisory hooks in Codex `/hooks`, then start a fresh session. Existing users should follow pipx replacement instructions for a locally downloaded wheel. The installer backs up `hooks.json` when it modifies it.
+
+JevCompass is [Apache-2.0 licensed](LICENSE). macOS runtime, fresh Desktop prompt delivery, broad recommendation coverage and measured productivity gains remain unverified. PyPI publication is a separate decision. Previous release: [v0.1.12](https://github.com/acidkill/JevCompass/releases/tag/v0.1.12).
+
+---
+
 # JevCompass v0.1.12
 
 This release adds focused setup advice for users configuring Codex Desktop and CLI. Explicit hook, settings, and skill setup requests can suggest the installed official `openai-docs` skill. The advisor excludes general office-document tooling from that category and stays silent when the skill is unavailable. Everyday shell and Git commands remain outside JevCompass's hooks.
