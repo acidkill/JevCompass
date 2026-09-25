@@ -31,6 +31,7 @@ from typing import Any, Iterable
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "cli_core"
 CASE_IDS = ("P01", "P03", "P05", "P07", "R01", "R02", "R03", "R04", "R05", "R06")
+PUBLISHED_PILOT_VERSION = "0.1.16"
 PROMPTS = {
     "P01": "Implement a small Python helper that normalizes whitespace in a string, and add focused tests for empty input and repeated spaces.",
     "P03": "Fix the Bash script's unset-variable defect and run a syntax check on the edited script.",
@@ -499,8 +500,40 @@ def _copy_auth(source: Path, destination: Path) -> bool:
     return stat.S_IMODE(destination.stat().st_mode) == 0o600
 
 
-def _install_treatment_hooks(home: Path, isolated_python: Path) -> None:
-    """Install only this checkout's prompt-advisor hooks into treatment HOME."""
+def _check_installed_release(python: Path) -> None:
+    """Verify the explicit interpreter resolves the published pilot version in isolation."""
+    if not python.is_absolute() or not python.is_file():
+        raise ValueError("installed Python must be an absolute regular file")
+    env = {key: os.environ[key] for key in ("PATH", "LANG", "LC_ALL", "LC_CTYPE") if key in os.environ}
+    try:
+        completed = subprocess.run(
+            [str(python), "-I", "-c",
+             "from importlib.metadata import version; print(version('jevcompass'))"],
+            env=env, stdin=subprocess.DEVNULL, capture_output=True,
+            text=True, timeout=5, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise RuntimeError("installed JevCompass version could not be verified") from error
+    if completed.returncode != 0 or completed.stdout.strip() != PUBLISHED_PILOT_VERSION:
+        raise RuntimeError("installed JevCompass version does not match published pilot release")
+
+
+def _install_treatment_hooks(
+    home: Path, isolated_python: Path, installed_python: Path | None = None,
+) -> None:
+    """Install only the selected advisor's hooks into treatment HOME."""
+    if installed_python is not None:
+        env = _isolated_environment(
+            home=home, isolated_python=isolated_python, installed_python=installed_python,
+        )
+        completed = subprocess.run(
+            [str(installed_python), "-m", "jevcompass", "install"],
+            env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL, timeout=15, check=False,
+        )
+        if completed.returncode != 0:
+            raise RuntimeError("installed advisor hook setup failed")
+        return
     isolated_python.mkdir(mode=0o700, parents=True, exist_ok=True)
     sitecustomize = (
         "import os\nos.environ.pop('OPENROUTER_API_KEY', None)\n"
@@ -544,7 +577,10 @@ def _build_command(
     ]
 
 
-def _isolated_environment(*, home: Path, isolated_python: Path) -> dict[str, str]:
+def _isolated_environment(
+    *, home: Path, isolated_python: Path, installed_python: Path | None = None,
+    allow_openrouter_key: bool = False,
+) -> dict[str, str]:
     """Pass only basic runtime variables; exclude inherited keys and proxies."""
     env = {
         key: os.environ[key]
@@ -560,8 +596,11 @@ def _isolated_environment(*, home: Path, isolated_python: Path) -> dict[str, str
         "XDG_STATE_HOME": str(home / ".local" / "state"),
         "DBUS_SESSION_BUS_ADDRESS": f"unix:path={home / 'no-session-bus'}",
         "GNOME_KEYRING_CONTROL": str(home / "no-keyring"),
-        "PYTHONPATH": os.pathsep.join([str(isolated_python), str(ROOT / "src")]),
     })
+    if installed_python is None:
+        env["PYTHONPATH"] = os.pathsep.join([str(isolated_python), str(ROOT / "src")])
+    if allow_openrouter_key:
+        env["OPENROUTER_API_KEY"] = os.environ["OPENROUTER_API_KEY"]
     return env
 
 
@@ -627,7 +666,8 @@ def _collect_events(
 def _run_arm(
     *, codex: str, model: str, reasoning_effort: str, fixture: Path, home: Path,
     case_id: str, timeout: int, treatment: bool, require_auth: bool,
-    preflight: bool = False,
+    preflight: bool = False, installed_python: Path | None = None,
+    allow_openrouter_key: bool = False,
 ) -> dict[str, Any]:
     codex_home = home / ".codex"
     codex_home.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -642,11 +682,14 @@ def _run_arm(
     isolated_python = home / "python"
     if treatment:
         try:
-            _install_treatment_hooks(home, isolated_python)
-        except (OSError, RuntimeError, ValueError):
+            _install_treatment_hooks(home, isolated_python, installed_python)
+        except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired):
             return {"status": "failed", "failure": "hooks_setup_failed"}
     settings = _case_settings(case_id)
-    env = _isolated_environment(home=home, isolated_python=isolated_python)
+    env = _isolated_environment(
+        home=home, isolated_python=isolated_python, installed_python=installed_python,
+        allow_openrouter_key=allow_openrouter_key,
+    )
     if treatment:
         env["JEV_ADVISOR_DIAGNOSTIC"] = "1"
     command = _build_command(
@@ -1403,6 +1446,7 @@ def run_pilot(
     timeout: int = DEFAULT_TIMEOUT, cases: Iterable[str] = CASE_IDS,
     codex: str | None = None, rng: Any = None, preflight: bool = False,
     blind_dir: str | Path | None = None, blind_quality_artifacts: bool = False,
+    installed_python: Path | None = None, allow_openrouter_key: bool = False,
 ) -> dict[str, Any]:
     if timeout < 1 or timeout > MAX_TIMEOUT:
         raise ValueError(f"timeout must be between 1 and {MAX_TIMEOUT} seconds")
@@ -1415,6 +1459,12 @@ def run_pilot(
         raise ValueError("an explicit Codex model is required")
     if blind_quality_artifacts and blind_dir is None:
         raise ValueError("blind quality artifacts require --blind-dir")
+    if allow_openrouter_key and (mode != "run" or installed_python is None):
+        raise ValueError("OpenRouter key forwarding requires a live installed-release pair")
+    if allow_openrouter_key and not os.environ.get("OPENROUTER_API_KEY"):
+        raise ValueError("OpenRouter API key is unavailable")
+    if installed_python is not None:
+        _check_installed_release(installed_python)
     if reasoning_effort not in {"low", "medium", "high", "xhigh"}:
         raise ValueError("reasoning effort must be low, medium, high, or xhigh")
     if not FIXTURE.is_dir():
@@ -1462,6 +1512,7 @@ def run_pilot(
                         reasoning_effort=reasoning_effort, fixture=fixture_copy,
                         home=home, case_id=case_id, timeout=timeout,
                         treatment=treatment, require_auth=False, preflight=preflight,
+                        installed_python=installed_python, allow_openrouter_key=allow_openrouter_key,
                     )
                 else:
                     assert executable and model
@@ -1471,6 +1522,7 @@ def run_pilot(
                         reasoning_effort=reasoning_effort, fixture=fixture_copy,
                         home=home, case_id=case_id, timeout=timeout,
                         treatment=treatment, require_auth=True, preflight=preflight,
+                        installed_python=installed_python, allow_openrouter_key=allow_openrouter_key,
                     )
                 advice_reviews[(case_id, label)] = arm_result.pop("_agent_reported_candidate_ids", None)
                 diagnostic = arm_result.pop("_pilot_diagnostic", None)
@@ -1514,7 +1566,9 @@ def run_pilot(
         "model": model if mode == "run" else None,
         "reasoning_effort": reasoning_effort,
         "timeout_seconds_per_arm": timeout,
-        "openrouter_key_forwarded": False,
+        "advisor_source": "installed-distribution" if installed_python else "source-checkout",
+        "advisor_version": PUBLISHED_PILOT_VERSION if installed_python else None,
+        "openrouter_key_forwarded": bool(allow_openrouter_key),
         "other_hooks": "none",
         "receipt_scope": "safe metadata only; no prompt, source, transcript, command text, or auth",
         "scoring_note": "First useful action requires blinded evaluator review; source-read timing is a command-text heuristic only.",
@@ -1550,6 +1604,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT, help=f"per-arm timeout, maximum {MAX_TIMEOUT}s")
     parser.add_argument("--preflight", action="store_true", help="ask both arms to report pre-tool JevCompass advice evidence")
     parser.add_argument("--blind-dir", type=Path, help="write private, opaque per-arm evaluator receipts and separate mapping")
+    parser.add_argument("--installed-python", type=Path,
+                        help="absolute interpreter path of published JevCompass 0.1.16")
+    parser.add_argument("--allow-openrouter-key", action="store_true",
+                        help="opt in to equal OpenRouter key presence in both live installed-release arms")
     parser.add_argument(
         "--blind-quality-artifacts", action="store_true",
         help="also write bounded, opaque fixture-output artifacts for P01/P03/P05/P07",
@@ -1585,6 +1643,8 @@ def main(argv: list[str] | None = None) -> int:
             timeout=args.timeout, cases=args.cases,
             preflight=args.preflight, blind_dir=args.blind_dir,
             blind_quality_artifacts=args.blind_quality_artifacts,
+            installed_python=args.installed_python,
+            allow_openrouter_key=args.allow_openrouter_key,
         )
     except (OSError, RuntimeError, ValueError) as error:
         print(json.dumps({"pilot": "jevcompass-cli-core", "status": "failed", "failure": str(error)}))

@@ -12,6 +12,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -663,6 +664,76 @@ class PilotCliCoreTests(unittest.TestCase):
         self.assertEqual({case for case in runner.CASE_IDS if runner._case_settings(case)["sandbox"] == "workspace-write"}, {"P01", "P03", "P05"})
         self.assertEqual(runner.ROUTINE_CASES, {"R01", "R02", "R03", "R04", "R05", "R06"})
 
+    def test_installed_release_is_exact_and_credential_free_during_version_check(self):
+        with tempfile.TemporaryDirectory() as directory:
+            interpreter = Path(directory) / "python"
+            interpreter.write_text("synthetic", encoding="utf-8")
+            with mock.patch.dict(os.environ, {"OPENROUTER_API_KEY": "synthetic-secret"}), \
+                 mock.patch.object(runner.subprocess, "run", return_value=mock.Mock(
+                     returncode=0, stdout="0.1.16\n",
+                 )) as launch:
+                runner._check_installed_release(interpreter)
+            args, kwargs = launch.call_args
+            self.assertEqual(args[0][1], "-I")
+            self.assertNotIn("OPENROUTER_API_KEY", kwargs["env"])
+            self.assertNotIn("PYTHONPATH", kwargs["env"])
+            with mock.patch.object(runner.subprocess, "run", return_value=mock.Mock(
+                returncode=0, stdout="0.1.15\n",
+            )):
+                with self.assertRaisesRegex(RuntimeError, "does not match"):
+                    runner._check_installed_release(interpreter)
+            with self.assertRaisesRegex(ValueError, "absolute"):
+                runner._check_installed_release(Path("relative-python"))
+
+    def test_installed_hook_setup_never_inherits_key_or_checkout_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with mock.patch.dict(os.environ, {"OPENROUTER_API_KEY": "synthetic-secret"}), \
+                 mock.patch.object(runner.subprocess, "run", return_value=mock.Mock(returncode=0)) as launch:
+                runner._install_treatment_hooks(root, root / "python", root / "installed-python")
+            args, kwargs = launch.call_args
+            self.assertEqual(args[0], [str(root / "installed-python"), "-m", "jevcompass", "install"])
+            self.assertNotIn("OPENROUTER_API_KEY", kwargs["env"])
+            self.assertNotIn("PYTHONPATH", kwargs["env"])
+            self.assertFalse((root / "python" / "sitecustomize.py").exists())
+
+    def test_installed_pair_forwards_key_equally_only_with_explicit_opt_in(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            interpreter = root / "python"
+            interpreter.write_text("synthetic", encoding="utf-8")
+            auth = root / "auth.json"
+            auth.write_text("{}", encoding="utf-8")
+            observed = []
+            def fake_arm(**kwargs):
+                observed.append((kwargs["treatment"], kwargs["installed_python"],
+                                 kwargs["allow_openrouter_key"]))
+                return {"status": "completed", "exit_code": 0}
+            with mock.patch.dict(os.environ, {"CODEX_HOME": str(root),
+                                               "OPENROUTER_API_KEY": "synthetic-secret"}), \
+                 mock.patch.object(runner, "_check_installed_release"), \
+                 mock.patch.object(runner, "_run_arm", side_effect=fake_arm):
+                result = runner.run_pilot(
+                    mode="run", model="synthetic-model", cases=("P03",),
+                    codex="/unused/codex", installed_python=interpreter,
+                    allow_openrouter_key=True, rng=OrderedRandom(),
+                )
+            self.assertEqual(set(observed), {
+                (False, interpreter, True), (True, interpreter, True),
+            })
+            self.assertEqual(result["advisor_source"], "installed-distribution")
+            self.assertEqual(result["advisor_version"], "0.1.16")
+            self.assertTrue(result["openrouter_key_forwarded"])
+            self.assertNotIn("synthetic-secret", json.dumps(result))
+            with mock.patch.dict(os.environ, {"OPENROUTER_API_KEY": "synthetic-secret"}), \
+                 mock.patch.object(runner, "_check_installed_release"):
+                with self.assertRaisesRegex(ValueError, "live installed-release"):
+                    runner.run_pilot(mode="dry-run", model=None, cases=("P03",),
+                                     installed_python=interpreter, allow_openrouter_key=True)
+                with self.assertRaisesRegex(ValueError, "live installed-release"):
+                    runner.run_pilot(mode="run", model="synthetic-model", cases=("P03",),
+                                     allow_openrouter_key=True)
+
     def test_isolated_environment_drops_credentials_and_proxy_variables(self):
         prior = {key: os.environ.get(key) for key in ("OPENROUTER_API_KEY", "AWS_SECRET_ACCESS_KEY", "HTTPS_PROXY")}
         os.environ["OPENROUTER_API_KEY"] = "synthetic-secret"
@@ -671,6 +742,11 @@ class PilotCliCoreTests(unittest.TestCase):
         try:
             with tempfile.TemporaryDirectory() as directory:
                 env = runner._isolated_environment(home=Path(directory), isolated_python=Path(directory) / "python")
+                installed_env = runner._isolated_environment(
+                    home=Path(directory), isolated_python=Path(directory) / "python",
+                    installed_python=Path(directory) / "installed-python",
+                    allow_openrouter_key=True,
+                )
         finally:
             for key, value in prior.items():
                 if value is None:
@@ -680,6 +756,10 @@ class PilotCliCoreTests(unittest.TestCase):
         self.assertNotIn("OPENROUTER_API_KEY", env)
         self.assertNotIn("AWS_SECRET_ACCESS_KEY", env)
         self.assertNotIn("HTTPS_PROXY", env)
+        self.assertEqual(installed_env["OPENROUTER_API_KEY"], "synthetic-secret")
+        self.assertNotIn("PYTHONPATH", installed_env)
+        self.assertNotIn("AWS_SECRET_ACCESS_KEY", installed_env)
+        self.assertNotIn("HTTPS_PROXY", installed_env)
 
     def test_dry_run_never_calls_model_and_pairs_all_selected_cases(self):
         result = runner.run_pilot(mode="dry-run", model=None, cases=("P07", "R06"), rng=OrderedRandom())

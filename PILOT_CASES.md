@@ -80,6 +80,22 @@ C05 is a separately scored signed-webhook rollout planning case with a [prewritt
 
 The local classifier preflight for C01 is `codex-setup/codex` and R10 returns `None`; this checks only the routing contract. The supplemental runner `python3.11 scripts/pilot_codex_setup_pair.py --dry-run` verifies fresh paired profiles and the installed stock `openai-docs` skill without launching Codex. `python3.11 scripts/pilot_codex_setup_pair.py --model gpt-6-luna --reasoning-effort low` runs the live read-only CLI arms with bounded time and redacted metadata. For blinded review, add `--blind-dir /tmp/jevcompass-c01-<unique>` (a new directory outside the repository). The runner stores only bounded, validated final synthetic answers in mode-0600 files with opaque names and a separate private `mapping.json`; give a reviewer only the answer files, score both before revealing the mapping, and keep all artifacts off Git. Timeout answers remain excluded. A live metadata receipt alone cannot establish answer quality: the blind review and arm reveal remain separate steps. One supplemental C01/R10 CLI pair has now been blindly scored; see `PILOT.md` for the limited result and unresolved agent-visible delivery. It remains outside the core 20-case denominator.
 
+## Published-release CLI core pair
+
+To evaluate a frozen CLI case against the released package, use an isolated installed interpreter and opt in explicitly to equal OpenRouter key presence in both Codex arms:
+
+```sh
+python3.11 scripts/pilot_cli_core.py --dry-run --cases P03 \
+  --installed-python /absolute/path/to/pipx/venvs/jevcompass/bin/python
+python3.11 scripts/pilot_cli_core.py --cases P03 --model gpt-6-luna \
+  --reasoning-effort low --preflight --blind-dir /private/new/output-directory \
+  --blind-quality-artifacts \
+  --installed-python /absolute/path/to/pipx/venvs/jevcompass/bin/python \
+  --allow-openrouter-key
+```
+
+The runner verifies the interpreter resolves exactly JevCompass 0.1.16 without inherited Python paths or credentials; the treatment hook is installed from that distribution. The flag forwards `OPENROUTER_API_KEY` to **both Codex processes** for equal environments. Their tool subprocesses may inherit it too, so run only fictional fixtures in isolated profiles, review the trust boundary before opting in, and keep private receipt/mapping files off Git. The default source-checkout runner remains keyless and measures local fallback, not remote Jev selection. A dry run checks pairing and version, not delivery. Blind quality ratings must be frozen before opening the private mapping. Neither an exit code nor a hook metric alone establishes advice usefulness.
+
 ## Fixture and scoring rules
 
 - Use an empty temporary project root for P08; use identical fixture snapshots for both arms of every other case.
