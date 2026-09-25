@@ -1,7 +1,8 @@
 """Supplemental isolated Codex CLI pairs (outside core-20 denominator).
 
 Only fixed metadata is written to stdout. Prompts, transcripts, source, paths, auth,
-and environment values stay out of receipts. C03 forwards a key to treatment only; C04 uses an equal key environment in both arms.
+and environment values stay out of receipts. C03 forwards a key to treatment only;
+C04 and C05 use equal key environments in both arms.
 """
 from __future__ import annotations
 
@@ -26,6 +27,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "codex_setup"
 RETRY_FIXTURE = ROOT / "tests" / "fixtures" / "retry_review"
+WEBHOOK_FIXTURE = ROOT / "tests" / "fixtures" / "webhook_plan"
 CORE_SCRIPT = ROOT / "scripts" / "pilot_cli_core.py"
 CASE_PROMPTS = {
     "C01": (
@@ -55,6 +57,15 @@ CASE_PROMPTS["C03"] = (
     "and only candidate IDs you received; if no advisory is present, report exactly "
     "NO JEVCOMPASS ADVISORY. The fixture contains no real project or client data."
 )
+CASE_PROMPTS["C05"] = (
+    "Using only WEBHOOK_BRIEF.md, prepare a minimal safe implementation plan for the "
+    "fictional Python webhook service. State testable security requirements for signature "
+    "verification, replay protection, payload limits, and secret rotation, then sequence "
+    "implementation and validation within the rollout constraints. Do not edit files or "
+    "contact network services; use no real credentials. Before your first tool call, report "
+    "the JevCompass advice ID and only candidate IDs if present; otherwise report exactly "
+    "NO JEVCOMPASS ADVISORY."
+)
 DEFAULT_TIMEOUT = 90
 MAX_TIMEOUT = 300
 MAX_SKILL_BYTES = 2 * 1024 * 1024
@@ -63,8 +74,12 @@ REVIEW_SKILL_LAYOUTS = (
     ("developer-essentials", "1.0.4", "code-review-excellence"),
     ("security-scanning", "1.3.2", "security-requirement-extraction"),
 )
+PLANNING_SKILL_LAYOUTS = (
+    ("create-plan", "user-skills/create-plan"),
+    ("security-requirement-extraction", "security-scanning/1.3.2/skills/security-requirement-extraction"),
+)
 CASE_IDS = ("C01", "R10")
-SELECTABLE_CASE_IDS = ("C01", "C02", "C03", "C04", "R10")
+SELECTABLE_CASE_IDS = ("C01", "C02", "C03", "C04", "C05", "R10")
 
 _spec = importlib.util.spec_from_file_location("pilot_cli_core_for_setup_pair", CORE_SCRIPT)
 if _spec is None or _spec.loader is None:
@@ -148,6 +163,33 @@ def _review_skill_sources(auth_root: Path) -> tuple[tuple[Path, str], ...]:
     return tuple(result)
 
 
+def _planning_skill_sources(auth_root: Path) -> tuple[tuple[Path, str], ...]:
+    """Return the two reviewed planning candidates in their native Codex locations."""
+    create_plan = auth_root / "skills" / "create-plan"
+    security = (
+        auth_root / "plugins" / "cache" / "claude-code-workflows"
+        / "security-scanning" / "1.3.2" / "skills" / "security-requirement-extraction"
+    )
+    if any(path.is_symlink() or not path.is_dir() or not (path / "SKILL.md").is_file()
+           for path in (create_plan, security)):
+        raise FileNotFoundError("curated planning skills are unavailable")
+    return (
+        (create_plan, PLANNING_SKILL_LAYOUTS[0][1]),
+        (security, f"claude-code-workflows/{PLANNING_SKILL_LAYOUTS[1][1]}"),
+    )
+
+
+def _candidate_layouts(case_id: str) -> tuple[tuple[str, str], ...]:
+    if case_id == "C05":
+        return PLANNING_SKILL_LAYOUTS
+    if case_id in {"C03", "C04"}:
+        return tuple(
+            (skill, f"claude-code-workflows/{package}/{version}/skills/{skill}")
+            for package, version, skill in REVIEW_SKILL_LAYOUTS
+        )
+    return ()
+
+
 def _write_review_fixture(destination: Path) -> None:
     """Create a tiny fictional Python review target inside the private temporary pair."""
     destination.mkdir(mode=0o700, parents=True)
@@ -156,6 +198,7 @@ def _write_review_fixture(destination: Path) -> None:
         "    return value - 1\n",
         encoding="utf-8",
     )
+
 
 def _prepare_profile(
     *, home: Path, skill_source: Path, skill_sha256: str, treatment: bool,
@@ -179,13 +222,20 @@ def _prepare_profile(
         _install_skill(skill_source, skill_dest, skill_sha256)
         installed_candidates = []
         for source, relative_dest in candidate_skills:
-            destination = codex_home / "plugins" / "cache" / Path(relative_dest)
-            destination.parent.mkdir(mode=0o700, parents=True)
+            relative = Path(relative_dest)
+            if relative.parts[:1] == ("user-skills",):
+                destination = codex_home / "skills" / Path(*relative.parts[1:])
+            else:
+                destination = codex_home / "plugins" / "cache" / relative
+            destination.parent.mkdir(
+                mode=0o700, parents=True, exist_ok=relative.parts[:1] == ("user-skills",)
+            )
             digest = _skill_digest(source)
             _install_skill(source, destination, digest)
-            codex_skill = codex_home / "skills" / destination.name
-            codex_skill.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-            _install_skill(source, codex_skill, digest)
+            if relative.parts[:1] != ("user-skills",):
+                codex_skill = codex_home / "skills" / destination.name
+                codex_skill.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+                _install_skill(source, codex_skill, digest)
             installed_candidates.append(destination.name)
     except (OSError, ValueError, RuntimeError):
         return {"failure": "skill_setup_failed"}
@@ -231,7 +281,7 @@ def _c03_action_telemetry(
     lines: list[str], *, event_times: list[float], start_monotonic: float,
     fixture: Path, home: Path, case_id: str = "C03",
 ) -> dict[str, Any]:
-    """Record only successful completed reads of the exact synthetic review targets.
+    """Record only successful completed reads of fixed synthetic targets and skills.
 
     Recognized commands are direct cat/head/tail/sed/nl reads, optionally as
     exactly two such commands joined by &&, with one exact bash/sh -lc wrapper
@@ -240,25 +290,33 @@ def _c03_action_telemetry(
     items, and nonzero exits cannot count as reads. Receipts contain fixed IDs and bounded
     timings only; command text and paths are never returned.
     """
-    candidate_ids = tuple(skill for _, _, skill in REVIEW_SKILL_LAYOUTS)
+    layouts = _candidate_layouts(case_id)
+    candidate_ids = tuple(skill for skill, _ in layouts)
     target_names = ("counter.py",) if case_id == "C03" else (
         "retry.py", "RETRY_CONTRACT.md", "tests/test_retry.py"
-    ) if case_id == "C04" else ()
+    ) if case_id == "C04" else ("WEBHOOK_BRIEF.md",) if case_id == "C05" else ()
     targets = {
         name: {os.path.normcase(os.path.abspath(fixture / name))}
         for name in target_names
     }
     candidate_targets: dict[str, set[str]] = {skill: set() for skill in candidate_ids}
-    for package, version, skill in REVIEW_SKILL_LAYOUTS:
-        candidate_targets[skill].update({
-            os.path.normcase(os.path.abspath(
-                home / ".codex" / "skills" / skill / "SKILL.md"
-            )),
-            os.path.normcase(os.path.abspath(
-                home / ".codex" / "plugins" / "cache" / "claude-code-workflows"
-                / package / version / "skills" / skill / "SKILL.md"
-            )),
-        })
+    for skill, relative_dest in layouts:
+        relative = Path(relative_dest)
+        if relative.parts[:1] == ("user-skills",):
+            candidate_targets[skill].add(os.path.normcase(os.path.abspath(
+                home / ".codex" / "skills" / Path(*relative.parts[1:]) / "SKILL.md"
+            )))
+        else:
+            plugin_relative = relative.parts[1:] if relative.parts[:1] == ("claude-code-workflows",) else relative.parts
+            candidate_targets[skill].update({
+                os.path.normcase(os.path.abspath(
+                    home / ".codex" / "skills" / skill / "SKILL.md"
+                )),
+                os.path.normcase(os.path.abspath(
+                    home / ".codex" / "plugins" / "cache" / "claude-code-workflows"
+                    / Path(*plugin_relative) / "SKILL.md"
+                )),
+            })
     observed_reads: dict[str, float] = {}
     unmatched_forms: dict[str, int] = {}
 
@@ -284,7 +342,7 @@ def _c03_action_telemetry(
         return "other"
 
     def note_unmatched(command: str) -> None:
-        if case_id == "C04":
+        if case_id in {"C04", "C05"}:
             form = command_shape(command)
             unmatched_forms[form] = min(16, unmatched_forms.get(form, 0) + 1)
 
@@ -459,6 +517,16 @@ def _c03_action_telemetry(
     }
     if case_id == "C03":
         result["counter_read_ms"] = observed_reads.get("counter.py")
+    elif case_id == "C05":
+        result["fixture_target_reads"] = [
+            {"id": name, "elapsed_ms": observed_reads[name]}
+            for name in target_names if name in observed_reads
+        ]
+        result["unmatched_command_forms"] = [
+            {"form": form, "count": unmatched_forms[form]}
+            for form in ("search", "read", "python", "compound", "other")
+            if unmatched_forms.get(form)
+        ]
     else:
         result["review_target_reads"] = [
             {"id": name, "elapsed_ms": observed_reads[name]}
@@ -491,7 +559,7 @@ def _run_live_arm(
     env = _core._isolated_environment(home=home, isolated_python=isolated_python)
     if installed_python is not None:
         env.pop("PYTHONPATH", None)
-    if allow_openrouter_key and (treatment or case_id == "C04") and case_id in {"C03", "C04"}:
+    if allow_openrouter_key and (treatment or case_id in {"C04", "C05"}) and case_id in {"C03", "C04", "C05"}:
         env["OPENROUTER_API_KEY"] = os.environ["OPENROUTER_API_KEY"]
     started = time.monotonic()
     try:
@@ -532,7 +600,7 @@ def _run_live_arm(
         "first_action": parsed["first_action"],
         "advice_id_before_first_tool": parsed["advice_id_before_first_tool"],
     }
-    if case_id in {"C03", "C04"}:
+    if case_id in {"C03", "C04", "C05"}:
         result["agent_reported_candidate_ids"] = parsed["agent_reported_candidate_ids"]
         result["action_telemetry"] = _c03_action_telemetry(
             lines, event_times=event_times, start_monotonic=started,
@@ -558,8 +626,8 @@ def _run_live_arm(
 
 def _mock_arm(*, case_id: str, treatment: bool, skill_sha256: str) -> dict[str, Any]:
     """Return deterministic synthetic metadata; no Codex or network process is started."""
-    advice = treatment and case_id in {"C01", "C02", "C03", "C04"}
-    category = "review" if case_id in {"C03", "C04"} else "codex-setup" if case_id in {"C01", "C02"} else "none"
+    advice = treatment and case_id in {"C01", "C02", "C03", "C04", "C05"}
+    category = "planning" if case_id == "C05" else "review" if case_id in {"C03", "C04"} else "codex-setup" if case_id in {"C01", "C02"} else "none"
     return {
         "status": "not_run",
         "execution": "mocked",
@@ -648,6 +716,7 @@ def run_pair(
     blind_dir: Path | None = None, cases: tuple[str, ...] = CASE_IDS,
     installed_python: Path | None = None, allow_openrouter_key: bool = False,
     review_skill_sources: tuple[tuple[Path, str], ...] | None = None,
+    planning_skill_sources: tuple[tuple[Path, str], ...] | None = None,
 ) -> dict[str, Any]:
     if mode not in {"run", "mock", "dry-run"}:
         raise ValueError("mode must be run, mock, or dry-run")
@@ -661,19 +730,19 @@ def run_pair(
         raise ValueError("an explicit Codex model is required")
     if blind_dir is not None and mode != "run":
         raise ValueError("blind answer capture requires a live run")
-    if allow_openrouter_key and (mode != "run" or cases not in {("C03",), ("C04",)}):
-        raise ValueError("OpenRouter key forwarding is limited to a live C03 or C04 pair")
-    if mode == "run" and any(case in cases for case in ("C03", "C04")) and not allow_openrouter_key:
-        raise ValueError("a live C03 or C04 pair requires explicit OpenRouter key forwarding opt-in")
-    if mode == "run" and any(case in cases for case in ("C03", "C04")) and installed_python is None:
-        raise ValueError("a live C03 or C04 pair requires the explicit installed v0.1.13 interpreter")
+    if allow_openrouter_key and (mode != "run" or cases not in {("C03",), ("C04",), ("C05",)}):
+        raise ValueError("OpenRouter key forwarding is limited to a live C03, C04, or C05 pair")
+    if mode == "run" and any(case in cases for case in ("C03", "C04", "C05")) and not allow_openrouter_key:
+        raise ValueError("a live C03, C04, or C05 pair requires explicit OpenRouter key forwarding opt-in")
+    if mode == "run" and any(case in cases for case in ("C03", "C04", "C05")) and installed_python is None:
+        raise ValueError("a live C03, C04, or C05 pair requires the explicit installed v0.1.13 interpreter")
     if allow_openrouter_key and not os.environ.get("OPENROUTER_API_KEY"):
         raise ValueError("OpenRouter API key is unavailable")
     if installed_python is not None:
         if not installed_python.is_absolute() or not installed_python.is_file():
             raise ValueError("installed Python must be an existing absolute file")
         _check_installed_version(installed_python)
-    if not FIXTURE.is_dir() or ("C04" in cases and not RETRY_FIXTURE.is_dir()):
+    if not FIXTURE.is_dir() or ("C04" in cases and not RETRY_FIXTURE.is_dir()) or ("C05" in cases and not WEBHOOK_FIXTURE.is_dir()):
         raise FileNotFoundError("synthetic pilot fixture is unavailable")
 
     source_home = auth_root or _source_auth_root()
@@ -687,6 +756,15 @@ def run_pair(
             raise ValueError("review skill sources must match the two curated candidates")
     else:
         review_skills = ()
+    if "C05" in cases:
+        planning_skills = planning_skill_sources or _planning_skill_sources(source_home)
+        if tuple(skill for skill, _ in PLANNING_SKILL_LAYOUTS) != tuple(
+            Path(relative).name for _, relative in planning_skills
+        ):
+            raise ValueError("planning skill sources must match the two curated candidates")
+    else:
+        planning_skills = ()
+    case_skills = {"C03": review_skills, "C04": review_skills, "C05": planning_skills}
     executable = codex or (shutil.which("codex") if mode == "run" else None)
     if mode == "run" and not executable:
         raise RuntimeError("Codex CLI is unavailable")
@@ -705,7 +783,7 @@ def run_pair(
         "reasoning_effort": reasoning_effort,
         "timeout_seconds_per_arm": timeout,
         "openrouter_key_forwarded": bool(allow_openrouter_key),
-        "openrouter_key_equal_between_arms": bool(allow_openrouter_key and cases == ("C04",)),
+        "openrouter_key_equal_between_arms": bool(allow_openrouter_key and cases in {("C04",), ("C05",)}),
         "advisor_source": "installed-distribution" if installed_python is not None else "checkout",
         "advisor_version": EXPECTED_INSTALLED_VERSION if installed_python is not None else None,
         "sandbox": "read-only",
@@ -723,12 +801,15 @@ def run_pair(
             if case_id == "C03":
                 source_fixture = work / case_id / "synthetic-review-fixture"
                 _write_review_fixture(source_fixture)
+            if case_id == "C05":
+                source_fixture = WEBHOOK_FIXTURE
             arm_order = ["baseline", "treatment"]
             (rng or random.SystemRandom()).shuffle(arm_order)
             arms: dict[str, tuple[Path, Path]] = {}
             digests = []
             skill_digests = []
-            candidate_skill_digests = tuple(_skill_digest(source) for source, _ in review_skills)
+            candidate_skills = case_skills.get(case_id, ())
+            candidate_skill_digests = tuple(_skill_digest(source) for source, _ in candidate_skills)
             for label in ("baseline", "treatment"):
                 home = work / case_id / f"{label}-home"
                 home.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -748,7 +829,7 @@ def run_pair(
                     profile = _prepare_profile(
                         home=home, skill_source=skill_path, skill_sha256=skill_sha256,
                         treatment=treatment, auth_source=None,
-                        installed_python=installed_python, candidate_skills=review_skills,
+                        installed_python=installed_python, candidate_skills=candidate_skills,
                     )
                     arm_result = {
                         "status": "not_run",
@@ -765,14 +846,14 @@ def run_pair(
                     profile = _prepare_profile(
                         home=home, skill_source=skill_path, skill_sha256=skill_sha256,
                         treatment=treatment, auth_source=None,
-                        installed_python=installed_python, candidate_skills=review_skills,
+                        installed_python=installed_python, candidate_skills=candidate_skills,
                     )
                     arm_result = (
                         _safe_failure(profile["failure"])
                         if "failure" in profile
                         else _mock_arm(case_id=case_id, treatment=treatment, skill_sha256=skill_sha256)
                     )
-                    if "failure" not in profile and case_id in {"C03", "C04"}:
+                    if "failure" not in profile and case_id in {"C03", "C04", "C05"}:
                         arm_result["candidate_skills_installed"] = profile["candidate_skills_installed"]
                         arm_result["candidate_skill_digests"] = list(candidate_skill_digests)
                 else:
@@ -784,7 +865,7 @@ def run_pair(
                         skill_sha256=skill_sha256, case_id=case_id, timeout=timeout,
                         treatment=treatment, auth_source=auth_source,
                         answer_sink=captured_answer, installed_python=installed_python,
-                        candidate_skills=review_skills,
+                        candidate_skills=candidate_skills,
                         allow_openrouter_key=allow_openrouter_key,
                     )
                     if captured_answer:
@@ -800,8 +881,8 @@ def run_pair(
                 "skill_copies_identical": skill_digests[0] == skill_digests[1],
                 "candidate_skill_digests": list(candidate_skill_digests),
                 "candidate_skill_copies_identical": True,
-                "fresh_jev_cache": case_id in {"C03", "C04"},
-                "pair_scope": ("delivery smoke; treatment-only remote key, not efficacy comparison" if case_id == "C03" else "matched synthetic review; equal key environment, blind outcome review required" if case_id == "C04" else "supplemental paired probe"),
+                "fresh_jev_cache": case_id in {"C03", "C04", "C05"},
+                "pair_scope": ("delivery smoke; treatment-only remote key, not efficacy comparison" if case_id == "C03" else "matched synthetic review; equal key environment, blind outcome review required" if case_id == "C04" else "matched synthetic planning choice; equal key environment, blind outcome review required" if case_id == "C05" else "supplemental paired probe"),
                 "routine_negative_control": case_id == "R10",
                 "arms": arm_results,
             }
@@ -833,7 +914,7 @@ def main(argv: list[str] | None = None) -> int:
                         help="absolute interpreter path of installed JevCompass 0.1.13 release")
     parser.add_argument(
         "--allow-openrouter-key", action="store_true",
-        help="forward OPENROUTER_API_KEY for live C03 (treatment only) or C04 (both arms) synthetic pair",
+        help="forward OPENROUTER_API_KEY for live C03 (treatment only) or C04/C05 (both arms) synthetic pairs",
     )
     args = parser.parse_args(argv)
     selected_mode = "dry-run" if args.dry_run else "mock" if args.mock else "run"

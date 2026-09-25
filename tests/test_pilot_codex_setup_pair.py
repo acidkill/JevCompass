@@ -52,6 +52,29 @@ def make_review_skills(root: Path) -> tuple[tuple[Path, str], ...]:
     return tuple(sources)
 
 
+def make_planning_skills(root: Path) -> tuple[tuple[Path, str], ...]:
+    create_plan = root / "skills" / "create-plan"
+    create_plan.mkdir(parents=True)
+    (create_plan / "SKILL.md").write_text(
+        "---\nname: create-plan\ndescription: Synthetic plan candidate.\n---\n",
+        encoding="utf-8",
+    )
+    security = (
+        root / "plugins" / "cache" / "claude-code-workflows" / "security-scanning"
+        / "1.3.2" / "skills" / "security-requirement-extraction"
+    )
+    security.mkdir(parents=True)
+    (security / "SKILL.md").write_text(
+        "---\nname: security-scanning:security-requirement-extraction\n"
+        "description: Synthetic security requirements candidate.\n---\n",
+        encoding="utf-8",
+    )
+    return (
+        (create_plan, runner.PLANNING_SKILL_LAYOUTS[0][1]),
+        (security, f"claude-code-workflows/{runner.PLANNING_SKILL_LAYOUTS[1][1]}"),
+    )
+
+
 class CodexSetupPairTests(unittest.TestCase):
     def test_mock_pair_is_supplemental_randomized_and_metadata_only(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -413,6 +436,168 @@ class CodexSetupPairTests(unittest.TestCase):
             self.assertNotIn("except", serialized)
             self.assertNotIn("secret", serialized)
             self.assertNotIn("rg -n", serialized)
+
+    def test_c05_planning_pair_is_equal_key_supplemental_and_metadata_only(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            stock_skill = make_skill(root)
+            planning_skills = make_planning_skills(root)
+            from jevcompass.advisor import classify_task
+            self.assertEqual(classify_task(runner.CASE_PROMPTS["C05"]), ("planning", "python"))
+            result = runner.run_pair(
+                mode="dry-run", model=None, cases=("C05",), auth_root=root,
+                skill_source=stock_skill, planning_skill_sources=planning_skills,
+                rng=ReverseRandom(),
+            )
+            case = result["cases"]["C05"]
+            self.assertTrue(case["fixture_copies_identical"])
+            self.assertTrue(case["candidate_skill_copies_identical"])
+            self.assertEqual(case["arms"]["baseline"]["candidate_skills_installed"],
+                             ["create-plan", "security-requirement-extraction"])
+            self.assertEqual(case["arms"]["baseline"]["candidate_skills_installed"],
+                             case["arms"]["treatment"]["candidate_skills_installed"])
+            self.assertFalse(case["arms"]["baseline"]["hooks_configured"])
+            self.assertTrue(case["arms"]["treatment"]["hooks_configured"])
+            self.assertFalse(case["arms"]["treatment"]["model_called"])
+            self.assertFalse(result["core_20_denominator_included"])
+            self.assertTrue(result["openrouter_key_equal_between_arms"] is False)
+            self.assertIn("WEBHOOK_BRIEF.md", runner.CASE_PROMPTS["C05"])
+            self.assertTrue((runner.WEBHOOK_FIXTURE / "WEBHOOK_BRIEF.md").is_file())
+            serialized = json.dumps(result)
+            self.assertNotIn(runner.CASE_PROMPTS["C05"], serialized)
+            self.assertNotIn((runner.WEBHOOK_FIXTURE / "WEBHOOK_BRIEF.md").read_text(), serialized)
+            self.assertNotIn(str(root), serialized)
+
+            for label in ("baseline", "treatment"):
+                profile = runner._prepare_profile(
+                    home=root / f"profile-{label}", skill_source=stock_skill,
+                    skill_sha256=runner._skill_digest(stock_skill), treatment=label == "treatment",
+                    auth_source=None, candidate_skills=planning_skills,
+                )
+                with mock.patch.dict("os.environ", {"CODEX_HOME": str(profile["codex_home"])}):
+                    from jevcompass.catalog import candidates
+                    eligible = candidates("planning", "any", "python", limit=20)
+                skill_ids = {item["id"] for item in eligible if item["kind"] == "skill"}
+                self.assertTrue({"create-plan", "security-requirement-extraction"} <= skill_ids)
+
+    def test_c05_equal_key_reaches_both_live_arms_and_requires_opt_in(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            stock_skill = make_skill(root)
+            planning_skills = make_planning_skills(root)
+            with self.assertRaisesRegex(ValueError, "requires explicit"):
+                runner.run_pair(
+                    mode="run", model="synthetic-model", cases=("C05",), auth_root=root,
+                    skill_source=stock_skill,
+                )
+            with mock.patch.dict("os.environ", {"OPENROUTER_API_KEY": "synthetic-secret"}):
+                prepared = {
+                    "auth_copied": True,
+                    "candidate_skills_installed": ["create-plan", "security-requirement-extraction"],
+                    "isolated_python": root / "python",
+                }
+                with mock.patch.object(runner, "_prepare_profile", return_value=prepared), \
+                     mock.patch.object(runner._core, "_collect_events", return_value=([], [], None)), \
+                     mock.patch.object(runner._core, "read_safe_metrics", return_value=[]), \
+                     mock.patch.object(runner.subprocess, "Popen", return_value=mock.Mock(returncode=0)) as launch:
+                    for treatment in (False, True):
+                        runner._run_live_arm(
+                            codex="codex", model="synthetic-model", reasoning_effort="low",
+                            fixture=root, home=root / str(treatment), skill_source=stock_skill,
+                            skill_sha256=runner._skill_digest(stock_skill), case_id="C05", timeout=3,
+                            treatment=treatment, auth_source=root / "auth.json",
+                            candidate_skills=planning_skills, allow_openrouter_key=True,
+                        )
+                    environments = [call.kwargs["env"] for call in launch.call_args_list]
+            self.assertEqual([env["OPENROUTER_API_KEY"] for env in environments],
+                             ["synthetic-secret", "synthetic-secret"])
+
+    def test_c05_mock_mode_reports_planning_category_without_model_or_prompt(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            stock_skill = make_skill(root)
+            planning_skills = make_planning_skills(root)
+            result = runner.run_pair(
+                mode="mock", model=None, cases=("C05",), auth_root=root,
+                skill_source=stock_skill, planning_skill_sources=planning_skills,
+                rng=ReverseRandom(),
+            )
+            case = result["cases"]["C05"]
+            treatment = case["arms"]["treatment"]
+            baseline = case["arms"]["baseline"]
+            self.assertEqual(treatment["advisor_metrics"][0]["category"], "planning")
+            self.assertTrue(treatment["advice_id_before_first_tool"])
+            self.assertFalse(baseline["advice_id_before_first_tool"])
+            self.assertFalse(treatment["model_called"])
+            self.assertEqual(treatment["candidate_skills_installed"],
+                             ["create-plan", "security-requirement-extraction"])
+            serialized = json.dumps(result)
+            self.assertNotIn(runner.CASE_PROMPTS["C05"], serialized)
+            self.assertNotIn((runner.WEBHOOK_FIXTURE / "WEBHOOK_BRIEF.md").read_text(), serialized)
+
+    def test_c05_cli_receipt_never_prints_prompt_fixture_or_path(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            stock_skill = make_skill(root)
+            planning_skills = make_planning_skills(root)
+            original_run_pair = runner.run_pair
+
+            def synthetic_run_pair(**kwargs):
+                return original_run_pair(
+                    **kwargs, auth_root=root, skill_source=stock_skill,
+                    planning_skill_sources=planning_skills,
+                )
+
+            output = io.StringIO()
+            with mock.patch.object(runner, "run_pair", side_effect=synthetic_run_pair), \
+                 contextlib.redirect_stdout(output):
+                exit_code = runner.main(["--mock", "--case", "C05"])
+            self.assertEqual(exit_code, 0)
+            receipt = json.loads(output.getvalue())
+            self.assertEqual(receipt["status"], "completed")
+            rendered = output.getvalue()
+            self.assertNotIn(runner.CASE_PROMPTS["C05"], rendered)
+            self.assertNotIn((runner.WEBHOOK_FIXTURE / "WEBHOOK_BRIEF.md").read_text(), rendered)
+            self.assertNotIn(str(root), rendered)
+
+    def test_c05_action_telemetry_records_only_fixed_reads_and_skill_ids(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixture = root / "fixture"
+            home = root / "home"
+            brief = fixture / "WEBHOOK_BRIEF.md"
+            create_plan = home / ".codex" / "skills" / "create-plan" / "SKILL.md"
+            security = (
+                home / ".codex" / "plugins" / "cache" / "claude-code-workflows"
+                / "security-scanning" / "1.3.2" / "skills"
+                / "security-requirement-extraction" / "SKILL.md"
+            )
+            events = [json.dumps({"type": "item.completed", "item": {
+                "type": "command_execution", "command": command, "exit_code": exit_code,
+            }}) for command, exit_code in [
+                (f"cat {brief}", 0),
+                (f"sed -n '1,40p' {create_plan}", 0),
+                (f"head -n 20 {security}", 0),
+                (f"cat {brief}", 1),
+                (f"cat {brief} | wc -l", 0),
+            ]]
+            telemetry = runner._c03_action_telemetry(
+                events, event_times=[1.1, 1.2, 1.3, 1.4, 1.5], start_monotonic=1.0,
+                fixture=fixture, home=home, case_id="C05",
+            )
+            self.assertEqual(telemetry["fixture_target_reads"], [
+                {"id": "WEBHOOK_BRIEF.md", "elapsed_ms": 100.0},
+            ])
+            self.assertEqual(telemetry["candidate_skill_reads"], [
+                {"id": "create-plan", "elapsed_ms": 200.0},
+                {"id": "security-requirement-extraction", "elapsed_ms": 300.0},
+            ])
+            serialized = json.dumps(telemetry)
+            self.assertNotIn(str(root), serialized)
+            self.assertNotIn("cat ", serialized)
+            self.assertEqual(telemetry["unmatched_command_forms"], [
+                {"form": "compound", "count": 1},
+            ])
 
     def test_c02_preflight_is_same_prompt_in_both_arms_and_not_core_case(self):
         with tempfile.TemporaryDirectory() as temporary:
