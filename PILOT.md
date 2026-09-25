@@ -6,6 +6,10 @@
 
 Use [PILOT_CASES.md](PILOT_CASES.md) for the planned synthetic case bank, [ROADMAP.md](ROADMAP.md) for the thresholds and remaining gates, and [TASKS.md](TASKS.md) for release receipts. Entries below are dated development evidence, including older private-release observations; later records do not erase earlier results. Paths to local experiment artifacts are historical maintainer records and are not downloadable project assets.
 
+### VCR-251 explicit ambiguous failure triage candidate (2026-09-25)
+
+The source checkout accepts a locally classified failure kind, allowlisted hypotheses, and the actual test exit code. Only categorical metadata and fixed local criteria reach Jev; no logs, paths, commands or source are accepted. A successful test, one plausible explanation, low confidence or transport failure does not trigger a remote recommendation. Synthetic tests verify the returned steps never execute and retain the observed failure. The full 320-test suite, graphify, wheel/sdist and one 0.49 s real synthetic Jev choice pass. Exact numeric exit status remains local; Jev sees only `test_outcome=failed`. No matched Codex diagnostic task, root-cause accuracy, elapsed time or token benefit has been measured.
+
 ### VCR-249 explicit pretask strategy candidate (2026-09-25)
 
 The source checkout adds allowlisted coding task kinds and signals, locally reviewed applicable strategy descriptions, and an explicit CLI entry. It uses a typed remote choice only when at least two strategies have similar local evidence; singleton/uncertain/unavailable cases use a labeled local order. The backend sees only task/signal enums and fixed catalog criteria. A direct source CLI call with only `coding`, `existing_symbol`, and `behavior_change` enums got a real Jev `remote-choice` in 0.49 s and locally composed two rationales. The full 311-test suite, graphify and package build pass. Synthetic privacy and validation tests do not demonstrate that a Codex agent adopts the strategy or that task quality, time or token use improves. A randomized matched coding pilot remains open.

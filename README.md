@@ -77,6 +77,10 @@ The source checkout has an explicit `jevcompass tests rank` command for a coding
 
 Save this as `test-order.json`, then run `jevcompass tests rank --input test-order.json --json`. `status: remote-choice` means Jev ranked genuine competing test kinds; `no-remote-choice` uses stable local relevance order when one choice is obvious, Jev is unavailable, or its answer is uncertain. The required list is returned unchanged and must still be run. Commands and caller IDs stay local: only coarse surface, test kinds, generic descriptors and opaque IDs may reach OpenRouter. Do not put secrets in command strings; this local file and CLI output are readable on your machine. Candidate discovery from changed files and matched outcome trials are still planned.
 
+## Triage an ambiguous failed test (source candidate)
+
+After a real test fails and you have at least two evidence-backed explanations, classify them locally and ask for a first diagnostic step. For example: `jevcompass triage --exit-code 1 --kind import --hypothesis import_module_missing --hypothesis import_path_changed --json`. The command accepts enums only; never pass a log, source snippet, path, or exception text. It prints at most two locally authored steps and the **observed failing exit code**. It does not rerun tests, execute a fix, or turn failure into success. Without an ambiguous choice or confident Jev response it uses local order. This source candidate is not in PyPI v0.1.22 and has no measured task benefit yet.
+
 ## Add your own installed skill
 
 The built-in catalog cannot know when a private skill fits your work. Register a short, generic description explicitly, after reading its `SKILL.md` and checking the fields you are willing to share:
