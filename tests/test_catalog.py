@@ -34,11 +34,18 @@ class CatalogTests(unittest.TestCase):
             self.assertEqual(item["catalog_version"], version)
 
     def test_task_tags_separate_codebase_explanation_review_and_testing(self):
-        codebase = catalog.candidates("codebase", "any", "python", limit=20)
+        installed = {
+            "developer-essentials:code-review-excellence": {},
+            "python-development:python-testing-patterns": {},
+        }
+        with patch.object(catalog, "discover_installed_skills", return_value=installed), \
+                patch.object(catalog, "_configured_mcp_servers", return_value=set()), \
+                patch.object(catalog, "_codex_shell_available", return_value=True):
+            codebase = catalog.candidates("codebase", "any", "python", limit=20)
+            review_ids = {item["id"] for item in catalog.candidates("review", "any", "python", limit=20)}
+            testing_ids = {item["id"] for item in catalog.candidates("testing", "any", "python", limit=20)}
         self.assertTrue(codebase)
         self.assertTrue(all(item["kind"] == "tool" for item in codebase))
-        review_ids = {item["id"] for item in catalog.candidates("review", "any", "python", limit=20)}
-        testing_ids = {item["id"] for item in catalog.candidates("testing", "any", "python", limit=20)}
         self.assertIn("code-review-excellence", review_ids)
         self.assertIn("python-testing-patterns", testing_ids)
         self.assertNotIn("code-review-excellence", testing_ids)
