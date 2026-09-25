@@ -14,6 +14,8 @@ import sys
 import time
 from typing import Any
 
+from .paths import codex_profile_id
+
 def __getattr__(name: str) -> Any:
     """Load catalog and decision helpers only when an event needs advice."""
     if name in {"candidates", "catalog_version"}:
@@ -280,6 +282,7 @@ def _metric(event: str, category: str, status: str, started: float, trace: str |
         fd = os.open(LOG_PATH, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
         with os.fdopen(fd, "a") as stream:
             record = {"event": event, "category": category, "status": status,
+                      "profile": codex_profile_id(),
                       "duration_ms": round((time.monotonic() - started) * 1000, 2)}
             if trace:
                 record["trace"] = trace

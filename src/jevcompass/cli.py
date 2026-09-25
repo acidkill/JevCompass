@@ -12,7 +12,7 @@ from typing import Any
 
 from . import __version__, advisor
 from .catalog import catalog_snapshot, catalog_version
-from .paths import resolve_codex_home
+from .paths import codex_profile_id, resolve_codex_home
 from .decisions import DecisionsClient, DecisionsError, model_status
 from .installer import (
     SPAWN_ADVICE_MATCHER,
@@ -85,6 +85,7 @@ def _hook_observation() -> dict[str, Any]:
     empty = {"observed": False, "event": None, "log_modified_age_seconds": None,
              "status": "unavailable", "recent_by_event": {}}
     try:
+        current_profile = codex_profile_id()
         stat = advisor.LOG_PATH.stat()
         with advisor.LOG_PATH.open("rb") as stream:
             stream.seek(max(0, stat.st_size - 65536))
@@ -99,7 +100,7 @@ def _hook_observation() -> dict[str, Any]:
             record = json.loads(line)
         except (UnicodeDecodeError, json.JSONDecodeError):
             continue
-        if not isinstance(record, dict):
+        if not isinstance(record, dict) or record.get("profile") != current_profile:
             continue
         event, status = record.get("event"), record.get("status")
         if event in allowed_events and isinstance(status, str) and status in allowed_statuses:

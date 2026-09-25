@@ -13,6 +13,7 @@ from unittest import mock
 
 from jevcompass import advisor, cli
 from jevcompass.installer import SPAWN_ADVICE_MATCHER, SUBAGENT_MATCHER
+from jevcompass.paths import codex_profile_id
 
 
 class DoctorTests(unittest.TestCase):
@@ -36,7 +37,10 @@ class DoctorTests(unittest.TestCase):
                 "SubagentStart": [{"matcher": SUBAGENT_MATCHER, "hooks": [{"command": advisor.hook_command()}]}],
             }}))
             metric = root / "advisor.jsonl"
+            with mock.patch.dict(os.environ, {"CODEX_HOME": str(codex_home)}):
+                profile = codex_profile_id()
             metric.write_text(json.dumps({
+                "profile": profile,
                 "event": "UserPromptSubmit",
                 "category": "coding",
                 "status": "low-signal-skip",
@@ -78,11 +82,12 @@ class DoctorTests(unittest.TestCase):
     def test_observation_reports_each_hook_without_leaking_metric_content(self):
         with tempfile.TemporaryDirectory() as directory:
             metric = Path(directory) / "advisor.jsonl"
+            profile = codex_profile_id()
             metric.write_text("\n".join((
-                json.dumps({"event": "SubagentStart", "status": "low-signal-skip",
+                json.dumps({"event": "SubagentStart", "status": "low-signal-skip", "profile": profile,
                             "trace": "sensitive-trace", "prompt": "private task"}),
                 "invalid-json",
-                json.dumps({"event": "UserPromptSubmit", "status": "jev",
+                json.dumps({"event": "UserPromptSubmit", "status": "jev", "profile": profile,
                             "secret": "sensitive-secret"}),
             )) + "\n")
             with mock.patch.object(advisor, "LOG_PATH", metric):
@@ -93,6 +98,32 @@ class DoctorTests(unittest.TestCase):
         serialized = json.dumps(observation)
         for value in ("sensitive-trace", "private task", "sensitive-secret"):
             self.assertNotIn(value, serialized)
+
+    def test_observation_ignores_legacy_and_other_codex_profiles(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            first, second = root / "first", root / "second"
+            with mock.patch.dict(os.environ, {"CODEX_HOME": str(first)}):
+                first_id = codex_profile_id()
+            with mock.patch.dict(os.environ, {"CODEX_HOME": str(second)}):
+                second_id = codex_profile_id()
+            self.assertNotEqual(first_id, second_id)
+            metric = root / "advisor.jsonl"
+            metric.write_text("\n".join((
+                json.dumps({"event": "UserPromptSubmit", "status": "jev"}),
+                json.dumps({"event": "SubagentStart", "status": "cache", "profile": second_id}),
+            )) + "\n")
+            with mock.patch.dict(os.environ, {"CODEX_HOME": str(first)}), \
+                    mock.patch.object(advisor, "LOG_PATH", metric):
+                self.assertFalse(cli._hook_observation()["observed"])
+                metric.write_text(metric.read_text() + json.dumps({
+                    "event": "UserPromptSubmit", "status": "local", "profile": first_id,
+                }) + "\n")
+                observed = cli._hook_observation()
+            self.assertTrue(observed["observed"])
+            self.assertEqual(observed["recent_by_event"], {"UserPromptSubmit": "local"})
+            self.assertNotIn(str(first), json.dumps(observed))
+            self.assertNotIn(first_id, json.dumps(observed))
 
     def test_doctor_reports_registered_hooks_without_claiming_observed_invocation(self):
         with tempfile.TemporaryDirectory() as directory:
