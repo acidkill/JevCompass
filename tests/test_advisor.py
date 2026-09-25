@@ -1,4 +1,4 @@
-"""Synthetic contract tests for the two non-blocking advisory hooks."""
+"""Synthetic contract tests for default and opt-in non-blocking advisory hooks."""
 
 import io
 import json
@@ -77,6 +77,66 @@ class AdvisorTests(unittest.TestCase):
         self.assertLessEqual(len(context), advisor.MAX_CONTEXT_CHARS)
         self.assertIn("skill `skill-2`", context)
         self.assertNotIn("use when:", context)
+
+    def test_spawn_advice_classifies_local_message_without_disclosing_it(self):
+        secret = "private-client-token-84913"
+        event = {
+            "hook_event_name": "PreToolUse", "tool_name": "collaborationspawn_agent",
+            "tool_input": {"task_name": "review_auth", "agent_type": "explorer",
+                           "message": f"Review the Python authentication change and report a focused test for {secret}."},
+        }
+        output = io.StringIO()
+        fake_stdin = mock.Mock(buffer=io.BytesIO(json.dumps(event).encode()))
+        with mock.patch.object(advisor, "DecisionsClient") as client, \
+                mock.patch.object(advisor.sys, "stdin", fake_stdin), mock.patch.object(advisor.sys, "stdout", output):
+            client.return_value.decide.return_value = answers()
+            self.assertEqual(advisor.hook_main(), 0)
+        result = json.loads(output.getvalue())
+        self.assertEqual(result["hookSpecificOutput"]["hookEventName"], "PreToolUse")
+        self.assertNotIn("permissionDecision", json.dumps(result))
+        self.assertNotIn("updatedInput", json.dumps(result))
+        request = json.dumps(client.return_value.decide.call_args.args)
+        self.assertIn('"task_kind": "review"', request)
+        self.assertIn('"role": "explorer"', request)
+        self.assertNotIn(secret, request)
+        self.assertNotIn(secret, output.getvalue())
+        self.assertNotIn(secret, advisor.LOG_PATH.read_text())
+
+    def test_spawn_advice_uses_descriptive_title_when_message_is_opaque(self):
+        event = {"hook_event_name": "PreToolUse", "tool_name": "spawn_agent",
+                 "tool_input": {"message": "gAAAAA" * 70,
+                                "task_name": "Review Python authentication changes"}}
+        with mock.patch.object(advisor, "DecisionsClient") as client:
+            client.return_value.decide.return_value = answers()
+            output = advisor.evaluate(event)
+        self.assertEqual(output["hookSpecificOutput"]["hookEventName"], "PreToolUse")
+        self.assertEqual(client.return_value.decide.call_args.args[0]["task_kind"], "review")
+
+    def test_spawn_advice_classifies_snake_case_title_when_message_is_encoded(self):
+        encoded = "gAAAAA.09_FernET-token-encoded-shape-1234567890" * 9
+        event = {"hook_event_name": "PreToolUse", "tool_name": "collaborationspawn_agent",
+                 "tool_input": {"message": encoded, "task_name": "review_python_correctness"}}
+        self.assertEqual(advisor._spawn_intent(event), ("review", "python", "subagent"))
+        with mock.patch.object(advisor, "DecisionsClient") as client:
+            client.return_value.decide.return_value = answers()
+            output = advisor.evaluate(event)
+        self.assertEqual(output["hookSpecificOutput"]["hookEventName"], "PreToolUse")
+        self.assertNotIn(encoded, json.dumps(client.return_value.decide.call_args.args))
+        self.assertNotIn(encoded, json.dumps(output))
+
+    def test_spawn_advice_abstains_for_unknown_tools_or_insufficient_intent(self):
+        cases = (
+            {"tool_name": "Bash", "tool_input": {"message": "Review the Python authentication change and tests."}},
+            {"tool_name": "spawn_agent", "tool_input": {"message": "gAAAAA" * 100, "task_name": "review"}},
+            {"tool_name": "Agent", "tool_input": {"message": "check logs", "task_name": "x", "agent_type": "default"}},
+            {"tool_name": "collaborationspawn_agent", "tool_input": {"message": "x" * 10_001}},
+            {"tool_name": "spawn_agent", "tool_input": "not-an-object"},
+        )
+        with mock.patch.object(advisor, "DecisionsClient") as client:
+            for item in cases:
+                event = {"hook_event_name": "PreToolUse", **item}
+                self.assertIsNone(advisor.evaluate(event), event["tool_name"])
+            client.assert_not_called()
 
     def test_substantive_task_is_advised_across_permission_modes(self):
         with mock.patch.object(advisor, "DecisionsClient") as client:
