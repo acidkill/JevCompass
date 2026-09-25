@@ -6,6 +6,10 @@
 
 Use [PILOT_CASES.md](PILOT_CASES.md) for the planned synthetic case bank, [ROADMAP.md](ROADMAP.md) for the thresholds and remaining gates, and [TASKS.md](TASKS.md) for release receipts. Entries below are dated development evidence, including older private-release observations; later records do not erase earlier results. Paths to local experiment artifacts are historical maintainer records and are not downloadable project assets.
 
+### VCR-249 explicit pretask strategy candidate (2026-09-25)
+
+The source checkout adds allowlisted coding task kinds and signals, locally reviewed applicable strategy descriptions, and an explicit CLI entry. It uses a typed remote choice only when at least two strategies have similar local evidence; singleton/uncertain/unavailable cases use a labeled local order. The backend sees only task/signal enums and fixed catalog criteria. A direct source CLI call with only `coding`, `existing_symbol`, and `behavior_change` enums got a real Jev `remote-choice` in 0.49 s and locally composed two rationales. The full 311-test suite, graphify and package build pass. Synthetic privacy and validation tests do not demonstrate that a Codex agent adopts the strategy or that task quality, time or token use improves. A randomized matched coding pilot remains open.
+
 ### VCR-250 explicit post-change test order candidate (2026-09-25)
 
 The source checkout provides an explicit local JSON intake for coarse changed surface, candidate test kinds and relevance, commands, and mandatory gate. A typed choice calls Jev only when at least two different kinds have similarly plausible local relevance; clear local evidence, one candidate, uncertainty, invalid answers, and transport failures use deterministic local ordering. Synthetic tests verify no raw paths, commands, IDs or relevance values enter the request, preserve mandatory commands, and prove the CLI never executes a supplied command. This is an API/CLI contract test only. Candidate discovery from actual changes, Codex agent uptake, first actionable test failure, completed-task time, tokens/cost and blind quality remain unmeasured. No benefit claim.
