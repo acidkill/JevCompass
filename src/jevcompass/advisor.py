@@ -48,6 +48,7 @@ CATALOG_TASKS = {
     "research": "research",
     "api-design": "api-design",
     "documentation": "document",
+    "codex-setup": "document",
     "coding": "code",
     "codebase": "codebase",
     "history": "history",
@@ -59,6 +60,8 @@ CATALOG_TASKS = {
     "package-docs": "package-docs",
 }
 TASK_PATTERNS = (
+    # Setup of Codex itself benefits from official product guidance; package setup does not.
+    ("codex-setup", re.compile(r"(?=.*\bcodex(?:'s)?\s+(?:desktop|cli|hooks?|settings|skills?)\b)(?=.*\b(?:hooks?|settings|skills?|configuration)\b)(?=.*\b(?:configur\w*|set\s+up|setup\s+codex|install\w*|skonfigur\w*|ustaw\w*)\b)", re.I)),
     ("package-docs", re.compile(r"(?=.*\b(?:python|pyproject\.toml|pipx?)\b)(?=.*\b(?:readme|documentation|docs)\b)(?=.*\b(?:install(?:ation)?|installing)\b)", re.I)),
     # A project mentioned as the location of a feature/test is not a new project.
     ("project-setup", re.compile(r"\b(?:creat\w*|start\w*|bootstrap\w*|scaffold\w*|setup|set up|initialize\w*|initialise\w*|init|utwórz|założ\w*|stwórz|stworze\w*|zainicjaliz\w*)\b(?:(?!\b(?:tests?|features?|functions?|files?|scripts?|docs?|documentation|modules?|components?)\b)[\s\S]){0,80}?\b(?:repository|repo|repozytorium|package|pakiet|project|projekt)\b", re.I)),
@@ -101,7 +104,7 @@ def classify_task(prompt: str) -> tuple[str, str] | None:
     if task_kind is None:
         return None
     domain = next((name for name, pattern in DOMAIN_PATTERNS if pattern.search(prompt)), "general")
-    if domain == "codex" and task_kind not in {"documentation", "debugging"}:
+    if domain == "codex" and task_kind not in {"documentation", "debugging", "codex-setup"}:
         domain = next((name for name, pattern in DOMAIN_PATTERNS if name != "codex" and pattern.search(prompt)), "general")
     if task_kind in {"project-setup", "api-design", "history"} and domain == "general":
         domain = "software"
@@ -287,6 +290,9 @@ def select_advice(name: str, category: str, domain: str, role: str, trace: str |
     _load_advice_dependencies()
     started = time.monotonic()
     pool = candidates(task_kind=CATALOG_TASKS[category], role="any", domain=domain, limit=20)
+    if category == "codex-setup":
+        # Office-document tooling is a broad `document` match, not Codex setup guidance.
+        pool = [item for item in pool if item["id"] == "openai-docs"]
     # A configured MCP server is not proof that this Codex session exposes it.
     items = _balanced_shortlist([item for item in pool if item.get("availability") != "configured"], per_kind=3)
     if not isinstance(items, list) or not items:

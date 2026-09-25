@@ -344,6 +344,36 @@ class AdvisorTests(unittest.TestCase):
             ("testing", "web"),
         )
 
+    def test_codex_setup_recommends_installed_official_docs_only(self):
+        prompt = "Configure Codex Desktop hooks for a new project using the supported settings."
+        self.assertEqual(advisor.classify_task(prompt), ("codex-setup", "codex"))
+        self.assertEqual(
+            advisor.classify_task("Set up Codex CLI skills and settings for a new project."),
+            ("codex-setup", "codex"),
+        )
+        self.assertNotEqual(
+            advisor.classify_task("Set up a Python package for developers who use Codex CLI."),
+            ("codex-setup", "codex"),
+        )
+        self.assertNotEqual(
+            advisor.classify_task("Configure the React dashboard settings for this project."),
+            ("codex-setup", "codex"),
+        )
+        docs = {"id": "openai-docs", "kind": "skill", "capability": "Official Codex documentation",
+                "use_when": "Codex setup", "avoid_when": "unrelated coding", "availability": "available"}
+        office_docs = {**docs, "id": "documents", "capability": "Create office documents"}
+        with mock.patch.object(advisor, "candidates", return_value=[office_docs, docs]) as candidates, \
+                mock.patch.object(advisor, "_judge") as judge:
+            result = advisor.evaluate({"hook_event_name": "UserPromptSubmit", "prompt": prompt})
+        candidates.assert_called_once_with(task_kind="document", role="any", domain="codex", limit=20)
+        judge.assert_not_called()
+        self.assertIn("skill `openai-docs`", result["hookSpecificOutput"]["additionalContext"])
+        self.assertNotIn("documents", result["hookSpecificOutput"]["additionalContext"])
+        with mock.patch.object(advisor, "candidates", return_value=[]), \
+                mock.patch.object(advisor, "_judge") as judge:
+            self.assertIsNone(advisor.evaluate({"hook_event_name": "UserPromptSubmit", "prompt": prompt}))
+        judge.assert_not_called()
+
     def test_codex_troubleshooting_sends_only_allowlisted_metadata_to_jev(self):
         secret = "private-codex-config-value-7b31"
         prompt = ("Debug why Codex Desktop ignores the UserPromptSubmit hook after changing settings; "
