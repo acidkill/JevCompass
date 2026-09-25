@@ -235,6 +235,8 @@ class TestOrderPairRunnerTests(unittest.TestCase):
             treatment = next(arm for arm in receipt["arms"].values()
                              if arm["choice"]["status"] == "unscored")
             self.assertEqual(treatment["choice"], {"status": "unscored", "candidate_ids": []})
+            self.assertEqual(treatment["rank_output_status"], "invalid_choice")
+            self.assertEqual(treatment["rank_exit_code"], 0)
             self.assertNotIn("unexpected", (output / "receipt.json").read_text(encoding="utf-8"))
 
     def test_completion_without_command_matches_started_id_and_validates_failure(self):
