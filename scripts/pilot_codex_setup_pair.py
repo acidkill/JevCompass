@@ -9,10 +9,12 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import math
 import os
 from pathlib import Path
 import random
 import secrets
+import shlex
 import shutil
 import stat
 import subprocess
@@ -216,6 +218,204 @@ def _command(*, codex: str, model: str, reasoning_effort: str, prompt: str) -> l
     ]
 
 
+def _c03_action_telemetry(
+    lines: list[str], *, event_times: list[float], start_monotonic: float,
+    fixture: Path, home: Path,
+) -> dict[str, Any]:
+    """Record only successful completed reads of the exact synthetic C03 targets.
+
+    Recognized commands are direct cat/head/tail/sed/nl reads, optionally as
+    exactly two such commands joined by &&, with one exact bash/sh -lc wrapper
+    allowed around the whole command. Other shell operators/expansion, listing
+    and search commands, mentions in assistant text, started/failed command
+    items, and nonzero exits cannot count as reads. Receipts contain fixed IDs and bounded
+    timings only; command text and paths are never returned.
+    """
+    candidate_ids = tuple(skill for _, _, skill in REVIEW_SKILL_LAYOUTS)
+    targets: dict[str, set[str]] = {
+        "counter": {os.path.normcase(os.path.abspath(fixture / "counter.py"))},
+    }
+    candidate_targets: dict[str, set[str]] = {skill: set() for skill in candidate_ids}
+    for package, version, skill in REVIEW_SKILL_LAYOUTS:
+        candidate_targets[skill].update({
+            os.path.normcase(os.path.abspath(
+                home / ".codex" / "skills" / skill / "SKILL.md"
+            )),
+            os.path.normcase(os.path.abspath(
+                home / ".codex" / "plugins" / "cache" / "claude-code-workflows"
+                / package / version / "skills" / skill / "SKILL.md"
+            )),
+        })
+    observed_reads: dict[str, float] = {}
+
+    def file_operands(command: str, *, allow_wrapper: bool = True) -> list[str] | None:
+        def tokenize(value: str) -> list[str] | None:
+            try:
+                lexer = shlex.shlex(value, posix=True, punctuation_chars=";&|()<>")
+                lexer.whitespace_split = True
+                lexer.commenters = ""
+                return list(lexer)
+            except ValueError:
+                return None
+
+        def direct_operands(argv: list[str]) -> list[str] | None:
+            if not argv:
+                return None
+            utility = Path(argv[0]).name
+            if utility not in {"cat", "head", "tail", "sed", "nl"}:
+                return None
+            if any(
+                any(char in token for char in ";&|<>()") or "`" in token or "$" in token
+                for token in argv
+            ):
+                return None
+            args = argv[1:]
+            if not args:
+                return None
+            if utility in {"cat", "head", "tail"}:
+                operands: list[str] = []
+                i = 0
+                after_options = False
+                while i < len(args):
+                    token = args[i]
+                    if token == "--" and not after_options:
+                        after_options = True
+                    elif not after_options and token.startswith("-"):
+                        if utility == "cat":
+                            return None
+                        if token in {"-n", "-c", "--lines", "--bytes"}:
+                            i += 1
+                            if i >= len(args):
+                                return None
+                        elif token.startswith(("--lines=", "--bytes=")):
+                            pass
+                        elif token.startswith(("-n", "-c")) and token[2:].isdigit():
+                            pass
+                        elif utility == "head" and token[1:].isdigit():
+                            pass
+                        else:
+                            return None
+                    else:
+                        operands.append(token)
+                    i += 1
+                return operands
+            if utility == "nl":
+                operands = []
+                i = 0
+                after_options = False
+                while i < len(args):
+                    token = args[i]
+                    if token == "--" and not after_options:
+                        after_options = True
+                    elif not after_options and token == "-ba":
+                        pass
+                    elif not after_options and token == "-b":
+                        i += 1
+                        if i >= len(args) or args[i] != "a":
+                            return None
+                    elif not after_options and token.startswith("-"):
+                        return None
+                    else:
+                        operands.append(token)
+                    i += 1
+                return operands
+            # sed: consume options and their values, then its script, then file operands.
+            operands = []
+            i = 0
+            script_seen = False
+            script_from_option = False
+            after_options = False
+            while i < len(args):
+                token = args[i]
+                if not after_options and token == "--":
+                    after_options = True
+                elif not after_options and token in {"-e", "--expression", "-f", "--file"}:
+                    i += 1
+                    if i >= len(args):
+                        return None
+                    script_from_option = True
+                elif not after_options and token.startswith("-"):
+                    if token not in {"-n", "-E", "-r", "--regexp-extended"}:
+                        return None
+                elif not script_seen and not script_from_option:
+                    script_seen = True
+                else:
+                    operands.append(token)
+                i += 1
+            return operands
+
+        argv = tokenize(command)
+        if not argv:
+            return None
+        executable = Path(argv[0]).name
+        if executable in {"bash", "sh"}:
+            if not allow_wrapper or len(argv) != 3 or argv[1] != "-lc":
+                return None
+            return file_operands(argv[2], allow_wrapper=False)
+
+        conjunctions = [index for index, token in enumerate(argv) if token == "&&"]
+        if conjunctions:
+            if len(conjunctions) != 1:
+                return None
+            split_at = conjunctions[0]
+            left = direct_operands(argv[:split_at])
+            right = direct_operands(argv[split_at + 1:])
+            if not left or not right:
+                return None
+            return [*left, *right]
+        return direct_operands(argv)
+
+
+    for order, line in enumerate(lines):
+        try:
+            event = json.loads(line)
+        except (TypeError, json.JSONDecodeError):
+            continue
+        if not isinstance(event, dict) or event.get("type") != "item.completed":
+            continue
+        item = event.get("item")
+        if not isinstance(item, dict) or item.get("type") != "command_execution":
+            continue
+        exit_code = item.get("exit_code")
+        if isinstance(exit_code, bool) or exit_code != 0:
+            continue
+        raw_command = item.get("command")
+        command = (
+            raw_command if isinstance(raw_command, str)
+            else " ".join(raw_command)
+            if isinstance(raw_command, list) and all(isinstance(part, str) for part in raw_command)
+            else None
+        )
+        if command is None:
+            continue
+        operands = file_operands(command)
+        if not operands:
+            continue
+        candidates = {os.path.normcase(os.path.abspath(fixture / operand)) for operand in operands}
+        matched: list[str] = []
+        if candidates & targets["counter"]:
+            matched.append("counter")
+        matched.extend(skill for skill in candidate_ids if candidates & candidate_targets[skill])
+        if not matched:
+            continue
+        if order >= len(event_times):
+            continue
+        observed = event_times[order]
+        if isinstance(observed, bool) or not isinstance(observed, (int, float)) or not math.isfinite(observed):
+            continue
+        elapsed_ms = round(max(0.0, min(MAX_TIMEOUT * 1000, (observed - start_monotonic) * 1000)), 2)
+        for target in matched:
+            observed_reads.setdefault(target, elapsed_ms)
+
+    return {
+        "counter_read_ms": observed_reads.get("counter"),
+        "candidate_skill_reads": [
+            {"id": skill, "elapsed_ms": observed_reads[skill]}
+            for skill in candidate_ids if skill in observed_reads
+        ],
+    }
+
+
 def _run_live_arm(
     *, codex: str, model: str, reasoning_effort: str, fixture: Path, home: Path,
     skill_source: Path, skill_sha256: str, case_id: str, timeout: int,
@@ -278,6 +478,10 @@ def _run_live_arm(
     }
     if case_id == "C03":
         result["agent_reported_candidate_ids"] = parsed["agent_reported_candidate_ids"]
+        result["action_telemetry"] = _c03_action_telemetry(
+            lines, event_times=event_times, start_monotonic=started,
+            fixture=fixture, home=home,
+        )
     if treatment:
         result["advice_id"] = parsed["advice_id"]
         metrics = _core.read_safe_metrics(
