@@ -257,7 +257,14 @@ def _context(
         "Local unranked fallback; Jev did not select these candidates. "
         if selection_source == "local" else ""
     )
-    if event == "UserPromptSubmit":
+    if os.environ.get("JEVCOMPASS_ADVICE_STYLE") == "compact":
+        # Experimental opt-in for paired evaluation; default advice is unchanged.
+        prefix = source_note + "Optional candidates; use only when relevant and available:\n"
+        suffix = ("\nConfirm configured MCP tools are connected; read a chosen skill's SKILL.md. "
+                  "Follow the task and project instructions and run required tests.")
+        if event == "UserPromptSubmit":
+            suffix += " If planning, suggest tools and skills for the primary agent and useful subagents."
+    elif event == "UserPromptSubmit":
         prefix = source_note + "Optional tools and skills for this task; validate against the task and actual availability:\n"
         suffix = "\nConfigured MCP entries must be confirmed connected in this session. Inspect task scope first. If a listed skill's use condition fits, read its SKILL.md before drafting or editing; otherwise skip it. Follow required project instructions and tests. If you write a plan, include concise execution recommendations for the primary agent and useful subagents."
     else:
