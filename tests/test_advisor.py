@@ -54,6 +54,42 @@ class AdvisorTests(unittest.TestCase):
         self.assertIn("run through `exec_command`; confirm it is available in this session", context)
         self.assertNotIn("tool `pytest`", context)
 
+    def test_shell_test_command_and_executor_are_composed_without_jev(self):
+        executor = {**ITEMS[1], "availability": "available"}
+        command = {"id": "unittest", "kind": "tool", "invocation": "shell_command",
+                   "capability": "Run Python unit tests", "availability": "available",
+                   "use_when": "test Python changes", "avoid_when": "no Python tests"}
+        with mock.patch.object(advisor, "candidates", return_value=[executor, command]), \
+                mock.patch.object(advisor, "DecisionsClient") as client, \
+                mock.patch.object(advisor, "_metric") as metric:
+            output = advisor.select_advice("UserPromptSubmit", "testing", "python", "primary")
+        context = output["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("tool `exec_command`", context)
+        self.assertIn("local command `unittest`", context)
+        self.assertIn("run through `exec_command`", context)
+        client.assert_not_called()
+        metric.assert_called_once_with("UserPromptSubmit", "testing", "local", mock.ANY, None)
+
+    def test_shell_command_stays_with_remote_skill_choice(self):
+        executor = {**ITEMS[1], "availability": "available"}
+        command = {"id": "unittest", "kind": "tool", "invocation": "shell_command",
+                   "capability": "Run Python unit tests", "availability": "available",
+                   "use_when": "test Python changes", "avoid_when": "no Python tests"}
+        skills = [{**item, "availability": "available"} for item in ITEMS[2:]]
+        with mock.patch.object(advisor, "candidates", return_value=[executor, command, *skills]), \
+                mock.patch.object(advisor, "DecisionsClient") as client:
+            client.return_value.decide.return_value = {
+                "skill": {"type": "choice", "choice": "python-packaging", "confidence": 0.9},
+            }
+            output = advisor.select_advice("UserPromptSubmit", "testing", "python", "primary")
+        context = output["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("`exec_command`", context)
+        self.assertIn("local command `unittest`", context)
+        self.assertIn("skill `python-packaging`", context)
+        self.assertNotIn("skill `create-plan`", context)
+        questions = client.return_value.decide.call_args.args[1]
+        self.assertEqual(set(questions), {"skill"})
+
     def test_skill_advice_exposes_scope_before_optional_read(self):
         item = {**ITEMS[2], "availability": "available"}
         output = advisor._context("UserPromptSubmit", [item["id"]], [item], "12345678", category="review")

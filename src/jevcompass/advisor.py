@@ -147,7 +147,8 @@ def _balanced_shortlist(items: list[dict[str, Any]], per_kind: int = 3) -> list[
 def _questions(items: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     questions: dict[str, dict[str, Any]] = {}
     for kind in ("tool", "skill"):
-        group = [item for item in items if item["kind"] == kind]
+        # Shell commands run through an executor; they are not alternatives to it.
+        group = [item for item in items if item["kind"] == kind and item.get("invocation") != "shell_command"]
         if len(group) < 2:
             continue
         questions[kind] = {
@@ -338,13 +339,17 @@ def select_advice(
         return None
 
     questions = _questions(items)
+    # Shell-invoked commands are useful alongside their executor and must not
+    # disappear when Jev selects a genuinely alternative tool or skill.
+    pinned_ids = [item["id"] for item in items if item.get("invocation") == "shell_command"]
     singleton_ids = [
         group[0]["id"]
         for kind in ("tool", "skill")
-        if len(group := [item for item in items if item["kind"] == kind]) == 1
+        if len(group := [item for item in items if item["kind"] == kind and item.get("invocation") != "shell_command"]) == 1
     ]
+    local_ids = [item["id"] for item in items if item["id"] in {*pinned_ids, *singleton_ids}]
     if not questions:
-        output = _context(name, singleton_ids, items, trace, selection_source="local", category=category) if singleton_ids else None
+        output = _context(name, local_ids, items, trace, selection_source="local", category=category) if local_ids else None
         _metric(name, category, "local" if output else "insufficient-candidates", started, trace)
         return output
 
@@ -364,7 +369,7 @@ def select_advice(
         # catalog shortlist instead of implying the model chose a winner.
         selected = [item["id"] for item in items]
     else:
-        selected = list(dict.fromkeys([*singleton_ids, *(choices or [])]))
+        selected = list(dict.fromkeys([*local_ids, *(choices or [])]))
 
     source = "local" if status == "local" else "jev"
     output = _context(name, selected, items, trace, selection_source=source, category=category) if selected else None
