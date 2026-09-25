@@ -846,6 +846,8 @@ def _run_arm(
     )
     if treatment:
         env["JEV_ADVISOR_DIAGNOSTIC"] = "1"
+        if installed_python is None and os.environ.get("JEVCOMPASS_ADVICE_STYLE") == "compact":
+            env["JEVCOMPASS_ADVICE_STYLE"] = "compact"
     command = _build_command(
         codex=codex, model=model, reasoning_effort=reasoning_effort,
         case_id=case_id, preflight=preflight,

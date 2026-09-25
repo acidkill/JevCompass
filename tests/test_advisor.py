@@ -43,6 +43,20 @@ class AdvisorTests(unittest.TestCase):
             patcher.start()
             self.addCleanup(patcher.stop)
 
+    def test_experimental_compact_context_preserves_ids_and_required_controls(self):
+        selected = ["exec_command", "create-plan"]
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("JEVCOMPASS_ADVICE_STYLE", None)
+            regular = advisor._context("UserPromptSubmit", selected, ITEMS, "0123abcd", "local")
+        with mock.patch.dict(os.environ, {"JEVCOMPASS_ADVICE_STYLE": "compact"}):
+            compact = advisor._context("UserPromptSubmit", selected, ITEMS, "0123abcd", "local")
+        context = compact["hookSpecificOutput"]["additionalContext"]
+        self.assertLess(len(context), len(regular["hookSpecificOutput"]["additionalContext"]))
+        self.assertTrue(context.startswith("JevCompass advice ID: 0123abcd\nCandidate IDs: exec_command, create-plan"))
+        for expected in ("Local unranked fallback", "SKILL.md", "required tests", "project instructions", "primary agent", "subagents"):
+            self.assertIn(expected, context)
+        self.assertNotIn("decision", compact)
+
     def test_shell_command_is_not_presented_as_a_codex_tool(self):
         pytest_command = {
             "id": "pytest", "kind": "tool", "invocation": "shell_command",
