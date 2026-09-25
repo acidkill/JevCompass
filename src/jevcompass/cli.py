@@ -197,6 +197,7 @@ def doctor(*, test_jev: bool = False) -> dict[str, Any]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="jevcompass", description="Privacy-first tool and skill advice for Codex")
+    parser.add_argument("--version", action="version", version=f"JevCompass {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("hook", help="Handle a Codex hook event from stdin")
     recommend = sub.add_parser("recommend", help="Request advice using allowlisted metadata only")

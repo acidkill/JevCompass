@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import tempfile
 import time
+import tomllib
 import unittest
 from unittest import mock
 
@@ -15,6 +16,16 @@ from jevcompass.installer import SUBAGENT_MATCHER
 
 
 class DoctorTests(unittest.TestCase):
+    def test_cli_version_matches_project_metadata(self):
+        project = Path(__file__).resolve().parents[1]
+        expected = tomllib.loads((project / "pyproject.toml").read_text())["project"]["version"]
+        self.assertEqual(cli.__version__, expected)
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), self.assertRaises(SystemExit) as ended:
+            cli.main(["--version"])
+        self.assertEqual(ended.exception.code, 0)
+        self.assertEqual(output.getvalue().strip(), f"JevCompass {expected}")
+
     def test_doctor_separates_registered_hooks_from_safe_observed_metric(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -69,7 +69,7 @@ Your shortlist depends on the tools and skills actually installed. An unranked f
 - **Uncertainty:** Local fallback advice is labeled unranked. If there is no useful candidate, JevCompass can stay silent. A configured MCP server is not assumed to be callable in the active session.
 - **Control:** Advice does not run tools or skills, change permissions, block commands, or replace project instructions and required checks.
 
-For setup diagnostics, run `jevcompass doctor`; use `jevcompass doctor --json` for structured output. The optional `--test-jev` flag sends one synthetic, billed request.
+For setup diagnostics, run `jevcompass doctor`; use `jevcompass --version` to identify the installed command and `jevcompass doctor --json` for structured output. The optional `--test-jev` flag sends one synthetic, billed request.
 
 ## Privacy
 
