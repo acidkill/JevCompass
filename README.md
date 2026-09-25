@@ -35,6 +35,12 @@ jevcompass doctor
 
 **What changes:** `jevcompass install` backs up an existing Codex `hooks.json` and registers two advisory hooks. Review and trust the registrations in Codex's `/hooks` screen, then start a fresh session. The default config is under `~/.codex`; set `CODEX_HOME` to use a different Codex home. A successful `doctor` check confirms local registration, not that Codex loaded or delivered advice.
 
+## Verify advice in a fresh session
+
+After `jevcompass install`, inspect the two registrations in Codex `/hooks`, trust them if prompted, and start a **new** Desktop or CLI session. For a focused check, give Codex a substantive task such as planning a small Python package and ask it to report any `JevCompass advice ID` and suggested IDs from its initial context **before its first tool call**. An absent ID means that session did not receive advice; `doctor` and local hook metrics alone cannot prove delivery. The advisor may intentionally stay silent when only a generic shell command is available.
+
+If your Codex host does not load either hook, run `jevcompass doctor --json` to distinguish registration from recent invocation, and use the explicit `jevcompass recommend --category project-setup --domain python` command while investigating. Never treat a manual result as proof that a hook delivered context to an agent.
+
 ## 60-second demo
 
 After the quick start, ask about setting up a Python project:
@@ -79,7 +85,7 @@ Remote ranking is optional. Without a key or a reliable Jev response, JevCompass
 - Linux: local runtime and CLI checks have been performed.
 - macOS: targeted, but runtime behavior has not been verified.
 - Windows: not a verified target.
-- Codex Desktop and CLI: the project registers `UserPromptSubmit` and `SubagentStart` hooks, but host delivery is version-, trust-, and session-dependent. Fresh Desktop prompt delivery and subagent delivery remain unverified.
+- Codex Desktop and CLI: the project registers `UserPromptSubmit` and `SubagentStart` hooks, but host delivery is version-, trust-, and session-dependent. Fresh Desktop prompt delivery and broad subagent coverage remain unverified.
 
 JevCompass does not infer Codex Plan UI mode. Check `/hooks` and start a fresh session after installation or a Codex upgrade.
 
@@ -94,9 +100,13 @@ Evidence is deliberately limited to the environments tested:
 
 These checks do not establish that recommendations improve outcomes. If you test JevCompass, please share a reproducible example of advice that helped—or a case where silence was the right result.
 
+## Soon available
+
+More host validation, narrower coding recommendations, and a measured 20-case comparison are tracked in the [roadmap](ROADMAP.md). These are planned work, not shipped capabilities or proven productivity gains.
+
 ## Contribute
 
-Issues and pull requests are welcome. Helpful contributions include reproducible compatibility reports, careful documentation fixes, and synthetic tests that preserve the privacy boundary. Please do not post credentials, raw prompts, private code, or unredacted logs.
+Issues and pull requests are welcome. Helpful contributions include reproducible compatibility reports, careful documentation fixes, and synthetic tests that preserve the privacy boundary. Please do not post credentials, raw prompts, private code, or unredacted logs. Licensing terms are pending an owner decision; public visibility alone does not grant a general reuse license.
 
 ## Project links
 
