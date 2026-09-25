@@ -172,7 +172,19 @@ def catalog_snapshot() -> tuple[list[dict[str, Any]], dict[str, int]]:
         item["kind"] = "skill" if kind == "skill" else "tool"
         if kind == "skill":
             key = _normalize(spec.get("name", ""))
-            item["availability"] = "available" if key in skills else "unavailable"
+            required_mcp = item.get("requires_mcp", [])
+            if key not in skills or not isinstance(required_mcp, list) or not all(
+                isinstance(server, str) and server for server in required_mcp
+            ):
+                item["availability"] = "unavailable"
+            elif required_mcp:
+                # A configured server does not prove it is callable in this session.
+                item["availability"] = (
+                    "configured" if all(server.lower() in servers for server in required_mcp)
+                    else "unavailable"
+                )
+            else:
+                item["availability"] = "available"
         elif kind == "command":
             item["invocation"] = "shell_command"
             item["availability"] = "available" if shutil.which(spec.get("command", "")) else "unavailable"

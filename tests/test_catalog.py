@@ -60,8 +60,21 @@ class CatalogTests(unittest.TestCase):
             shell_ids = {item["id"] for item in catalog.candidates("debug", "any", "shell", limit=20)}
             web_ids = {item["id"] for item in catalog.candidates("debug", "any", "web", limit=20)}
         self.assertEqual(shell_ids, {"exec_command"})
-        self.assertIn("browser-testing-with-devtools", web_ids)
+        self.assertNotIn("browser-testing-with-devtools", web_ids)
         self.assertNotIn("browser-testing-with-devtools", shell_ids)
+        self.assertIn("debugging-strategies", web_ids)
+
+    def test_skill_requiring_mcp_is_configured_only_until_session_verifies_it(self):
+        installed = {"engineering-suite-debug:browser-testing-with-devtools": {}}
+        with patch.object(catalog, "discover_installed_skills", return_value=installed), \
+                patch.object(catalog, "_configured_mcp_servers", return_value={"chrome-devtools"}), \
+                patch.object(catalog, "_codex_shell_available", return_value=True):
+            entries = catalog.load_catalog()
+            web = catalog.candidates("debug", "any", "web", limit=20)
+        browser = next(item for item in entries if item["id"] == "browser-testing-with-devtools")
+        self.assertEqual(browser["availability"], "configured")
+        self.assertIn("browser-testing-with-devtools", {item["id"] for item in web})
+        self.assertNotEqual(browser["availability"], "available")
 
     def test_vanilla_profile_stays_silent_for_api_and_documentation_without_specific_skill(self):
         with patch.object(catalog, "discover_installed_skills", return_value={}), \
