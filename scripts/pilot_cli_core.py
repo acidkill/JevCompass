@@ -593,6 +593,23 @@ def _install_bundled_skills(home: Path, installed_python: Path) -> dict[str, byt
     return contents_by_name
 
 
+def _install_source_bundled_skills(home: Path) -> dict[str, bytes]:
+    """Install this checkout's optional skills into one disposable profile."""
+    from jevcompass.skill_pack import SKILL_NAMES, install_skills
+
+    skills_root = home / ".codex" / "skills"
+    install_skills(root=skills_root)
+    contents: dict[str, bytes] = {}
+    for name in SKILL_NAMES:
+        skill_dir = skills_root / name
+        entrypoint = skill_dir / "SKILL.md"
+        if (skill_dir.is_symlink() or not skill_dir.is_dir()
+                or entrypoint.is_symlink() or not entrypoint.is_file()):
+            raise RuntimeError("source bundled skill verification failed")
+        contents[name] = entrypoint.read_bytes()
+    return contents
+
+
 def _case_settings(case_id: str) -> dict[str, str]:
     return {
         "sandbox": "read-only" if case_id in READ_ONLY_CASES else "workspace-write",
@@ -1475,7 +1492,7 @@ def run_pilot(
     codex: str | None = None, rng: Any = None, preflight: bool = False,
     blind_dir: str | Path | None = None, blind_quality_artifacts: bool = False,
     installed_python: Path | None = None, allow_openrouter_key: bool = False,
-    with_bundled_skills: bool = False,
+    with_bundled_skills: bool = False, source_bundled_skills: bool = False,
 ) -> dict[str, Any]:
     if timeout < 1 or timeout > MAX_TIMEOUT:
         raise ValueError(f"timeout must be between 1 and {MAX_TIMEOUT} seconds")
@@ -1492,6 +1509,8 @@ def run_pilot(
         raise ValueError("OpenRouter key forwarding requires a live installed-release pair")
     if with_bundled_skills and (mode not in {"run", "dry-run"} or installed_python is None):
         raise ValueError("bundled skills require an installed-release run or dry run")
+    if source_bundled_skills and (mode not in {"run", "dry-run"} or installed_python is not None or with_bundled_skills):
+        raise ValueError("source bundled skills require a source run or dry run")
     if allow_openrouter_key and not os.environ.get("OPENROUTER_API_KEY"):
         raise ValueError("OpenRouter API key is unavailable")
     if installed_python is not None:
@@ -1528,11 +1547,14 @@ def run_pilot(
             if digests[0] != digests[1]:
                 raise RuntimeError("paired fixture copies differ")
             skill_metadata = None
-            if with_bundled_skills:
-                if installed_python is None:
-                    raise ValueError("bundled skills require an installed-release interpreter")
-                baseline_skills = _install_bundled_skills(arms["baseline"][0], installed_python)
-                treatment_skills = _install_bundled_skills(arms["treatment"][0], installed_python)
+            if with_bundled_skills or source_bundled_skills:
+                if with_bundled_skills:
+                    assert installed_python is not None
+                    baseline_skills = _install_bundled_skills(arms["baseline"][0], installed_python)
+                    treatment_skills = _install_bundled_skills(arms["treatment"][0], installed_python)
+                else:
+                    baseline_skills = _install_source_bundled_skills(arms["baseline"][0])
+                    treatment_skills = _install_source_bundled_skills(arms["treatment"][0])
                 if baseline_skills != treatment_skills:
                     raise RuntimeError("paired bundled skill contents differ")
                 skill_metadata = {
@@ -1658,6 +1680,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="absolute interpreter path of published JevCompass 0.1.16")
     parser.add_argument("--with-bundled-skills", action="store_true",
                         help="install and verify the published bundled skills in both temporary profiles (live or dry run)")
+    parser.add_argument("--source-bundled-skills", action="store_true",
+                        help="install and verify this checkout's optional skills in both source-mode profiles")
     parser.add_argument("--allow-openrouter-key", action="store_true",
                         help="opt in to equal OpenRouter key presence in both live installed-release arms")
     parser.add_argument(
@@ -1698,6 +1722,7 @@ def main(argv: list[str] | None = None) -> int:
             installed_python=args.installed_python,
             allow_openrouter_key=args.allow_openrouter_key,
             with_bundled_skills=args.with_bundled_skills,
+            source_bundled_skills=args.source_bundled_skills,
         )
     except (OSError, RuntimeError, ValueError) as error:
         print(json.dumps({"pilot": "jevcompass-cli-core", "status": "failed", "failure": str(error)}))
