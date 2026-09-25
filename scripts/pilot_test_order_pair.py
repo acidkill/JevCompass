@@ -58,18 +58,14 @@ BASE_PROMPT = (
     "change unrelated files. Report no source text in the final response."
 )
 TREATMENT_RANKING = (
-    "\n\nAfter your code edit, ask JevCompass to rank exactly these two "
-    "focused candidates and retain the required suite as a mandatory gate. "
-    "Run the local command python -m jevcompass tests rank --input - --json with this "
-    "JSON on stdin (the rank command only orders tests; it does not execute "
-    "them): "
-    + json.dumps(
-        {"surface": "python", "candidates": list(CANDIDATES), "required": list(REQUIRED)},
-        separators=(",", ":"),
-    )
-    + ". Follow the returned focused order by running one candidate, then "
-    "always run the required full suite yourself. Do not skip or infer the "
-    "required suite result from Codex's overall exit status."
+    "\n\nAfter your code edit, ask JevCompass to order the focused checks "
+    "from the identical local test-options.json file by running exactly "
+    "python -m jevcompass tests rank --input test-options.json --json. "
+    "The rank command only orders checks; it does not execute them. Follow "
+    "its focused order by running one candidate, then always run the full "
+    "required suite yourself. If ranking fails, choose a focused check "
+    "locally and preserve the required full suite. Report the rank command "
+    "exit status without replacing a test failure with success."
 )
 SAFE_ID = re.compile(r"[A-Za-z0-9_.-]{1,64}")
 SAFE_MODEL = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}")
@@ -121,7 +117,7 @@ def _rank_invocation(item: dict[str, Any]) -> bool:
         "jevcompass" in argv
         and any(argv[index:index + 3] == ["tests", "rank", "--input"]
                 for index in range(len(argv)))
-        and "-" in argv
+        and "test-options.json" in argv
         and "--json" in argv
     )
 

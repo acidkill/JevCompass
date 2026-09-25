@@ -1,0 +1,10 @@
+{
+  "surface": "python",
+  "candidates": [
+    {"kind": "unit", "command": "python -m unittest discover -s tests -p 'test_unit*.py' -v", "relevance": 0.8, "id": "unit"},
+    {"kind": "contract", "command": "python -m unittest discover -s tests -p 'test_contract*.py' -v", "relevance": 0.8, "id": "contract"}
+  ],
+  "required": [
+    {"command": "python -m unittest discover -s tests -v", "id": "full"}
+  ]
+}

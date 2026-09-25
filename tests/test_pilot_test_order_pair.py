@@ -50,7 +50,7 @@ def fake_events(prompt: str, *, choice_payload: str | None = None, required_id_m
             "required": [{"id": "full", "command": runner.REQUIRED_COMMAND}],
             "executed": False,
         })
-        rank_command = "printf '{}' | python -m jevcompass tests rank --input - --json"
+        rank_command = "python -m jevcompass tests rank --input test-options.json --json"
         events.extend([
             command_event("item.started", "rank-1", rank_command),
             command_event("item.completed", "rank-1", rank_command, exit_code=0, aggregated_output=choice),
@@ -241,7 +241,7 @@ class TestOrderPairRunnerTests(unittest.TestCase):
 
     def test_completion_without_command_matches_started_id_and_validates_failure(self):
         base = time.monotonic()
-        rank = "printf '{}' | python -m jevcompass tests rank --input - --json"
+        rank = "python -m jevcompass tests rank --input test-options.json --json"
         choice = json.dumps({
             "status": "remote-choice", "ordered": [
                 {"id": "unit", "kind": "unit", "command": runner.UNIT_COMMAND},
