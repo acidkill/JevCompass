@@ -432,6 +432,7 @@ class AdvisorTests(unittest.TestCase):
             ("codebase", "python"),
         )
         self.assertEqual(advisor.classify_task("Prepare a task list to adapt a Python package"), ("planning", "python"))
+        self.assertEqual(advisor.classify_task("Plan moving the active JSON webhook queue to SQLite; include validation and CI checks."), ("planning", "general"))
         self.assertEqual(
             advisor.classify_task("Prepare a task list for packaging this CLI. Then inspect the install flow and explain any gaps."),
             ("planning", "general"),

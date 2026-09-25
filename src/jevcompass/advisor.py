@@ -75,7 +75,7 @@ TASK_PATTERNS = (
     ("history", re.compile(r"(?=.*\b(?:git|commit|branch|repository|repo|code|source|function|file|module|repozytorium|kod|plik|funkcj|moduł)\w*\b)(?=.*(?:\bhistory\b|\bhistori\w*|\bprovenance\b|\bblame\b|\bintroduced\b|\bauthored\b|\bwho\s+(?:changed|introduced|authored)\b|\bkto\s+(?:zmienił|wprowadził)\b))", re.I)),
     ("review", re.compile(r"\b(review|audit|diff|pull request|pr|przegląd|audyt)\b", re.I)),
     ("debugging", re.compile(r"\b(debug|diagnos|bug|error|failure|regress|defect|napraw|błąd|awari)\w*|\bfix(?:es|ed|ing)?\b", re.I)),
-    ("planning", re.compile(r"\b(roadmap|task list|task breakdown|list of tasks|prepare.{0,60}task|list[ęa]\s+(?:tasków|taskow|zadań|zadan)|zaplanuj|przygotuj.{0,60}(?:task|zadani|plan)|opracuj\s+plan|priorytetyz\w*|plan\s+(?:a|an|another|the|this|how|for|to)\b|implementation plan|planowanie|planowania)\b", re.I)),
+    ("planning", re.compile(r"\b(roadmap|task list|task breakdown|list of tasks|prepare.{0,60}task|list[ęa]\s+(?:tasków|taskow|zadań|zadan)|zaplanuj|przygotuj.{0,60}(?:task|zadani|plan)|opracuj\s+plan|priorytetyz\w*|plan\s+(?:a|an|another|the|this|how|for|to|moving|migrating|switching|transitioning|implementing)\b|implementation plan|planowanie|planowania)\b", re.I)),
     ("codebase", re.compile(r"\b(inspect|understand|explain|trace|investigat|how does|what does|przejrz|zrozum|wyjaśn)\w*", re.I)),
     ("coding", re.compile(r"\b(implement|refactor|modify|zimplement|modyfik\w*)\w*", re.I)),
     ("documentation", re.compile(r"\b(docs|documentation|readme|instrukcj|dokument)\w*", re.I)),
