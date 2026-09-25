@@ -2,7 +2,7 @@
 
 This public GitHub release packages the current source onboarding and the `history` advice category alongside the two non-blocking Codex hooks, explicit recommendations, and optional OpenRouter Decisions ranking. It fixes text `doctor` showing an old package version and adds `jevcompass --version`. The first-screen README now shows a real keyless local example and a way to check agent-visible advice in a fresh session.
 
-The single Linux Python 3.11 PR check and clean distribution audit are release gates; the final tag, built archive digests, and isolated pipx installation must be recorded after this PR is green. This release does not claim macOS validation, universal hook delivery, measurable speed or quality improvement, or publication on PyPI. The repository and this release are licensed under [Apache License 2.0](LICENSE).
+The source tag peels to commit `1e71eee5e3f53e52414aa63ffce72eb67a14edb2`. Hosted PR #9 passed 179 Python 3.11 tests; the same 179 tests passed locally on Python 3.11 and 3.14. Clean wheel/sdist auditing, isolated pipx install, and independent GitHub download/digest checks passed. Wheel SHA-256: `b7ffba2547ef457a4aa9f288afb7d612763895490811c25fe29108619c27c3ad`; sdist SHA-256: `124695b004b0975cc90626a8cf735cc5e207bde9969cd2ff1c4e525fc75da396`. This release does not claim macOS validation, universal hook delivery, measurable speed or quality improvement, or publication on PyPI. The repository and this release are licensed under [Apache License 2.0](LICENSE).
 
 ## Previous release: v0.1.10
 
