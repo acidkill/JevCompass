@@ -1,7 +1,7 @@
-"""Supplemental C01/R10 isolated Codex CLI paired pilot (outside core-20 denominator).
+"""Supplemental isolated Codex CLI pairs (outside core-20 denominator).
 
 Only fixed metadata is written to stdout. Prompts, transcripts, source, paths, auth,
-and environment values stay out of receipts. This runner never forwards an OpenRouter key.
+and environment values stay out of receipts. C03 forwards a key only after explicit opt-in.
 """
 from __future__ import annotations
 
@@ -38,12 +38,22 @@ CASE_PROMPTS["C02"] = (
     "and only the candidate IDs if an advisory is present; otherwise report exactly "
     "NO JEVCOMPASS ADVISORY."
 )
+CASE_PROMPTS["C03"] = (
+    "Review the synthetic Python file counter.py for correctness and report the highest-priority "
+    "finding with its line number. Before your first tool call, report the JevCompass advice ID "
+    "and only candidate IDs you received; if no advisory is present, report exactly "
+    "NO JEVCOMPASS ADVISORY. The fixture contains no real project or client data."
+)
 DEFAULT_TIMEOUT = 90
 MAX_TIMEOUT = 300
 MAX_SKILL_BYTES = 2 * 1024 * 1024
 EXPECTED_INSTALLED_VERSION = "0.1.12"
+REVIEW_SKILL_LAYOUTS = (
+    ("developer-essentials", "1.0.4", "code-review-excellence"),
+    ("security-scanning", "1.3.2", "security-requirement-extraction"),
+)
 CASE_IDS = ("C01", "R10")
-SELECTABLE_CASE_IDS = ("C01", "C02", "R10")
+SELECTABLE_CASE_IDS = ("C01", "C02", "C03", "R10")
 
 _spec = importlib.util.spec_from_file_location("pilot_cli_core_for_setup_pair", CORE_SCRIPT)
 if _spec is None or _spec.loader is None:
@@ -115,9 +125,31 @@ def _safe_failure(code: str) -> dict[str, Any]:
     }
 
 
+def _review_skill_sources(auth_root: Path) -> tuple[tuple[Path, str], ...]:
+    """Return the two curated skill sources and their isolated plugin-cache destinations."""
+    cache = auth_root / "plugins" / "cache" / "claude-code-workflows"
+    result = []
+    for package, version, skill in REVIEW_SKILL_LAYOUTS:
+        source = cache / package / version / "skills" / skill
+        if source.is_symlink() or not source.is_dir() or not (source / "SKILL.md").is_file():
+            raise FileNotFoundError("curated review skills are unavailable")
+        result.append((source, f"claude-code-workflows/{package}/{version}/skills/{skill}"))
+    return tuple(result)
+
+
+def _write_review_fixture(destination: Path) -> None:
+    """Create a tiny fictional Python review target inside the private temporary pair."""
+    destination.mkdir(mode=0o700, parents=True)
+    (destination / "counter.py").write_text(
+        "def increment(value: int) -> int:\n"
+        "    return value - 1\n",
+        encoding="utf-8",
+    )
+
 def _prepare_profile(
     *, home: Path, skill_source: Path, skill_sha256: str, treatment: bool,
     auth_source: Path | None, installed_python: Path | None = None,
+    candidate_skills: tuple[tuple[Path, str], ...] = (),
 ) -> dict[str, Any]:
     home.mkdir(mode=0o700)
     codex_home = home / ".codex"
@@ -134,6 +166,16 @@ def _prepare_profile(
     skill_dest.parent.mkdir(mode=0o700, parents=True)
     try:
         _install_skill(skill_source, skill_dest, skill_sha256)
+        installed_candidates = []
+        for source, relative_dest in candidate_skills:
+            destination = codex_home / "plugins" / "cache" / Path(relative_dest)
+            destination.parent.mkdir(mode=0o700, parents=True)
+            digest = _skill_digest(source)
+            _install_skill(source, destination, digest)
+            codex_skill = codex_home / "skills" / destination.name
+            codex_skill.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            _install_skill(source, codex_skill, digest)
+            installed_candidates.append(destination.name)
     except (OSError, ValueError, RuntimeError):
         return {"failure": "skill_setup_failed"}
     isolated_python = home / "python"
@@ -157,6 +199,7 @@ def _prepare_profile(
         "auth_copied": auth_copied,
         "skill_installed": True,
         "skill_sha256": skill_sha256,
+        "candidate_skills_installed": installed_candidates,
         "hooks_configured": treatment,
         "home": home,
         "codex_home": codex_home,
@@ -178,11 +221,13 @@ def _run_live_arm(
     skill_source: Path, skill_sha256: str, case_id: str, timeout: int,
     treatment: bool, auth_source: Path, answer_sink: list[str] | None = None,
     installed_python: Path | None = None,
+    candidate_skills: tuple[tuple[Path, str], ...] = (),
+    allow_openrouter_key: bool = False,
 ) -> dict[str, Any]:
     profile = _prepare_profile(
         home=home, skill_source=skill_source, skill_sha256=skill_sha256,
         treatment=treatment, auth_source=auth_source,
-        installed_python=installed_python,
+        installed_python=installed_python, candidate_skills=candidate_skills,
     )
     if "failure" in profile:
         return _safe_failure(profile["failure"])
@@ -190,6 +235,8 @@ def _run_live_arm(
     env = _core._isolated_environment(home=home, isolated_python=isolated_python)
     if installed_python is not None:
         env.pop("PYTHONPATH", None)
+    if allow_openrouter_key and treatment and case_id == "C03":
+        env["OPENROUTER_API_KEY"] = os.environ["OPENROUTER_API_KEY"]
     started = time.monotonic()
     try:
         process = subprocess.Popen(
@@ -217,6 +264,7 @@ def _run_live_arm(
         "auth_copied": profile["auth_copied"],
         "skill_installed": True,
         "skill_sha256": skill_sha256,
+        "candidate_skills_installed": profile["candidate_skills_installed"],
         "hooks_configured": treatment,
         "event_count": parsed["event_count"],
         "partial_event_stream": bool(failure),
@@ -228,6 +276,8 @@ def _run_live_arm(
         "first_action": parsed["first_action"],
         "advice_id_before_first_tool": parsed["advice_id_before_first_tool"],
     }
+    if case_id == "C03":
+        result["agent_reported_candidate_ids"] = parsed["agent_reported_candidate_ids"]
     if treatment:
         result["advice_id"] = parsed["advice_id"]
         metrics = _core.read_safe_metrics(
@@ -248,7 +298,8 @@ def _run_live_arm(
 
 def _mock_arm(*, case_id: str, treatment: bool, skill_sha256: str) -> dict[str, Any]:
     """Return deterministic synthetic metadata; no Codex or network process is started."""
-    advice = treatment and case_id in {"C01", "C02"}
+    advice = treatment and case_id in {"C01", "C02", "C03"}
+    category = "review" if case_id == "C03" else "codex-setup" if case_id in {"C01", "C02"} else "none"
     return {
         "status": "not_run",
         "execution": "mocked",
@@ -263,7 +314,7 @@ def _mock_arm(*, case_id: str, treatment: bool, skill_sha256: str) -> dict[str, 
         "advisor_metrics": (
             [{
                 "event": "UserPromptSubmit",
-                "category": "codex-setup" if advice else "none",
+                "category": category,
                 "status": "local" if advice else "skipped",
                 "duration_ms": 0.25,
                 "trace": "abcdef12" if advice else None,
@@ -335,7 +386,8 @@ def run_pair(
     reasoning_effort: str = "medium", codex: str | None = None,
     rng: Any = None, auth_root: Path | None = None, skill_source: Path | None = None,
     blind_dir: Path | None = None, cases: tuple[str, ...] = CASE_IDS,
-    installed_python: Path | None = None,
+    installed_python: Path | None = None, allow_openrouter_key: bool = False,
+    review_skill_sources: tuple[tuple[Path, str], ...] | None = None,
 ) -> dict[str, Any]:
     if mode not in {"run", "mock", "dry-run"}:
         raise ValueError("mode must be run, mock, or dry-run")
@@ -349,6 +401,14 @@ def run_pair(
         raise ValueError("an explicit Codex model is required")
     if blind_dir is not None and mode != "run":
         raise ValueError("blind answer capture requires a live run")
+    if allow_openrouter_key and (mode != "run" or cases != ("C03",)):
+        raise ValueError("OpenRouter key forwarding is limited to a live C03-only pair")
+    if mode == "run" and "C03" in cases and not allow_openrouter_key:
+        raise ValueError("a live C03 pair requires explicit OpenRouter key forwarding opt-in")
+    if mode == "run" and "C03" in cases and installed_python is None:
+        raise ValueError("a live C03 pair requires the explicit installed v0.1.12 interpreter")
+    if allow_openrouter_key and not os.environ.get("OPENROUTER_API_KEY"):
+        raise ValueError("OpenRouter API key is unavailable")
     if installed_python is not None:
         if not installed_python.is_absolute() or not installed_python.is_file():
             raise ValueError("installed Python must be an existing absolute file")
@@ -359,6 +419,14 @@ def run_pair(
     source_home = auth_root or _source_auth_root()
     skill_path = skill_source or _source_skill_root(source_home)
     skill_sha256 = _skill_digest(skill_path)
+    if "C03" in cases:
+        review_skills = review_skill_sources or _review_skill_sources(source_home)
+        expected_ids = tuple(skill for _, _, skill in REVIEW_SKILL_LAYOUTS)
+        actual_ids = tuple(Path(relative).name for _, relative in review_skills)
+        if actual_ids != expected_ids:
+            raise ValueError("review skill sources must match the two curated candidates")
+    else:
+        review_skills = ()
     executable = codex or (shutil.which("codex") if mode == "run" else None)
     if mode == "run" and not executable:
         raise RuntimeError("Codex CLI is unavailable")
@@ -376,7 +444,7 @@ def run_pair(
         "model": model if mode == "run" else None,
         "reasoning_effort": reasoning_effort,
         "timeout_seconds_per_arm": timeout,
-        "openrouter_key_forwarded": False,
+        "openrouter_key_forwarded": bool(allow_openrouter_key),
         "advisor_source": "installed-release" if installed_python is not None else "checkout",
         "advisor_version": EXPECTED_INSTALLED_VERSION if installed_python is not None else None,
         "sandbox": "read-only",
@@ -388,16 +456,21 @@ def run_pair(
     with tempfile.TemporaryDirectory(prefix="jevcompass-codex-setup-") as temporary:
         work = Path(temporary)
         for case_id in order:
+            source_fixture = FIXTURE
+            if case_id == "C03":
+                source_fixture = work / case_id / "synthetic-review-fixture"
+                _write_review_fixture(source_fixture)
             arm_order = ["baseline", "treatment"]
             (rng or random.SystemRandom()).shuffle(arm_order)
             arms: dict[str, tuple[Path, Path]] = {}
             digests = []
             skill_digests = []
+            candidate_skill_digests = tuple(_skill_digest(source) for source, _ in review_skills)
             for label in ("baseline", "treatment"):
                 home = work / case_id / f"{label}-home"
                 home.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
                 fixture_copy = work / case_id / f"{label}-fixture"
-                digests.append(_core.copy_fixture(FIXTURE, fixture_copy))
+                digests.append(_core.copy_fixture(source_fixture, fixture_copy))
                 arms[label] = (home, fixture_copy)
                 skill_digests.append(skill_sha256)
             if digests[0] != digests[1]:
@@ -412,7 +485,7 @@ def run_pair(
                     profile = _prepare_profile(
                         home=home, skill_source=skill_path, skill_sha256=skill_sha256,
                         treatment=treatment, auth_source=None,
-                        installed_python=installed_python,
+                        installed_python=installed_python, candidate_skills=review_skills,
                     )
                     arm_result = {
                         "status": "not_run",
@@ -421,19 +494,24 @@ def run_pair(
                         "auth_copied": False,
                         "skill_installed": "failure" not in profile,
                         "skill_sha256": skill_sha256,
+                        "candidate_skills_installed": profile.get("candidate_skills_installed", []),
+                        "candidate_skill_digests": list(candidate_skill_digests),
                         "hooks_configured": treatment and "failure" not in profile,
                     }
                 elif mode == "mock":
                     profile = _prepare_profile(
                         home=home, skill_source=skill_path, skill_sha256=skill_sha256,
                         treatment=treatment, auth_source=None,
-                        installed_python=installed_python,
+                        installed_python=installed_python, candidate_skills=review_skills,
                     )
                     arm_result = (
                         _safe_failure(profile["failure"])
                         if "failure" in profile
                         else _mock_arm(case_id=case_id, treatment=treatment, skill_sha256=skill_sha256)
                     )
+                    if "failure" not in profile and case_id == "C03":
+                        arm_result["candidate_skills_installed"] = profile["candidate_skills_installed"]
+                        arm_result["candidate_skill_digests"] = list(candidate_skill_digests)
                 else:
                     assert executable and model
                     captured_answer: list[str] | None = [] if blind_dir is not None else None
@@ -443,6 +521,8 @@ def run_pair(
                         skill_sha256=skill_sha256, case_id=case_id, timeout=timeout,
                         treatment=treatment, auth_source=auth_source,
                         answer_sink=captured_answer, installed_python=installed_python,
+                        candidate_skills=review_skills,
+                        allow_openrouter_key=allow_openrouter_key,
                     )
                     if captured_answer:
                         blind_entries.append({
@@ -455,6 +535,10 @@ def run_pair(
                 "fixture_sha256": digests[0],
                 "fixture_copies_identical": True,
                 "skill_copies_identical": skill_digests[0] == skill_digests[1],
+                "candidate_skill_digests": list(candidate_skill_digests),
+                "candidate_skill_copies_identical": True,
+                "fresh_jev_cache": case_id == "C03",
+                "pair_scope": "delivery smoke; treatment-only remote key, not efficacy comparison" if case_id == "C03" else "supplemental paired probe",
                 "routine_negative_control": case_id == "R10",
                 "arms": arm_results,
             }
@@ -484,6 +568,10 @@ def main(argv: list[str] | None = None) -> int:
                         help="select one or more cases; default is C01 and R10")
     parser.add_argument("--installed-python", type=Path,
                         help="absolute interpreter path of installed JevCompass 0.1.12 release")
+    parser.add_argument(
+        "--allow-openrouter-key", action="store_true",
+        help="explicitly forward OPENROUTER_API_KEY to the treatment arm of a live C03-only synthetic pair",
+    )
     args = parser.parse_args(argv)
     selected_mode = "dry-run" if args.dry_run else "mock" if args.mock else "run"
     if selected_mode == "run" and not args.model:
@@ -494,6 +582,7 @@ def main(argv: list[str] | None = None) -> int:
             reasoning_effort=args.reasoning_effort, blind_dir=args.blind_dir,
             cases=tuple(args.case) if args.case else CASE_IDS,
             installed_python=args.installed_python,
+            allow_openrouter_key=args.allow_openrouter_key,
         )
     except FileNotFoundError as error:
         code = "skill_unavailable" if "skill" in str(error) else "fixture_unavailable"
@@ -503,6 +592,7 @@ def main(argv: list[str] | None = None) -> int:
         message = str(error)
         code = (
             "auth_unavailable" if "auth" in message else
+            "openrouter_key_unavailable" if "OpenRouter" in message else
             "codex_unavailable" if "CLI" in message else
             "model_required" if "model" in message else "setup_failed"
         )

@@ -35,6 +35,23 @@ def make_skill(root: Path) -> Path:
     return skill
 
 
+def make_review_skills(root: Path) -> tuple[tuple[Path, str], ...]:
+    sources = []
+    for package, version, skill_name in runner.REVIEW_SKILL_LAYOUTS:
+        source = (
+            root / "plugins" / "cache" / "claude-code-workflows" / package
+            / version / "skills" / skill_name
+        )
+        source.mkdir(parents=True)
+        (source / "SKILL.md").write_text(
+            f"---\nname: {skill_name}\ndescription: Synthetic review candidate.\n---\n",
+            encoding="utf-8",
+        )
+        relative = f"claude-code-workflows/{package}/{version}/skills/{skill_name}"
+        sources.append((source, relative))
+    return tuple(sources)
+
+
 class CodexSetupPairTests(unittest.TestCase):
     def test_mock_pair_is_supplemental_randomized_and_metadata_only(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -161,6 +178,122 @@ class CodexSetupPairTests(unittest.TestCase):
             args, kwargs = launch.call_args
             self.assertEqual(args[0][1], "-I")
             self.assertNotIn("PYTHONPATH", kwargs["env"])
+
+    def test_c03_review_fixture_and_installed_profile_expose_two_skill_candidates(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            stock_skill = make_skill(root)
+            review_skills = make_review_skills(root)
+            self.assertEqual(runner._review_skill_sources(root), review_skills)
+            self.assertEqual(
+                __import__("jevcompass.advisor", fromlist=["classify_task"]).classify_task(
+                    runner.CASE_PROMPTS["C03"]
+                ),
+                ("review", "python"),
+            )
+            delivered = runner._core.parse_event_stream(
+                [
+                    json.dumps({"type": "item.completed", "item": {
+                        "type": "agent_message",
+                        "text": "JevCompass advice ID: 12345678; code-review-excellence security-requirement-extraction",
+                    }}),
+                    json.dumps({"type": "item.started", "item": {
+                        "type": "command_execution", "name": "exec_command", "command": "pwd",
+                    }}),
+                ],
+                start_monotonic=0,
+                known_candidate_ids=runner._core._known_catalog_ids(),
+            )
+            self.assertTrue(delivered["advice_id_before_first_tool"])
+            self.assertEqual(
+                delivered["agent_reported_candidate_ids"],
+                ["code-review-excellence", "security-requirement-extraction"],
+            )
+            fixture = root / "fixture"
+            runner._write_review_fixture(fixture)
+            self.assertIn("return value - 1", (fixture / "counter.py").read_text(encoding="utf-8"))
+            digest = runner._skill_digest(stock_skill)
+            profiles = []
+            for label in ("baseline", "treatment"):
+                profile = runner._prepare_profile(
+                    home=root / label, skill_source=stock_skill, skill_sha256=digest,
+                    treatment=label == "treatment", auth_source=None,
+                    candidate_skills=review_skills,
+                )
+                profiles.append(profile)
+                self.assertEqual(
+                    profile["candidate_skills_installed"],
+                    ["code-review-excellence", "security-requirement-extraction"],
+                )
+                with mock.patch.dict("os.environ", {"CODEX_HOME": str(profile["codex_home"])}):
+                    from jevcompass.catalog import candidates
+                    available = candidates("review", "any", "python", limit=20)
+                skill_ids = {item["id"] for item in available if item["kind"] == "skill"}
+                self.assertTrue({"code-review-excellence", "security-requirement-extraction"} <= skill_ids)
+                for _, _, skill_name in runner.REVIEW_SKILL_LAYOUTS:
+                    self.assertTrue((profile["codex_home"] / "skills" / skill_name / "SKILL.md").is_file())
+            self.assertEqual(
+                [runner._skill_digest(p["codex_home"] / "plugins" / "cache" / "claude-code-workflows"
+                                      / package / version / "skills" / skill)
+                 for p in profiles for package, version, skill in runner.REVIEW_SKILL_LAYOUTS],
+                [runner._skill_digest(source) for _ in profiles for source, _ in review_skills],
+            )
+
+    def test_c03_requires_explicit_key_opt_in_and_only_passes_it_to_treatment(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            stock_skill = make_skill(root)
+            review_skills = make_review_skills(root)
+            with self.assertRaisesRegex(ValueError, "requires explicit"):
+                runner.run_pair(
+                    mode="run", model="synthetic-model", cases=("C03",), auth_root=root,
+                    skill_source=stock_skill, review_skill_sources=review_skills,
+                )
+            with mock.patch.dict("os.environ", {"OPENROUTER_API_KEY": "synthetic-secret"}):
+                prepared = {
+                    "auth_copied": True,
+                    "candidate_skills_installed": ["code-review-excellence", "security-requirement-extraction"],
+                    "isolated_python": root / "python",
+                }
+                with mock.patch.object(runner, "_prepare_profile", return_value=prepared), \
+                     mock.patch.object(runner._core, "_collect_events", return_value=([], [], None)), \
+                     mock.patch.object(runner._core, "read_safe_metrics", return_value=[]), \
+                     mock.patch.object(runner.subprocess, "Popen", return_value=mock.Mock(returncode=0)) as launch:
+                    arm_results = []
+                    for treatment in (False, True):
+                        arm_results.append(runner._run_live_arm(
+                            codex="codex", model="synthetic-model", reasoning_effort="low",
+                            fixture=root, home=root / str(treatment), skill_source=stock_skill,
+                            skill_sha256=runner._skill_digest(stock_skill), case_id="C03", timeout=3,
+                            treatment=treatment, auth_source=root / "auth.json",
+                            candidate_skills=review_skills, allow_openrouter_key=True,
+                        ))
+                    baseline_env = launch.call_args_list[0].kwargs["env"]
+                    treatment_env = launch.call_args_list[1].kwargs["env"]
+            self.assertNotIn("OPENROUTER_API_KEY", baseline_env)
+            self.assertEqual(treatment_env["OPENROUTER_API_KEY"], "synthetic-secret")
+            self.assertEqual(baseline_env["HOME"], str(root / "False"))
+            self.assertEqual(baseline_env["XDG_CACHE_HOME"], str(root / "False" / ".cache"))
+            self.assertNotIn("synthetic-secret", json.dumps(arm_results))
+
+    def test_c03_pair_isolated_copy_and_remote_opt_in_are_metadata_only(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            stock_skill = make_skill(root)
+            review_skills = make_review_skills(root)
+            result = runner.run_pair(
+                mode="dry-run", model=None, cases=("C03",), auth_root=root,
+                skill_source=stock_skill, review_skill_sources=review_skills,
+                rng=ReverseRandom(),
+            )
+            case = result["cases"]["C03"]
+            self.assertTrue(case["fixture_copies_identical"])
+            self.assertTrue(case["candidate_skill_copies_identical"])
+            self.assertEqual(case["arms"]["baseline"]["candidate_skills_installed"],
+                             case["arms"]["treatment"]["candidate_skills_installed"])
+            self.assertFalse(result["openrouter_key_forwarded"])
+            self.assertFalse(case["arms"]["treatment"]["model_called"])
+            self.assertIn("NO JEVCOMPASS ADVISORY", runner.CASE_PROMPTS["C03"])
 
     def test_c02_preflight_is_same_prompt_in_both_arms_and_not_core_case(self):
         with tempfile.TemporaryDirectory() as temporary:
