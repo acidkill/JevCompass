@@ -50,6 +50,7 @@ CATALOG_TASKS = {
     "documentation": "document",
     "coding": "code",
     "codebase": "codebase",
+    "history": "history",
     "review": "review",
     "source-review": "source-review",
     "planning": "planning",
@@ -64,6 +65,7 @@ TASK_PATTERNS = (
     ("api-design", re.compile(r"(?=.*\b(?:api|endpoint|openapi|rest|graphql)\b)(?:(?=.*\b(?:design\w*|architect\w*|defin\w*|specif\w*|zaprojekt\w*|projektow\w*)\b)|(?=.*\b(?:review|audit)\b)(?=.*\b(?:contract|schema|specification)\b))", re.I)),
     ("infrastructure", re.compile(r"\b(kubernetes|kubectl|helm|k3s|deploy|deployment|cluster|terraform|infra|wdroż|klaster)\b", re.I)),
     ("source-review", re.compile(r"^(?!.*\b(?:code|diff|pull request|implementation|api|readme)\b)(?=.*\b(?:review|audit|przegląd|przejrz|audyt)\w*\b)(?=.*\b(?:proposal|offer|(?:price|pricing|client|commercial)\s+quote|bid|draft|invoice|ofert|propozycj|wycen)\w*\b)", re.I)),
+    ("history", re.compile(r"(?=.*\b(?:git|commit|branch|repository|repo|code|source|function|file|module|repozytorium|kod|plik|funkcj|moduł)\w*\b)(?=.*(?:\bhistory\b|\bhistori\w*|\bprovenance\b|\bblame\b|\bintroduced\b|\bauthored\b|\bwho\s+(?:changed|introduced|authored)\b|\bkto\s+(?:zmienił|wprowadził)\b))", re.I)),
     ("review", re.compile(r"\b(review|audit|diff|pull request|pr|przegląd|audyt)\b", re.I)),
     ("debugging", re.compile(r"\b(debug|diagnos|bug|error|failure|regress|defect|napraw|błąd|awari)\w*|\bfix(?:es|ed|ing)?\b", re.I)),
     ("planning", re.compile(r"\b(roadmap|task list|task breakdown|list of tasks|prepare.{0,60}task|list[ęa]\s+(?:tasków|taskow|zadań|zadan)|zaplanuj|przygotuj.{0,60}(?:task|zadani|plan)|opracuj\s+plan|priorytetyz\w*|plan\s+(?:a|an|the|this|how|for|to)\b|implementation plan|planowanie|planowania)\b", re.I)),
@@ -101,7 +103,7 @@ def classify_task(prompt: str) -> tuple[str, str] | None:
     domain = next((name for name, pattern in DOMAIN_PATTERNS if pattern.search(prompt)), "general")
     if domain == "codex" and task_kind not in {"documentation", "debugging"}:
         domain = next((name for name, pattern in DOMAIN_PATTERNS if name != "codex" and pattern.search(prompt)), "general")
-    if task_kind in {"project-setup", "api-design"} and domain == "general":
+    if task_kind in {"project-setup", "api-design", "history"} and domain == "general":
         domain = "software"
     return task_kind, domain
 

@@ -252,6 +252,22 @@ class AdvisorTests(unittest.TestCase):
         self.assertEqual(advisor.classify_task("Build documentation for the Python project"), ("documentation", "python"))
         self.assertIsNone(advisor.classify_task("Explain the timeout handling briefly"))
 
+    def test_explicit_repository_history_is_distinct_from_general_code_explanation(self):
+        history_prompts = (
+            "Inspect the commit history of this repository to find when the authentication function was introduced.",
+            "Review git blame for this module and identify who changed the retry logic.",
+            "Przejrzyj historię zmian w repozytorium i ustal, kto zmienił tę funkcję, a następnie wskaż powiązany commit i wpływ na moduł.",
+        )
+        for prompt in history_prompts:
+            with self.subTest(prompt=prompt):
+                self.assertEqual(advisor.classify_task(prompt), ("history", "software"))
+        self.assertEqual(advisor.classify_task(
+            "Inspect the authentication function and explain how retries work in the module."
+        ), ("codebase", "general"))
+        self.assertNotEqual(advisor.classify_task(
+            "Write documentation on the history of science for a museum."
+        ), ("history", "software"))
+
     def test_investigation_of_code_flow_receives_codebase_advice(self):
         prompt = "Investigate how the authentication flow crosses modules and where token refresh state is mutated."
         self.assertEqual(advisor.classify_task(prompt), ("codebase", "general"))

@@ -87,7 +87,7 @@ jevcompass recommend --category debugging --domain python --role primary
 jevcompass recommend --category documentation --domain codex
 ```
 
-Categories: `infrastructure`, `debugging`, `testing`, `research`, `api-design`, `documentation`, `package-docs`, `coding`, `codebase`, `review`, `source-review`, `planning`, `operations`, `project-setup`. Domains: `general`, `software`, `python`, `web`, `shell`, `kubernetes`, `codex`. Roles: `primary`, `planner`, `explorer`, `worker`. Use `--help` for the current CLI contract. `package-docs` is for Python package installation documentation; `codex` domain is for substantive Codex documentation or troubleshooting. The command accepts no prompt, paths, or code.
+Categories: `infrastructure`, `debugging`, `testing`, `research`, `api-design`, `documentation`, `package-docs`, `coding`, `codebase`, `history`, `review`, `source-review`, `planning`, `operations`, `project-setup`. Domains: `general`, `software`, `python`, `web`, `shell`, `kubernetes`, `codex`. Roles: `primary`, `planner`, `explorer`, `worker`. Use `--help` for the current CLI contract. `package-docs` is for Python package installation documentation; `codex` domain is for substantive Codex documentation or troubleshooting. The command accepts no prompt, paths, or code.
 
 ## Privacy and diagnostics
 

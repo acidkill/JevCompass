@@ -64,6 +64,24 @@ class CatalogTests(unittest.TestCase):
             self.assertEqual(catalog.candidates("api-design", "any", "python"), [])
             self.assertEqual(catalog.candidates("document", "any", "python"), [])
 
+    def test_history_candidates_need_git_checkout_and_do_not_expand_codebase(self):
+        with patch.object(catalog, "discover_installed_skills", return_value={}), \
+                patch.object(catalog, "_configured_mcp_servers", return_value=set()), \
+                patch.object(catalog, "_codex_shell_available", return_value=True), \
+                patch.object(catalog.shutil, "which", side_effect=lambda name: "/usr/bin/git" if name == "git" else None), \
+                patch.object(catalog, "_inside_git_checkout", return_value=True):
+            history = {item["id"] for item in catalog.candidates("history", "any", "software")}
+            codebase = {item["id"] for item in catalog.candidates("codebase", "any", "software")}
+        self.assertEqual(history, {"exec_command", "git"})
+        self.assertEqual(codebase, {"exec_command"})
+        with patch.object(catalog, "discover_installed_skills", return_value={}), \
+                patch.object(catalog, "_configured_mcp_servers", return_value=set()), \
+                patch.object(catalog, "_codex_shell_available", return_value=True), \
+                patch.object(catalog.shutil, "which", side_effect=lambda name: "/usr/bin/git" if name == "git" else None), \
+                patch.object(catalog, "_inside_git_checkout", return_value=False):
+            outside = {item["id"] for item in catalog.candidates("history", "any", "software")}
+        self.assertEqual(outside, {"exec_command"})
+
     def test_blank_codex_home_has_no_phantom_packaging_skill(self):
         with tempfile.TemporaryDirectory() as blank_home, \
                 patch.dict(catalog.os.environ, {"CODEX_HOME": blank_home}, clear=True), \
