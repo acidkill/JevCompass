@@ -14,14 +14,14 @@ A useful skill can be buried in your setup. JevCompass discovers installed candi
 
 ## Quick start
 
-Requirements: Python 3.11 or newer, [pipx](https://pipx.pypa.io/stable/installation/), and a Codex installation with hooks enabled. The commands below install from this GitHub source checkout.
+Requirements: Python 3.11 or newer, [pipx](https://pipx.pypa.io/stable/installation/), and a Codex installation with hooks enabled. Download the wheel from the [latest GitHub release](https://github.com/acidkill/JevCompass/releases/latest), verify its SHA-256 against the release asset digest, then run:
 
 ```bash
-git clone https://github.com/acidkill/JevCompass.git
-cd JevCompass
-pipx install .
+pipx install ./jevcompass-0.1.12-py3-none-any.whl
 jevcompass recommend --category review --domain python
 ```
+
+To install from source instead, clone this repository and run `pipx install .` from the checkout. JevCompass is not yet on PyPI.
 
 The recommendation is environment-dependent: it can show local advice, an unranked shortlist, or no recommendation. The manual command uses explicit category/domain metadata and never takes a task prompt.
 
