@@ -1,3 +1,11 @@
+# JevCompass v0.1.15
+
+This patch narrows security-specific skill suggestions: an ordinary code review no longer offers `security-requirement-extraction` solely because it matches the broad software domain. Explicit security, authentication, and signed-webhook tasks can still receive it. The signal is checked locally; task text is never sent to Jev. Manual `recommend --domain security` remains available.
+
+The default installation has two nonblocking advisory hooks. Agent-spawn advice remains opt-in. Required project instructions and tests remain authoritative. This release changes candidate relevance; it does not establish faster task completion or higher task quality. See [PILOT.md](PILOT.md) for the current evidence limits.
+
+---
+
 # JevCompass v0.1.14
 
 This release respects installed skill MCP prerequisites during candidate discovery (PR #40) and adds **optional** task-aware advice when Codex creates an agent (PR #42). The default installation still registers only `UserPromptSubmit` and `SubagentStart`. The extra hook is matched to agent creation only and never gates shell, Git, Helm or network commands.
