@@ -721,6 +721,14 @@ class PilotCliCoreTests(unittest.TestCase):
             )):
                 with self.assertRaisesRegex(RuntimeError, "does not match"):
                     runner._check_installed_release(interpreter)
+            with mock.patch.object(runner.subprocess, "run", return_value=mock.Mock(
+                returncode=0, stdout="0.1.19\n",
+            )):
+                runner._check_installed_release(interpreter, "0.1.19")
+                with self.assertRaisesRegex(RuntimeError, "does not match"):
+                    runner._check_installed_release(interpreter, "0.1.16")
+            with self.assertRaisesRegex(ValueError, "numeric X.Y.Z"):
+                runner._check_installed_release(interpreter, "latest")
             with self.assertRaisesRegex(ValueError, "absolute"):
                 runner._check_installed_release(Path("relative-python"))
 
@@ -930,13 +938,13 @@ class PilotCliCoreTests(unittest.TestCase):
                 result = runner.run_pilot(
                     mode="run", model="synthetic-model", cases=("P03",),
                     codex="/unused/codex", installed_python=interpreter,
-                    allow_openrouter_key=True, rng=OrderedRandom(),
+                    installed_version="0.1.19", allow_openrouter_key=True, rng=OrderedRandom(),
                 )
             self.assertEqual(set(observed), {
                 (False, interpreter, True), (True, interpreter, True),
             })
             self.assertEqual(result["advisor_source"], "installed-distribution")
-            self.assertEqual(result["advisor_version"], "0.1.16")
+            self.assertEqual(result["advisor_version"], "0.1.19")
             self.assertTrue(result["openrouter_key_forwarded"])
             self.assertNotIn("synthetic-secret", json.dumps(result))
             with mock.patch.dict(os.environ, {"OPENROUTER_API_KEY": "synthetic-secret"}), \

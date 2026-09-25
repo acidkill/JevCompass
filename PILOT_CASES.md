@@ -86,15 +86,16 @@ To evaluate a frozen CLI case against the released package, use an isolated inst
 
 ```sh
 python3.11 scripts/pilot_cli_core.py --dry-run --cases P03 \
-  --installed-python /absolute/path/to/pipx/venvs/jevcompass/bin/python
+  --installed-python /absolute/path/to/pipx/venvs/jevcompass/bin/python \
+  --installed-version 0.1.19
 python3.11 scripts/pilot_cli_core.py --cases P03 --model gpt-6-luna \
   --reasoning-effort low --preflight --blind-dir /private/new/output-directory \
   --blind-quality-artifacts \
   --installed-python /absolute/path/to/pipx/venvs/jevcompass/bin/python \
-  --allow-openrouter-key
+  --installed-version 0.1.19 --allow-openrouter-key
 ```
 
-The runner verifies the interpreter resolves exactly JevCompass 0.1.16 without inherited Python paths or credentials; the treatment hook is installed from that distribution. The flag forwards `OPENROUTER_API_KEY` to **both Codex processes** for equal environments. Their tool subprocesses may inherit it too, so run only fictional fixtures in isolated profiles, review the trust boundary before opting in, and keep private receipt/mapping files off Git. The default source-checkout runner remains keyless and measures local fallback, not remote Jev selection. A dry run checks pairing and version, not delivery. Blind quality ratings must be frozen before opening the private mapping. Neither an exit code nor a hook metric alone establishes advice usefulness.
+The runner verifies the interpreter resolves exactly the specified numeric JevCompass version (default 0.1.16 for historical reproducibility) without inherited Python paths or credentials; the treatment hook is installed from that distribution. The flag forwards `OPENROUTER_API_KEY` to **both Codex processes** for equal environments. Their tool subprocesses may inherit it too, so run only fictional fixtures in isolated profiles, review the trust boundary before opting in, and keep private receipt/mapping files off Git. The default source-checkout runner remains keyless and measures local fallback, not remote Jev selection. A dry run checks pairing and version, not delivery. Blind quality ratings must be frozen before opening the private mapping. Neither an exit code nor a hook metric alone establishes advice usefulness.
 
 ## Fixture and scoring rules
 
@@ -109,7 +110,7 @@ The runner verifies the interpreter resolves exactly JevCompass 0.1.16 without i
 
 ## Equal bundled-skill opt-in for the CLI core pilot
 
-For installed JevCompass 0.1.16, `python3 scripts/pilot_cli_core.py --dry-run --cases P01 --installed-python /absolute/path/to/pipx/venvs/jevcompass/bin/python --with-bundled-skills` creates two isolated profiles, installs the published `jevcompass-focused-tests` and `jevcompass-regression-review` skills in each, and verifies their content parity. The same flag works in a live pair with `--model`, `--reasoning-effort`, `--blind-dir`, and `--blind-quality-artifacts`. It cannot be used with the source or mock runner. Skill installation uses the installed release and keeps the OpenRouter key out of that setup process; the keyless default yields local recommendations, not a remote Jev decision. The CLI emits names, counts and SKILL.md content hashes, never skill bodies. This opt-in changes the candidate profile in both arms, not the frozen task rubric. Confirm delivery before the first tool and score artifact quality and required checks blind before reading the mapping. The two P01 outcomes in PILOT.md tie on code quality and alternate which arm has a recognized unittest exit. Treat `focused_unittest_exit: null` as unobserved validation, not proof that no test ran. A successful generic pytest run does not satisfy P01's specified unittest command. Neither pair is accepted.
+For installed JevCompass 0.1.19, `python3 scripts/pilot_cli_core.py --dry-run --cases P01 --installed-python /absolute/path/to/pipx/venvs/jevcompass/bin/python --installed-version 0.1.19 --with-bundled-skills` creates two isolated profiles, installs the published `jevcompass-focused-tests` and `jevcompass-regression-review` skills in each, and verifies their content parity. The same flag works in a live pair with `--model`, `--reasoning-effort`, `--blind-dir`, and `--blind-quality-artifacts`. It cannot be used with the source or mock runner. Skill installation uses the installed release and keeps the OpenRouter key out of that setup process; the keyless default yields local recommendations, not a remote Jev decision. The CLI emits names, counts and SKILL.md content hashes, never skill bodies. This opt-in changes the candidate profile in both arms, not the frozen task rubric. Confirm delivery before the first tool and score artifact quality and required checks blind before reading the mapping. The two P01 outcomes in PILOT.md tie on code quality and alternate which arm has a recognized unittest exit. Treat `focused_unittest_exit: null` as unobserved validation, not proof that no test ran. A successful generic pytest run does not satisfy P01's specified unittest command. Neither pair is accepted.
 
 ## Source-mode skill experiment
 
