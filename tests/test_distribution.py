@@ -20,6 +20,8 @@ def source_tree(root: Path, version: str = "7.4.2") -> dict[str, bytes]:
         "src/jevcompass/__init__.py": b'"""Fresh package."""\n',
         "src/jevcompass/cli.py": b"def main():\n    return 0\n",
         "src/jevcompass/catalog_data.json": b'{"skills": []}\n',
+        "src/jevcompass/bundled_skills/jevcompass-focused-tests/SKILL.md": b"---\nname: jevcompass-focused-tests\ndescription: Focused tests.\n---\n",
+        "src/jevcompass/bundled_skills/jevcompass-regression-review/SKILL.md": b"---\nname: jevcompass-regression-review\ndescription: Regression review.\n---\n",
     }
     for name, data in files.items():
         path = root / name
@@ -124,6 +126,22 @@ class DistributionFreshnessTests(unittest.TestCase):
 
                 with self.assertRaisesRegex(AssertionError, "package files differ"):
                     self._check_variant(kind, omit_module)
+
+    def test_missing_or_stale_bundled_skill_fails(self):
+        name = "src/jevcompass/bundled_skills/jevcompass-focused-tests/SKILL.md"
+        for kind in ("wheel", "sdist"):
+            with self.subTest(kind=kind, issue="missing"):
+                def omit_skill(files):
+                    del files[name]
+
+                with self.assertRaisesRegex(AssertionError, "package files differ"):
+                    self._check_variant(kind, omit_skill)
+            with self.subTest(kind=kind, issue="stale"):
+                def stale_skill(files):
+                    files[name] = b"outdated guidance\\n"
+
+                with self.assertRaisesRegex(AssertionError, "stale packaged file"):
+                    self._check_variant(kind, stale_skill)
 
     def test_unexpected_module_fails(self):
         for kind in ("wheel", "sdist"):

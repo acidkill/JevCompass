@@ -35,6 +35,20 @@ jevcompass doctor
 
 **What changes:** `jevcompass install` backs up an existing Codex `hooks.json` and registers two advisory hooks. Review and trust the registrations in Codex's `/hooks` screen, then start a fresh session. The default config is under `~/.codex`; set `CODEX_HOME` to use a different Codex home. A successful `doctor` check confirms local registration, not that Codex loaded or delivered advice.
 
+## Optional skills for everyday coding
+
+A plain Codex profile may have no reviewed skills to recommend. To add two small, local workflows for focused tests and regression review, opt in explicitly:
+
+```bash
+jevcompass skills install --dry-run
+jevcompass skills install
+jevcompass doctor
+```
+
+The installer copies only `jevcompass-focused-tests` and `jevcompass-regression-review` into your Codex skill directory. With the default profile it uses `~/.agents/skills`; with `CODEX_HOME` set it uses that profile's `skills/` directory. It never changes hooks, executes scripts, calls Jev, or overwrites a different skill with the same name. Identical repeats are no-ops. Read the bundled `SKILL.md` files before enabling them, and start a fresh Codex session if they do not appear. Remove those two directories yourself after checking their contents if you no longer want the skills.
+
+These skills provide task guidance, not test results or a guarantee of fewer regressions. An isolated local check confirmed that the coding and review candidate lists include them after installation; agent use and outcome benefit remain to be measured.
+
 ## Verify advice in a fresh session
 
 After `jevcompass install`, inspect the two registrations in Codex `/hooks`, trust them if prompted, and start a **new** Desktop or CLI session. For a focused check, give Codex a substantive task such as planning a small Python package and ask it to report any `JevCompass advice ID` and suggested IDs from its initial context **before its first tool call**. An absent ID means that session did not receive advice; `doctor` and local hook metrics alone cannot prove delivery. The advisor may intentionally stay silent when only a generic shell command is available.
@@ -67,6 +81,7 @@ Your shortlist depends on the tools and skills actually installed. An unranked f
 - **Subagent hook:** `SubagentStart` can suggest role-level candidates for Codex's built-in `explorer` and `worker` roles. That event does not include the subagent's task text.
 - **Optional spawn advice:** `jevcompass install --spawn-advice` adds a narrowly matched `PreToolUse` hook for agent creation only (`Agent`, `spawn_agent`, or `collaborationspawn_agent`). It locally classifies readable child task text or a descriptive `task_name`, then sends only coarse metadata and reviewed candidate descriptions to Jev. It never gates a spawn, shell, Git, Helm, or network command. If neither field provides a clear category or no useful candidates exist, it stays silent. A normal reinstall preserves the opt-in; `jevcompass install --disable-spawn-advice` removes it. Review and trust the updated hook in `/hooks`, then start a fresh session. This is experimental and disabled by default; verify the child sees an advice ID before its first tool before relying on it.
 - **Manual mode:** `jevcompass recommend --category CATEGORY --domain DOMAIN [--role ROLE]` requests advice using explicit metadata. Use `jevcompass recommend --help` for accepted values.
+- **Optional skill pack:** `jevcompass skills install` makes two reviewed coding workflows available locally so a vanilla profile can receive a specific skill suggestion. It is separate from the hook installer and is never automatic.
 - **Uncertainty:** Local fallback advice is labeled unranked. If there is no useful candidate, JevCompass can stay silent. A configured MCP server is not assumed to be callable in the active session.
 - **Control:** Advice does not run tools or skills, change permissions, block commands, or replace project instructions and required checks.
 
