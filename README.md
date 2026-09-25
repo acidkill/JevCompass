@@ -33,7 +33,7 @@ jevcompass install
 jevcompass doctor
 ```
 
-**What changes:** `jevcompass install` backs up an existing Codex `hooks.json` and registers two advisory hooks. Review and trust the registrations in Codex's `/hooks` screen, then start a fresh session. The default config is under `~/.codex`; set `CODEX_HOME` to use a different Codex home. A successful `doctor` check confirms local registration, not that Codex loaded or delivered advice.
+**What changes:** `jevcompass install` backs up an existing Codex `hooks.json` and registers two advisory hooks. Review and trust the registrations in Codex's `/hooks` screen, then start a fresh session. The default config is under `~/.codex`; set `CODEX_HOME` to use a different Codex home. A successful `doctor` check confirms local registration, not that Codex loaded or delivered advice. Recent hook metrics are matched to this Codex profile using a short local hash; records without a profile marker do not count as evidence for a fresh profile.
 
 ## Optional skills for everyday coding
 

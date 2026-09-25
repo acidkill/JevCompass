@@ -175,6 +175,7 @@ class AdvisorTests(unittest.TestCase):
         self.assertTrue(output["hookSpecificOutput"]["additionalContext"].startswith("JevCompass advice ID: 0123abcd"))
         record = json.loads(advisor.LOG_PATH.read_text().splitlines()[-1])
         self.assertEqual(record["trace"], "0123abcd")
+        self.assertRegex(record["profile"], r"^[0-9a-f]{16}$")
         self.assertNotIn("private-client-secret-123", advisor.LOG_PATH.read_text())
 
     def test_hook_emits_unique_advice_id_on_cache_hit_and_logs_same_id(self):
