@@ -37,7 +37,7 @@ jevcompass doctor
 
 ## Optional skills for everyday coding
 
-A plain Codex profile may have no reviewed skills to recommend. To add two small, local workflows for focused tests and regression review, opt in explicitly:
+**Source-only experiment:** the published 0.1.15 package does not include this command. A plain Codex profile may have no reviewed skills to recommend. If you installed the current source checkout, you can explicitly add two small, local workflows for focused tests and regression review:
 
 ```bash
 jevcompass skills install --dry-run
@@ -47,7 +47,7 @@ jevcompass doctor
 
 The installer copies only `jevcompass-focused-tests` and `jevcompass-regression-review` into your Codex skill directory. With the default profile it uses `~/.agents/skills`; with `CODEX_HOME` set it uses that profile's `skills/` directory. It never changes hooks, executes scripts, calls Jev, or overwrites a different skill with the same name. Identical repeats are no-ops. Read the bundled `SKILL.md` files before enabling them, and start a fresh Codex session if they do not appear. Remove those two directories yourself after checking their contents if you no longer want the skills.
 
-These skills provide task guidance, not test results or a guarantee of fewer regressions. A fresh isolated CLI profile recognized both skills; in two synthetic tasks the agent named the relevant skill before its first tool. Wider agent use, Desktop behavior, and outcome benefit remain to be measured.
+These skills provide task guidance, not test results or a guarantee of fewer regressions. A fresh isolated CLI profile recognized both skills before the first tool. Two synthetic matched pairs tied on blind quality, and a focused unittest retry tied on test results while the skill arm reached validation later. These small trials show discovery without a demonstrated speed or quality benefit; Desktop behavior remains unverified. This optional command exists on source `main` and is not yet in the published 0.1.15 package.
 
 ## Verify advice in a fresh session
 
