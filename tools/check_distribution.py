@@ -63,6 +63,13 @@ def check(archive: Path, source_root: Path = PROJECT_ROOT) -> None:
         if name in files:
             assert files[name] == expected.read_bytes(), f"{archive}: stale packaged file {name}"
 
+    expected_license = (source_root / "LICENSE").read_bytes()
+    license_members = [
+        data for name, data in files.items()
+        if (name == "LICENSE" if is_sdist else name.endswith(".dist-info/licenses/LICENSE"))
+    ]
+    assert license_members == [expected_license], f"{archive}: missing or stale Apache license"
+
     for name, data in files.items():
         assert not name.startswith(("tests/", ".github/", "PILOT.md")), name
         assert (name.startswith((package_prefix, "src/jevcompass.egg-info/",
@@ -78,6 +85,8 @@ def check(archive: Path, source_root: Path = PROJECT_ROOT) -> None:
     assert len(metadata) == 1, f"{archive}: expected one {metadata_suffix}"
     parsed = BytesParser().parsebytes(metadata[0])
     assert parsed.get("Name", "").lower() == "jevcompass", f"{archive}: invalid distribution name"
+    assert parsed.get("License-Expression") == "Apache-2.0", f"{archive}: missing Apache SPDX metadata"
+    assert "LICENSE" in (parsed.get_all("License-File") or []), f"{archive}: missing license file metadata"
     assert parsed.get("Version") == expected_version, (
         f"{archive}: metadata version {parsed.get('Version')!r} != pyproject version {expected_version!r}"
     )

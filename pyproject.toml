@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,6 +7,8 @@ name = "jevcompass"
 version = "0.1.11"
 description = "Privacy-first tool and skill recommendations for Codex Desktop and CLI, powered by Jev"
 readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
 keywords = ["codex", "codex-cli", "ai-agents", "agent-skills", "mcp", "tool-selection", "developer-tools", "jev"]
 classifiers = [
