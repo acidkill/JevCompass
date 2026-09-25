@@ -63,6 +63,16 @@ The source checkout's installer copies four skills: `jevcompass-focused-tests`, 
 
 Suggestions for these skills are conditional on the task matching their guidance in `SKILL.md`; a suggestion is not a requirement. This remains an experiment with no demonstrated speed or quality benefit. An installed v0.1.22 CLI surrogate for project setup delivered local `exec_command`/`git` advice before the first tool, but tied on blind scaffold quality. A subsequent paired CLI repeat retained a recognized successful unittest in both arms; it does not verify the planned Desktop case or show a performance benefit. See [pilot evidence](PILOT.md). A separate API-contract skill prototype was withheld after a opt-in blinded P07 trial in which the baseline authored the requested contract and the advised arm did not; see [pilot evidence](PILOT.md). It is not part of the installer. In one source-built C05 pair, the agent read the suggested `create-plan` skill, but the blinded scores tied 6/7. This single result does not establish causality or effectiveness. That C05 pair did not test Desktop. Separate named-role Desktop worker smokes confirmed advice delivery and one actual focused-skill read after opt-in installation, without measuring a speed or quality gain. The skills and installer are included since v0.1.16 but are not installed unless you opt in. They are absent from v0.1.15.
 
+## Post-change test order (source candidate)
+
+The source checkout has an explicit `jevcompass tests rank` command for a coding agent that already knows the changed surface, plausible focused checks, and the repository-required gate. It **prints an order; it does not execute tests**. This command is not in the published v0.1.22 package, and no speed or quality improvement has been established.
+
+```json
+{"surface":"api","candidates":[{"id":"unit","kind":"unit","command":"python -m unittest tests.test_api_unit","relevance":0.5},{"id":"contract","kind":"contract","command":"python -m unittest tests.test_api_contract","relevance":0.5}],"required":[{"id":"ci","command":"python -m unittest discover -s tests -v"}]}
+```
+
+Save this as `test-order.json`, then run `jevcompass tests rank --input test-order.json --json`. `status: remote-choice` means Jev ranked genuine competing test kinds; `no-remote-choice` uses stable local relevance order when one choice is obvious, Jev is unavailable, or its answer is uncertain. The required list is returned unchanged and must still be run. Commands and caller IDs stay local: only coarse surface, test kinds, generic descriptors and opaque IDs may reach OpenRouter. Do not put secrets in command strings; this local file and CLI output are readable on your machine. Candidate discovery from changed files and matched outcome trials are still planned.
+
 ## Add your own installed skill
 
 The built-in catalog cannot know when a private skill fits your work. Register a short, generic description explicitly, after reading its `SKILL.md` and checking the fields you are willing to share:
