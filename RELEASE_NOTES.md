@@ -1,3 +1,9 @@
+# Unreleased CLI efficiency telemetry (no new package release)
+
+The pilot runner now records privacy-safe, bounded root-turn `turn.completed` token counters and full Codex process elapsed time in blind v2 receipts; old v1 receipts remain readable. Cached input and reasoning output are subsets of input and output. A fresh installed-v0.1.22 keyless P08 pair tied on authored quality and recognized successful unittest in both arms; advised treatment took 28.18 s versus 35.07 s baseline, with 71,558 versus 84,762 input tokens (uncached input differed by −148). This one pair is not a causal speed or billing-cost result. Two simpler P01/P03 pairs recorded total completion times, but both hooks abstained and P01 lacked requested tests in both arms, so neither demonstrates an advice benefit. An in-session Desktop prompt exposed advice ID `44d672d6` before the primary agent's next tool, matched to a 74.85 ms local metric; fresh-session delivery remains open. See [PILOT.md](PILOT.md) for scoring and limits.
+
+---
+
 # Unreleased P08 receipt correction (no new package release)
 
 P08 blind receipts now retain allowlisted scaffold presence and observed unittest exit while dropping command content. In a fresh installed-v0.1.22 keyless CLI surrogate pair, both arms authored coherent packages and had recognized successful unittest exits; treatment reported local `exec_command`/`git` advice before first tool (`project-setup/local`, 10.46 ms). The blind quality scores were frozen before mapping (SHA-256 `d438a21996ab95d3cf39bf80902fe5915f10f01d165da1868f5b9e22a781b723`). This is a check-preservation observation, not a demonstrated speed/quality improvement or a Desktop P08 result. The published distribution is unchanged.

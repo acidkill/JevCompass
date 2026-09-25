@@ -51,7 +51,7 @@ def make_fake_codex(path: Path) -> Path:
         "message = 'JevCompass advice ID: abcdef12\\nCandidate: pytest\\nSynthetic completion.' if treatment else 'Synthetic completion.'\n"
         "print(json.dumps({'type':'item.completed','item':{'type':'agent_message','text':message}}), flush=True)\n"
         "print(json.dumps({'type':'item.started','item':{'type':'command_execution','name':'exec_command','command':'DO NOT RETAIN'}}), flush=True)\n"
-        "print(json.dumps({'type':'turn.completed'}), flush=True)\n",
+        "print(json.dumps({'type':'turn.completed','usage':{'input_tokens':100,'cached_input_tokens':20,'cache_write_input_tokens':0,'output_tokens':40,'reasoning_output_tokens':5}}), flush=True)\n",
         encoding="utf-8",
     )
     path.chmod(0o700)
@@ -147,6 +147,111 @@ class PilotCliCoreTests(unittest.TestCase):
         if not runner.FIXTURE.is_dir():
             self.skipTest("independently prepared cli_core fixture is not present yet")
 
+    def test_turn_usage_events_allowlist_and_validation(self):
+        usage = {
+            "input_tokens": 120,
+            "cached_input_tokens": 30,
+            "cache_write_input_tokens": 4,
+            "output_tokens": 52,
+            "reasoning_output_tokens": 10,
+        }
+        events = [
+            json.dumps({"type": "turn.completed", "usage": usage, "transcript": "PRIVATE TEXT"}),
+        ]
+        parsed = runner.parse_event_stream(events, start_monotonic=0.0, event_times=[0.2])
+        self.assertEqual(parsed["token_usage_status"], "available")
+        self.assertEqual(parsed["token_usage"], usage)
+        self.assertNotIn("PRIVATE TEXT", json.dumps(parsed))
+        self.assertNotIn("usage", json.dumps(parsed["events"]))
+
+        without_usage = runner.parse_event_stream(
+            [json.dumps({"type": "turn.completed"})], start_monotonic=0.0,
+        )
+        self.assertEqual(without_usage["token_usage_status"], "unavailable")
+        self.assertIsNone(without_usage["token_usage"])
+        for malformed in (
+            {**usage, "prompt": "must not be retained"},
+            {**usage, "output_tokens": True},
+            {**usage, "input_tokens": -1},
+            {**usage, "input_tokens": runner.MAX_USAGE_COUNTER + 1},
+            {**usage, "cached_input_tokens": 121},
+            {**usage, "reasoning_output_tokens": 53},
+        ):
+            parsed = runner.parse_event_stream(
+                [json.dumps({"type": "turn.completed", "usage": malformed})],
+                start_monotonic=0.0,
+            )
+            self.assertEqual(parsed["token_usage_status"], "invalid")
+            self.assertIsNone(parsed["token_usage"])
+        duplicate = runner.parse_event_stream(
+            [json.dumps({"type": "turn.completed", "usage": usage}),
+             json.dumps({"type": "turn.completed", "usage": usage})],
+            start_monotonic=0.0,
+        )
+        self.assertEqual(duplicate["token_usage_status"], "invalid")
+        self.assertIsNone(duplicate["token_usage"])
+
+    def test_score_aggregates_usage_and_total_wall_time_and_reads_legacy_v1(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            receipts, mapping_path, scores_path, digest = make_scoring_inputs(
+                root, ("P01", "P03"),
+            )
+            mapping = json.loads(mapping_path.read_text(encoding="utf-8"))
+            for index, entry in enumerate(mapping["arms"]):
+                receipt_path = receipts / f"{entry['arm_token']}.json"
+                receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+                treatment = entry["arm"] == "treatment"
+                offset = index // 2
+                receipt["token_usage_status"] = "available"
+                receipt["token_usage"] = {
+                    "input_tokens": 1000 + offset * 100 + (200 if treatment else 0),
+                    "cached_input_tokens": 20 + (10 if treatment else 0),
+                    "cache_write_input_tokens": 2 + (3 if treatment else 0),
+                    "output_tokens": 100 + (10 if treatment else 0),
+                    "reasoning_output_tokens": 15 + (5 if treatment else 0),
+                }
+                receipt["total_wall_time_ms"] = 4000 + offset * 1000 + (500 if treatment else 0)
+                receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+            result = runner.score_blind_pilot(receipts, mapping_path, scores_path, digest)
+            self.assertEqual(result["token_usage"]["paired_cases"], 2)
+            self.assertEqual(result["token_usage"]["median_treatment_minus_baseline"]["input_tokens"], 200.0)
+            self.assertEqual(result["token_usage"]["median_treatment_minus_baseline"]["uncached_input_tokens_proxy"], 190.0)
+            self.assertEqual(result["token_usage"]["median_treatment_minus_baseline"]["total_tokens_proxy"], 210.0)
+            self.assertEqual(result["total_wall_time"]["paired_cases"], 2)
+            self.assertEqual(result["total_wall_time"]["median_treatment_minus_baseline_ms"], 500.0)
+            self.assertIn("No billing-dollar estimate", result["token_usage"]["interpretation"])
+
+            for legacy_path in receipts.glob("*.json"):
+                legacy = json.loads(legacy_path.read_text(encoding="utf-8"))
+                for field in ("token_usage_status", "token_usage", "total_wall_time_ms"):
+                    legacy.pop(field)
+                legacy["schema"] = "jevcompass-blind-cli-core-v1"
+                legacy_path.write_text(json.dumps(legacy), encoding="utf-8")
+            legacy_result = runner.score_blind_pilot(receipts, mapping_path, scores_path, digest)
+            self.assertEqual(legacy_result["token_usage"]["arms_by_status"]["legacy_v1"], 4)
+            self.assertEqual(legacy_result["token_usage"]["paired_cases"], 0)
+            self.assertEqual(legacy_result["total_wall_time"]["paired_cases"], 0)
+
+    def test_score_rejects_malformed_or_unknown_usage_receipt_fields(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            receipts, mapping_path, scores_path, digest = make_scoring_inputs(root)
+            receipt_path = next(iter(receipts.glob("*.json")))
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            receipt["token_usage_status"] = "available"
+            receipt["token_usage"] = {
+                "input_tokens": 1,
+                "cached_input_tokens": 0,
+                "cache_write_input_tokens": 0,
+                "output_tokens": 1,
+                "reasoning_output_tokens": 0,
+                "transcript": "must not be accepted",
+            }
+            receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "invalid token usage counters"):
+                runner.score_blind_pilot(receipts, mapping_path, scores_path, digest)
+
     def test_score_blind_pilot_valid_pair_aggregates_but_never_accepts_overall(self):
         with tempfile.TemporaryDirectory() as directory:
             receipts, mapping, scores, digest = make_scoring_inputs(Path(directory))
@@ -159,6 +264,9 @@ class PilotCliCoreTests(unittest.TestCase):
         self.assertEqual(result["task_quality"]["treatment_better"], 1)
         self.assertEqual(result["first_productive_action"]["eligible_paired_cases"], 1)
         self.assertEqual(result["first_productive_action"]["eligible_median_treatment_minus_baseline_ms"], -3000.0)
+        self.assertEqual(result["token_usage"]["paired_cases"], 0)
+        self.assertEqual(result["token_usage"]["arms_by_status"]["unavailable"], 2)
+        self.assertEqual(result["total_wall_time"]["paired_cases"], 0)
         self.assertEqual(result["blocks"], 0)
         self.assertEqual(result["privacy_disclosures"], 0)
         self.assertEqual(result["recommendation_usefulness"]["status"], "unscored")
@@ -433,7 +541,9 @@ class PilotCliCoreTests(unittest.TestCase):
             receipts = [json.loads(path.read_text(encoding="utf-8")) for path in evaluator_files]
             self.assertNotIn("cases", result)
             self.assertEqual({item["case_id"] for item in receipts}, {"P01"})
-            self.assertEqual({item["schema"] for item in receipts}, {"jevcompass-blind-cli-core-v1"})
+            self.assertEqual({item["schema"] for item in receipts}, {"jevcompass-blind-cli-core-v2"})
+            self.assertEqual({item["token_usage_status"] for item in receipts}, {"available"})
+            self.assertTrue(all(item["total_wall_time_ms"] is not None for item in receipts))
             for path, receipt in zip(evaluator_files, receipts):
                 self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
                 self.assertIn(receipt["first_action_class"], {"source_read", "test", "edit", "other"})
