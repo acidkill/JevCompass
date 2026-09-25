@@ -16,9 +16,9 @@ Run each case in two arms with identical Codex version, model, permissions, temp
 |---|---|---|---|---|
 | P01 | Substantive prompt | CLI | `coding / python` | Implement a small Python helper that normalizes whitespace in a string, and add focused tests for empty input and repeated spaces. |
 | P02 | Substantive prompt | Desktop | `review / python` | Review the Python change for defects in its handling of empty input and repeated spaces; report findings with file and line references. |
-| P03 | Substantive prompt | CLI | `debugging / software` | Fix the Bash script's unset-variable defect and run a syntax check on the edited script. |
+| P03 | Substantive prompt | CLI | `debugging / shell` | Fix the Bash script's unset-variable defect and run a syntax check on the edited script. |
 | P04 | Substantive prompt | Desktop | `testing / python` | Add a focused Python test for the timeout fallback, then run that test and report its result. |
-| P05 | Substantive prompt | CLI | `documentation / python` | Update the Python project README's install instructions to match the current CLI help and existing test behavior. |
+| P05 | Substantive prompt | CLI | `package-docs / python` | Update the Python project README's install instructions to match the current CLI help and existing test behavior. |
 | P06 | Substantive prompt | Desktop | `planning / python` | Prepare a short implementation plan for adapting a Python package to support an optional timeout setting, including tests and compatibility checks. |
 | P07 | Substantive prompt | CLI | `api-design / python` | Design an API contract for a Python endpoint that accepts a request and returns a validated status result; include input and error cases. |
 | P08 | Substantive prompt | Desktop | `project-setup / python` | Create a new Python package repository scaffold with minimal metadata and a smoke test; do not publish or contact external services. |
@@ -109,4 +109,4 @@ The runner verifies the interpreter resolves exactly JevCompass 0.1.16 without i
 
 ## Preflight verification
 
-The exact eight core prompt texts and three supplementary Desktop routine prompts were run through the local classifier without a Jev/OpenRouter request; all prompts matched the expected category/domain and all nine routine prompts returned `None`. The six core subagent categories are fixed role profiles, not inferred from task text. These checks validate the case bank only; no Codex arms were run and no live-pilot score is claimed.
+The exact core prompt texts require a fresh local classification before each study because product routing can evolve. The current CLI bank is P01 `coding/python`, P03 `debugging/shell`, P05 `package-docs/python`, P07 `api-design/python`; an offline test guards these labels and all six CLI routine controls. Earlier preflight labels for P03 and P05 were stale and must not be used as coverage evidence. Desktop prompt and routine classifications require their own current-host check. The six core subagent categories are fixed role profiles, not inferred from task text. These checks validate the case bank only; no Codex arms were run and no live-pilot score is claimed.

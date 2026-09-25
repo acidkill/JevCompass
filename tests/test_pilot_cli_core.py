@@ -659,6 +659,18 @@ class PilotCliCoreTests(unittest.TestCase):
             )
             self.assertFalse(marker.exists())
 
+    def test_frozen_cli_case_bank_labels_match_current_local_classifier(self):
+        expected = {
+            "P01": ("coding", "python"),
+            "P03": ("debugging", "shell"),
+            "P05": ("package-docs", "python"),
+            "P07": ("api-design", "python"),
+        }
+        for case_id, label in expected.items():
+            self.assertEqual(classify_task(runner.PROMPTS[case_id]), label, case_id)
+        for case_id in runner.ROUTINE_CASES:
+            self.assertIsNone(classify_task(runner.PROMPTS[case_id]), case_id)
+
     def test_routine_controls_are_read_only_and_case_sandbox_is_explicit(self):
         self.assertEqual(runner.READ_ONLY_CASES, {"P07", "R01", "R02", "R03", "R04", "R05", "R06"})
         self.assertEqual({case for case in runner.CASE_IDS if runner._case_settings(case)["sandbox"] == "workspace-write"}, {"P01", "P03", "P05"})
