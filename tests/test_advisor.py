@@ -678,6 +678,33 @@ class AdvisorTests(unittest.TestCase):
             client.assert_not_called()
         self.assertIn("specific-tool", specific_output["hookSpecificOutput"]["additionalContext"])
 
+    def test_spawn_avoids_shell_and_git_only_advice_but_keeps_specific_candidates(self):
+        shell = {**ITEMS[1], "availability": "available"}
+        git = {"id": "git", "kind": "tool", "capability": "Inspect repository changes",
+               "use_when": "review tracked changes", "avoid_when": "no repository",
+               "availability": "available"}
+        event = {"hook_event_name": "PreToolUse", "tool_name": "spawn_agent",
+                 "tool_input": {"task_name": "review_python_correctness",
+                                "message": "Review a fictional Python change and its required tests."}}
+        with mock.patch.object(advisor, "candidates", return_value=[shell, git]), \
+                mock.patch.object(advisor, "DecisionsClient") as client:
+            self.assertIsNone(advisor.evaluate(event, trace="spawn123"))
+            client.assert_not_called()
+        record = json.loads(advisor.LOG_PATH.read_text().splitlines()[-1])
+        self.assertEqual(record["status"], "low-signal-skip")
+        self.assertEqual(record["category"], "review")
+
+        skill = {**ITEMS[2], "availability": "available"}
+        with mock.patch.object(advisor, "candidates", return_value=[shell, git, skill]), \
+                mock.patch.object(advisor, "_judge", return_value=None):
+            advised = advisor.evaluate(event)
+        self.assertIn("`create-plan`", advised["hookSpecificOutput"]["additionalContext"])
+
+        with mock.patch.object(advisor, "candidates", return_value=[shell, git]), \
+                mock.patch.object(advisor, "_judge", return_value=None):
+            prompt_advice = advisor.select_advice("UserPromptSubmit", "project-setup", "software", "primary")
+        self.assertIn("`git`", prompt_advice["hookSpecificOutput"]["additionalContext"])
+
     def test_jev_failures_fall_back_locally_without_blocking(self):
         event = {"hook_event_name": "UserPromptSubmit", "permission_mode": "plan", "prompt": "Investigate a Python runtime error"}
         for effect in (DecisionsError("unavailable"), ValueError("invalid response")):
