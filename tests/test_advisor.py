@@ -295,24 +295,37 @@ class AdvisorTests(unittest.TestCase):
         self.assertIn("python -m package --help", context)
         self.assertIn("pre-existing test failures", context)
 
-    def test_package_docs_single_shell_gets_local_guidance_but_generic_singleton_stays_silent(self):
+    def test_package_docs_single_shell_skips_but_specific_skill_survives(self):
         shell = {
             "id": "exec_command", "kind": "tool", "capability": "Bounded local shell commands",
             "use_when": "inspect project files and run checks", "avoid_when": "unclear mutations",
             "availability": "available",
         }
+        skill = {
+            "id": "python-packaging", "kind": "skill", "capability": "Python packaging guidance",
+            "use_when": "Python package distribution and install docs",
+            "avoid_when": "generic documentation", "availability": "available",
+        }
         with mock.patch.object(advisor, "candidates", return_value=[shell]), \
                 mock.patch.object(advisor, "_judge") as judge, \
-                mock.patch.object(advisor, "_metric"):
-            result = advisor.select_advice("UserPromptSubmit", "package-docs", "python", "primary")
+                mock.patch.object(advisor, "_metric") as metric:
+            self.assertIsNone(advisor.select_advice(
+                "UserPromptSubmit", "package-docs", "python", "primary"
+            ))
             self.assertIsNone(advisor.select_advice(
                 "UserPromptSubmit", "documentation", "python", "primary"
             ))
         judge.assert_not_called()
+        self.assertTrue(all(call.args[2] == "low-signal-skip" for call in metric.call_args_list))
+
+        with mock.patch.object(advisor, "candidates", return_value=[shell, skill]), \
+                mock.patch.object(advisor, "_read_cache", return_value=None), \
+                mock.patch.object(advisor, "_judge", return_value=None), \
+                mock.patch.object(advisor, "_metric"):
+            result = advisor.select_advice("UserPromptSubmit", "package-docs", "python", "primary")
         context = result["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("exec_command", context)
+        self.assertIn("python-packaging", context)
         self.assertIn("Preserve its exact supported CLI help invocation", context)
-        self.assertIn("Local unranked fallback", context)
 
     def test_plan_review_explanation_and_project_setup_are_classified_locally(self):
         self.assertEqual(advisor.classify_task("Review the Python authentication changes and their callers"), ("review", "python"))

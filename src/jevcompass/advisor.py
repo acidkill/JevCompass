@@ -327,7 +327,7 @@ def select_advice(
         return None
     # The built-in shell is a generic capability, not a meaningful singleton
     # recommendation for either a task hook or a role-only subagent hook.
-    if len(items) == 1 and items[0]["id"] == "exec_command" and category != "package-docs":
+    if len(items) == 1 and items[0]["id"] == "exec_command":
         _metric(name, category, "low-signal-skip", started, trace)
         return None
     # A spawn-time hint containing only the generic shell and Git consumes the
