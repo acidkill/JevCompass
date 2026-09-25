@@ -21,7 +21,7 @@ pipx install jevcompass
 jevcompass recommend --category review --domain python
 ```
 
-To install from source instead, clone this repository and run `pipx install .` from the checkout. For a reproducible published baseline, use `pipx install jevcompass==0.1.15`; check [releases](https://github.com/acidkill/JevCompass/releases) for newer verified versions. The latest source on `main` may contain unreleased changes.
+To install from source instead, clone this repository and run `pipx install .` from the checkout. For a reproducible release, use `pipx install jevcompass==0.1.16`; check [releases](https://github.com/acidkill/JevCompass/releases) for the current verified version. The latest source on `main` may contain unreleased changes.
 
 The recommendation is environment-dependent: it can show local advice, an unranked shortlist, or no recommendation. The manual command uses explicit category/domain metadata and never takes a task prompt.
 
@@ -47,7 +47,7 @@ jevcompass doctor
 
 The installer copies only `jevcompass-focused-tests` and `jevcompass-regression-review` into your Codex skill directory. With the default profile it uses `~/.agents/skills`; with `CODEX_HOME` set it uses that profile's `skills/` directory. It never changes hooks, executes scripts, calls Jev, or overwrites a different skill with the same name. Identical repeats are no-ops. Read the bundled `SKILL.md` files before enabling them, and start a fresh Codex session if they do not appear. Remove those two directories yourself after checking their contents if you no longer want the skills.
 
-Suggestions for these skills are conditional on the task matching their guidance in `SKILL.md`; a suggestion is not a requirement. This remains an experiment with no demonstrated speed or quality benefit. In one source-built C05 pair, the agent read the suggested `create-plan` skill, but the blinded scores tied 6/7. This single result does not establish causality or effectiveness. Desktop behavior remains unverified. The skills and installer are absent from v0.1.15; check the registry or release page before assuming v0.1.16 is published.
+Suggestions for these skills are conditional on the task matching their guidance in `SKILL.md`; a suggestion is not a requirement. This remains an experiment with no demonstrated speed or quality benefit. In one source-built C05 pair, the agent read the suggested `create-plan` skill, but the blinded scores tied 6/7. This single result does not establish causality or effectiveness. Desktop behavior remains unverified. The skills and installer are included in v0.1.16 but are not installed unless you opt in. They are absent from v0.1.15.
 
 ## Enable optional Jev ranking
 
@@ -127,7 +127,7 @@ Evidence is deliberately limited to the environments tested:
 - A fresh isolated Codex CLI 0.155.1 smoke using the published v0.1.12 wheel received `openai-docs` advice before its first tool, with a matching local hook ID. Additional synthetic CLI pairs confirmed remote Jev advice IDs before the first tool. The published v0.1.13 wheel adds bounded skill use/skip conditions; these checks do not prove broad coverage or effectiveness.
 - The initial four blinded synthetic CLI pairs tied on task quality. Later focused pairs had mixed results, including one baseline win and one treatment win; no repeatable speed or quality improvement has been demonstrated.
 - One native Desktop `explorer` child reported an advice ID before its first tool in a correlated smoke test. Other subagent probes were inconclusive, and fresh Desktop prompt delivery has not been confirmed.
-- The published v0.1.15 package is available on PyPI and was installed with `pipx` from the registry in an isolated Python 3.11 profile: the default installation registered two hooks, no `PreToolUse` gate, and `doctor` passed. It includes the local security-skill relevance filter from PR #45. This validates installation, not task outcomes.
+- [PyPI v0.1.16](https://pypi.org/project/jevcompass/0.1.16/) and the [GitHub release](https://github.com/acidkill/JevCompass/releases/tag/v0.1.16) contain byte-identical Python modules, catalog and optional skill files. The exact-tag archive passed 254 Python 3.11 tests and an isolated pipx wheel install with two default hooks, no `PreToolUse` gate and `doctor` PASS. This validates packaging and local setup, not task outcomes or Desktop/macOS runtime.
 - The v0.1.14 source includes the changes from PR #40 (respect installed skill MCP prerequisites), PR #41 (C05 equal-environment comparison tied on blind scores), and PR #42 (opt-in agent-spawn advice). The spawn check was an isolated CLI source-checkout run: the child saw an advice ID before its first tool using the descriptive task title because the host message was encoded. The v0.1.14 wheel also passed an isolated pipx install and clean synthetic CLI delivery check: the child's context contained a spawn advice ID before its first tool, though it did not repeat the ID before that tool. Desktop and macOS remain unverified, and no outcome benefit has been demonstrated. The default install remains two advisory hooks; routine commands are not gated.
 - macOS runtime behavior and broad usefulness remain unverified.
 
