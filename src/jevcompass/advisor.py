@@ -88,6 +88,10 @@ DOMAIN_PATTERNS = (
     ("web", re.compile(r"\b(web|frontend|browser|react|typescript|javascript)\b", re.I)),
     ("shell", re.compile(r"\b(bash|shell)\b", re.I)),
 )
+SECURITY_INTENT = re.compile(
+    r"\b(?:secur\w*|auth(?:entication|orization)?\b|permission\w*|signature\w*|signed\b|secret\w*|credential\w*|replay\b|csrf\b|injection\b|vulnerab\w*|bezpiecze\w*|uprawnieni\w*|uwierzytel\w*|podpis\w*)",
+    re.I,
+)
 MIN_TASK_CHARS = 20
 SIMPLE_REQUEST = re.compile(
     r"^\s*(?:run|execute|show|list|find|search|grep|report|check|display|explain|describe|inspect|investigate|read|change|update|edit|adjust|modify|rename|uruchom|pokaż|znajdź|sprawdź|wyjaśnij|opisz|przejrzyj|zmień|zaktualizuj|popraw)\b",
@@ -299,10 +303,17 @@ def _load_advice_dependencies() -> None:
         globals().setdefault("configured_model", configured_model)
 
 
-def select_advice(name: str, category: str, domain: str, role: str, trace: str | None = None) -> dict[str, Any] | None:
+def select_advice(
+    name: str, category: str, domain: str, role: str, trace: str | None = None,
+    security_relevant: bool = False,
+) -> dict[str, Any] | None:
     _load_advice_dependencies()
     started = time.monotonic()
     pool = candidates(task_kind=CATALOG_TASKS[category], role="any", domain=domain, limit=20)
+    # Security guidance requires an explicit local task signal. A broad software
+    # domain match alone cannot make it relevant to an ordinary code review.
+    if not security_relevant and domain != "security":
+        pool = [item for item in pool if item["id"] != "security-requirement-extraction"]
     if category == "codex-setup":
         # Office-document tooling is a broad `document` match, not Codex setup guidance.
         pool = [item for item in pool if item["id"] == "openai-docs"]
@@ -384,8 +395,11 @@ def _spawn_intent(event: dict[str, Any]) -> tuple[str, str, str] | None:
 def evaluate(event: dict[str, Any], trace: str | None = None) -> dict[str, Any] | None:
     name = event.get("hook_event_name")
     started = time.monotonic()
+    security_relevant = False
     if name == "UserPromptSubmit":
-        parsed = classify_task(event.get("prompt"))
+        prompt = event.get("prompt")
+        parsed = classify_task(prompt)
+        security_relevant = isinstance(prompt, str) and bool(SECURITY_INTENT.search(prompt))
         if parsed is None:
             if trace:
                 _metric(name, "none", "classification-skip", started, trace)
@@ -408,9 +422,17 @@ def evaluate(event: dict[str, Any], trace: str | None = None) -> dict[str, Any] 
                 _metric(name, "none", "classification-skip", started, trace)
             return None
         category, domain, role = intent
+        arguments = event.get("tool_input", {})
+        if isinstance(arguments, dict):
+            # The child message may be an opaque host token. Only descriptive
+            # text can supply an extra local signal; neither is sent to Jev.
+            security_relevant = any(
+                isinstance(value, str) and bool(SECURITY_INTENT.search(value))
+                for value in (arguments.get("task_name"), arguments.get("message"))
+            )
     else:
         return None
-    return select_advice(name, category, domain, role, trace)
+    return select_advice(name, category, domain, role, trace, security_relevant=security_relevant)
 
 
 def hook_main() -> int:

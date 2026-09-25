@@ -363,7 +363,9 @@ class AdvisorTests(unittest.TestCase):
         with mock.patch.object(advisor, "select_advice", return_value={"hookSpecificOutput": {"additionalContext": "test"}}) as select:
             output = advisor.evaluate({"hook_event_name": "UserPromptSubmit", "prompt": prompt})
         self.assertIsNotNone(output)
-        select.assert_called_once_with("UserPromptSubmit", "codebase", "software", "primary", None)
+        select.assert_called_once_with(
+            "UserPromptSubmit", "codebase", "software", "primary", None, security_relevant=True
+        )
 
     def test_proposal_review_uses_source_review_without_exposing_content(self):
         prompt = ("Review a synthetic client proposal draft against the repository map and canonical pricing table. "
@@ -731,6 +733,44 @@ assert "jevcompass.decisions" not in sys.modules
         with mock.patch.object(advisor, "candidates", return_value=[]), mock.patch.object(advisor, "DecisionsClient") as client:
             self.assertIsNone(advisor.evaluate({"hook_event_name": "UserPromptSubmit", "permission_mode": "plan", "prompt": "Investigate a Python runtime error"}))
             client.assert_not_called()
+
+
+    def test_security_requirements_candidate_is_gated_by_local_relevance(self):
+        security_skill = {
+            "id": "security-requirement-extraction", "kind": "skill",
+            "capability": "Extract security requirements and controls",
+            "use_when": "security requirements, authentication, and signed webhook reviews",
+            "avoid_when": "ordinary correctness review", "availability": "available",
+        }
+        ordinary = "Review this Python parser for correctness and regressions."
+        relevant_prompts = (
+            "Plan for security requirements for authentication and signed webhook verification.",
+            "Review the Python authentication flow for security requirements.",
+            "Review whether signed webhook verification meets its security requirements.",
+        )
+        sentinel = "private-client-token-6db301"
+        explicit = (
+            "Review the Python authentication flow for security requirements and signed webhook "
+            f"verification. Keep this private value out of advice metadata: {sentinel}"
+        )
+
+        def candidate_ids_for(prompt):
+            with mock.patch.object(advisor, "candidates", return_value=[*ITEMS, security_skill]), \
+                    mock.patch.object(advisor, "_read_cache", return_value=None), \
+                    mock.patch.object(advisor, "_write_cache"), \
+                    mock.patch.object(advisor, "_metric"), \
+                    mock.patch.object(advisor, "DecisionsClient") as client:
+                client.return_value.decide.return_value = answers(answer="serena")
+                advisor.evaluate({"hook_event_name": "UserPromptSubmit", "prompt": prompt})
+                request = json.dumps(client.return_value.decide.call_args.args)
+            self.assertNotIn(sentinel, request)
+            payload = json.loads(request)[0]["candidates"]
+            return {item["id"] for item in payload}
+
+        self.assertNotIn("security-requirement-extraction", candidate_ids_for(ordinary))
+        for prompt in (*relevant_prompts, explicit):
+            with self.subTest(prompt=prompt):
+                self.assertIn("security-requirement-extraction", candidate_ids_for(prompt))
 
 
 if __name__ == "__main__":
