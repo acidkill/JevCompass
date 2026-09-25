@@ -14,9 +14,9 @@ Run each case in two arms with identical Codex version, model, permissions, temp
 
 | Case | Type | Host | Local expectation | Synthetic task |
 |---|---|---|---|---|
-| P01 | Substantive prompt | CLI | `coding / python` | Implement a small Python helper that normalizes whitespace in a string, and add focused tests for empty input and repeated spaces. |
+| P01 | Substantive prompt | CLI | `coding / python` | Implement normalize_whitespace so empty input stays empty and repeated whitespace is collapsed and trimmed. Run the existing test suite with python -m unittest discover -s tests; it includes tests/test_text.py. Do not add duplicate tests. |
 | P02 | Substantive prompt | Desktop | `review / python` | Review the Python change for defects in its handling of empty input and repeated spaces; report findings with file and line references. |
-| P03 | Substantive prompt | CLI | `debugging / shell` | Fix the Bash script's unset-variable defect and run a syntax check on the edited script. |
+| P03 | Substantive prompt | CLI | `debugging / shell` | Fix scripts/render_report.sh so running it without OUTPUT_PATH uses a safe default or exits with a clear missing-path error before expanding the variable. Run bash -n scripts/render_report.sh. |
 | P04 | Substantive prompt | Desktop | `testing / python` | Add a focused Python test for the timeout fallback, then run that test and report its result. |
 | P05 | Substantive prompt | CLI | `package-docs / python` | Update the Python project README's install instructions to match the current CLI help and existing test behavior. |
 | P06 | Substantive prompt | Desktop | `planning / python` | Prepare a short implementation plan for adapting a Python package to support an optional timeout setting, including tests and compatibility checks. |

@@ -34,8 +34,8 @@ CASE_IDS = ("P01", "P03", "P05", "P07", "P08", "R01", "R02", "R03", "R04", "R05"
 PUBLISHED_PILOT_VERSION = "0.1.16"
 BUNDLED_SKILL_NAMES = ("jevcompass-focused-tests", "jevcompass-regression-review")
 PROMPTS = {
-    "P01": "Implement a small Python helper that normalizes whitespace in a string, and add focused tests for empty input and repeated spaces.",
-    "P03": "Fix the Bash script's unset-variable defect and run a syntax check on the edited script.",
+    "P01": "Implement normalize_whitespace so empty input stays empty and repeated whitespace is collapsed and trimmed. Run the existing test suite with python -m unittest discover -s tests; it includes tests/test_text.py. Do not add duplicate tests.",
+    "P03": "Fix scripts/render_report.sh so running it without OUTPUT_PATH uses a safe default or exits with a clear missing-path error before expanding the variable. Run bash -n scripts/render_report.sh.",
     "P05": "Update the Python project README's install instructions to match the current CLI help and existing test behavior.",
     "P07": "Design and write STATUS_API.md as an API contract for the Python POST /status endpoint. Specify required and optional JSON inputs, a validated status result, successful responses, and 4xx and 5xx response cases. Do not implement a server.",
     "P08": "Create a new Python package repository scaffold in a new scaffoldpkg/ directory in this synthetic fixture. Add minimal pyproject.toml metadata, an importable src/scaffoldpkg module, and a focused unittest smoke test in tests/test_smoke.py. Run the test. Do not publish or contact external services.",
@@ -93,6 +93,7 @@ BLIND_LIMITATION = "Metadata-only receipts cannot establish blinded task correct
 BLIND_OUTCOME_KEYS = frozenset({
     "focused_unittest_exit", "unittest_invocation_observed", "unittest_completion_observed",
     "bash_syntax", "no_unset_output_path_defect",
+    "bash_syntax_command_exit", "bash_syntax_invocation_observed", "bash_syntax_completion_observed",
     "install_instruction_coherent", "help_instruction_coherent",
     "help_command_exit", "test_instruction_exit", "contract_indicators",
     "scaffold_files_present", "smoke_unittest_exit", "answer_indicator",
@@ -388,6 +389,8 @@ def _command_check_kind(command: str) -> str | None:
     lowered = command.lower()
     if "unittest" in lowered and "discover" in lowered and "tests" in lowered:
         return "fixture_tests"
+    if re.search(r"\bbash\s+-n\b", lowered) and "render_report.sh" in lowered:
+        return "bash_syntax_check"
     if "--help" in lowered and "tinytext" in lowered:
         return "cli_help"
     return None
@@ -403,7 +406,7 @@ def _fixture_outcome_checks(
     for event in events:
         check = event.get("command_check")
         exit_code = event.get("exit_code")
-        if check in {"fixture_tests", "cli_help"} and isinstance(exit_code, int) and not isinstance(exit_code, bool):
+        if check in {"fixture_tests", "cli_help", "bash_syntax_check"} and isinstance(exit_code, int) and not isinstance(exit_code, bool):
             observed_exits[check] = exit_code
     if case_id == "P01":
         exit_code = observed_exits.get("fixture_tests")
@@ -426,11 +429,24 @@ def _fixture_outcome_checks(
                 check=False,
             ).returncode == 0
         except (OSError, subprocess.TimeoutExpired):
-            return {"bash_syntax": None, "no_unset_output_path_defect": None}
-        guarded = bool(re.search(r"\$\{OUTPUT_PATH(?::[-=+?])", source)) or bool(
-            re.search(r"\[\[\s+-v\s+OUTPUT_PATH\s+\]\]", source)
-        ) or not bool(re.search(r"\$(?:\{OUTPUT_PATH\}|OUTPUT_PATH\b)", source))
-        return {"bash_syntax": syntax, "no_unset_output_path_defect": guarded}
+            syntax = None
+            source = ""
+        syntax_exit = observed_exits.get("bash_syntax_check")
+        syntax_observed = {
+            "bash_syntax_command_exit": syntax_exit == 0 if syntax_exit is not None else None,
+            "bash_syntax_invocation_observed": any(
+                event.get("command_check_started") == "bash_syntax_check" for event in events
+            ),
+            "bash_syntax_completion_observed": any(
+                event.get("command_check_completed") == "bash_syntax_check" for event in events
+            ),
+        }
+        guarded = None if syntax is None else (
+            bool(re.search(r"\$\{OUTPUT_PATH(?::[-=+?])", source))
+            or bool(re.search(r"\[\[\s+-v\s+OUTPUT_PATH\s+\]\]", source))
+            or not bool(re.search(r"\$(?:\{OUTPUT_PATH\}|OUTPUT_PATH\b)", source))
+        )
+        return {"bash_syntax": syntax, "no_unset_output_path_defect": guarded, **syntax_observed}
     if case_id == "P05":
         try:
             readme = (fixture / "README.md").read_text(encoding="utf-8", errors="replace").lower()
