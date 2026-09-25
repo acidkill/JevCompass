@@ -314,11 +314,14 @@ def main(argv: list[str] | None = None) -> int:
     recommend.add_argument("--role", choices=ROLES, default="primary")
     triage_parser = sub.add_parser("triage", help="Rank diagnostic steps from allowlisted failure metadata")
     triage_parser.add_argument("--exit-code", required=True, type=int, help="Observed failing test process exit code")
-    from .triage import FailureKind, HypothesisId
+    from .triage import FailureKind, HypothesisId, ImportObservation
     triage_parser.add_argument("--kind", action="append", required=True,
                                choices=tuple(item.value for item in FailureKind))
     triage_parser.add_argument("--hypothesis", action="append", required=True,
                                choices=tuple(item.value for item in HypothesisId))
+    triage_parser.add_argument("--import-observation", action="append",
+                               choices=tuple(item.value for item in ImportObservation),
+                               help="Allowlisted local import-spec observation; may be repeated")
     triage_parser.add_argument("--json", action="store_true", help="Print machine-readable result")
     strategy_parser = sub.add_parser("strategy", help="Choose a coding strategy from allowlisted signals")
     strategy_sub = strategy_parser.add_subparsers(dest="strategy_action", required=True)
@@ -377,8 +380,14 @@ def main(argv: list[str] | None = None) -> int:
         return _recommend(args.category, args.domain, args.role)
     if args.command == "triage":
         from .triage import triage_failure
-        result = triage_failure(tuple(FailureKind(item) for item in args.kind),
-                                tuple(HypothesisId(item) for item in args.hypothesis), args.exit_code)
+        result = triage_failure(
+            tuple(FailureKind(item) for item in args.kind),
+            tuple(HypothesisId(item) for item in args.hypothesis),
+            args.exit_code,
+            import_observations=tuple(
+                ImportObservation(item) for item in (args.import_observation or ())
+            ),
+        )
         payload = {"observed_exit_status": result.observed_exit_status,
                    "test_failed": result.test_failed, "status": result.status,
                    "steps": [{"id": step.id.value, "title": step.title,

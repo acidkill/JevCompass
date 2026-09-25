@@ -13,6 +13,7 @@ from jevcompass.triage import (
     REMOTE_CHOICE,
     FailureKind,
     HypothesisId,
+    ImportObservation,
     triage_failure,
 )
 
@@ -52,6 +53,76 @@ class TriageTests(unittest.TestCase):
                 self.assertEqual(result.status, NO_REMOTE_CHOICE)
                 self.assertEqual(result.observed_exit_status, status)
                 self.assertEqual(client.calls, [])
+
+    def test_complete_import_observations_rule_out_missing_package_locally(self):
+        client = FakeClient()
+        result = triage_failure(
+            (KIND,), HYPOTHESES, 1, client,
+            import_observations=(
+                ImportObservation.PACKAGE_PRESENT,
+                ImportObservation.TARGET_MODULE_ABSENT,
+                ImportObservation.REPLACEMENT_MODULE_PRESENT,
+            ),
+        )
+        self.assertEqual(result.status, NO_REMOTE_CHOICE)
+        self.assertEqual(result.observed_exit_status, 1)
+        self.assertEqual(
+            [step.id for step in result.steps],
+            [HypothesisId.IMPORT_PATH_CHANGED],
+        )
+        self.assertEqual(client.calls, [])
+
+    def test_contradictory_import_observations_abstain_without_remote_call(self):
+        contradictory = (
+            (ImportObservation.PACKAGE_PRESENT, ImportObservation.PACKAGE_ABSENT),
+            (ImportObservation.PACKAGE_ABSENT, ImportObservation.TARGET_MODULE_PRESENT),
+            (
+                ImportObservation.PACKAGE_PRESENT,
+                ImportObservation.TARGET_MODULE_ABSENT,
+                ImportObservation.REPLACEMENT_MODULE_PRESENT,
+                ImportObservation.REPLACEMENT_MODULE_ABSENT,
+            ),
+        )
+        for observations in contradictory:
+            with self.subTest(observations=observations):
+                client = FakeClient()
+                result = triage_failure(
+                    (KIND,), HYPOTHESES, 1, client,
+                    import_observations=observations,
+                )
+                self.assertEqual(result.status, NO_REMOTE_CHOICE)
+                self.assertEqual(result.steps, ())
+                self.assertEqual(client.calls, [])
+
+    def test_import_observations_require_enum_tokens(self):
+        for observations in (
+            ("package_present",),
+            ("/private/repo/parcelcache",),
+            "package_present",
+        ):
+            client = FakeClient()
+            with self.subTest(observations=observations), self.assertRaises(TypeError):
+                triage_failure(
+                    (KIND,), HYPOTHESES, 1, client,
+                    import_observations=observations,
+                )
+            self.assertEqual(client.calls, [])
+
+    def test_non_import_failure_keeps_existing_remote_behavior_without_evidence(self):
+        hypotheses = (
+            HypothesisId.TIMEOUT_CONTENTION,
+            HypothesisId.TIMEOUT_NONTERMINATING,
+        )
+        client = FakeClient({
+            "diagnostic": {
+                "type": "choice",
+                "choice": hypotheses[0].value,
+                "confidence": 0.9,
+            },
+        })
+        result = triage_failure((FailureKind.TIMEOUT,), hypotheses, 1, client)
+        self.assertEqual(result.status, REMOTE_CHOICE)
+        self.assertEqual(len(client.calls), 1)
 
     def test_input_requires_enum_values_and_integer_exit_status(self):
         for args in (
@@ -97,7 +168,8 @@ class TriageTests(unittest.TestCase):
     def test_request_is_allowlisted_and_contains_no_raw_diagnostics(self):
         private_values = (
             "secret prompt 7731", "/private/client/repo", "private traceback",
-            "source-code-secret", "pytest --token=hidden",
+            "source-code-secret", "pytest --token=hidden", "parcelcache.codec",
+            "parcelcache.wire", "api.py", "wire.py",
         )
         captured = {}
 
@@ -115,7 +187,13 @@ class TriageTests(unittest.TestCase):
             api_key="test-key", model="test/model", timeout=DECISION_TIMEOUT,
             transport=transport,
         )
-        result = triage_failure((KIND,), HYPOTHESES, 1, client)
+        result = triage_failure(
+            (KIND,), HYPOTHESES, 1, client,
+            import_observations=(
+                ImportObservation.PACKAGE_PRESENT,
+                ImportObservation.TARGET_MODULE_ABSENT,
+            ),
+        )
 
         self.assertEqual(result.status, REMOTE_CHOICE)
         self.assertEqual(captured["url"], ENDPOINT)
@@ -125,6 +203,7 @@ class TriageTests(unittest.TestCase):
             "test_outcome": "failed",
             "failure_kinds": ["import"],
             "hypotheses": ["import_module_missing", "import_path_changed"],
+            "import_observations": ["package_present", "target_module_absent"],
         })
         encoded = json.dumps(request)
         for private_value in private_values:

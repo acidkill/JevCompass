@@ -35,6 +35,41 @@ class TriageCliTests(unittest.TestCase):
         self.assertFalse(json.loads(output.getvalue())["test_failed"])
         client.assert_not_called()
 
+    def test_confirmed_import_layout_skips_backend_and_rules_out_missing_package(self):
+        output = io.StringIO()
+        with mock.patch("jevcompass.triage.DecisionsClient") as client, contextlib.redirect_stdout(output):
+            exit_code = main([
+                "triage", "--exit-code", "1", "--kind", "import",
+                "--hypothesis", "import_module_missing",
+                "--hypothesis", "import_path_changed",
+                "--import-observation", "package_present",
+                "--import-observation", "target_module_absent",
+                "--import-observation", "replacement_module_present",
+                "--json",
+            ])
+        result = json.loads(output.getvalue())
+        self.assertEqual(exit_code, 0)
+        self.assertFalse(result["executed"])
+        self.assertEqual(result["status"], "no-remote-choice")
+        self.assertEqual(result["observed_exit_status"], 1)
+        self.assertEqual([step["id"] for step in result["steps"]], ["import_path_changed"])
+        client.assert_not_called()
+
+    def test_invalid_import_observation_is_rejected_by_cli(self):
+        output = io.StringIO()
+        with mock.patch("jevcompass.triage.DecisionsClient") as client, \
+             contextlib.redirect_stderr(output), self.assertRaises(SystemExit) as caught:
+            main([
+                "triage", "--exit-code", "1", "--kind", "import",
+                "--hypothesis", "import_module_missing",
+                "--hypothesis", "import_path_changed",
+                "--import-observation", "/private/client/repo",
+                "--json",
+            ])
+        self.assertEqual(caught.exception.code, 2)
+        self.assertIn("invalid choice", output.getvalue())
+        client.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
