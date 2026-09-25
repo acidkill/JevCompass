@@ -154,6 +154,34 @@ class CodexSetupPairTests(unittest.TestCase):
                     skill_source=skill, codex="/unused",
                 )
 
+    def test_timeout_keeps_only_parsed_partial_metadata(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            skill = make_skill(root)
+            auth = root / "auth.json"
+            auth.write_text('{"access_token":"synthetic-test-secret"}', encoding="utf-8")
+            fixture = root / "fixture"
+            fixture.mkdir()
+            event = json.dumps({"type": "item.completed", "item": {
+                "type": "agent_message", "text": "JevCompass advice ID: abcdef12 openai-docs",
+            }})
+            fake_process = mock.Mock(returncode=-9)
+            with mock.patch.object(runner.subprocess, "Popen", return_value=fake_process), \
+                 mock.patch.object(runner._core, "_collect_events", return_value=([event], [10.0], "timeout")), \
+                 mock.patch.object(runner.time, "monotonic", return_value=9.0), \
+                 mock.patch.object(runner._core, "read_safe_metrics", return_value=[]):
+                result = runner._run_live_arm(
+                    codex="/unused", model="synthetic", reasoning_effort="low",
+                    fixture=fixture, home=root / "profile", skill_source=skill,
+                    skill_sha256=runner._skill_digest(skill), case_id="C01",
+                    timeout=3, treatment=True, auth_source=auth,
+                )
+            self.assertEqual(result["failure"], "timeout")
+            self.assertEqual(result["event_count"], 1)
+            self.assertTrue(result["partial_event_stream"])
+            self.assertTrue(result["advice_id_before_first_tool"])
+            self.assertNotIn("synthetic-test-secret", json.dumps(result))
+
     def test_timeout_is_bounded(self):
         with self.assertRaises(ValueError):
             runner.run_pair(mode="mock", model=None, timeout=runner.MAX_TIMEOUT + 1)

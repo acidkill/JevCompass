@@ -162,19 +162,17 @@ def _run_live_arm(
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
         )
         lines, event_times, failure = _core._collect_events(
-            process, started=started, timeout=timeout,
+            process, started=started, timeout=timeout, preserve_on_failure=True,
         )
     except OSError:
         return _safe_failure("codex_unavailable")
-    if failure:
-        return _safe_failure(failure)
     parsed = _core.parse_event_stream(
         lines, start_monotonic=started, event_times=event_times,
         known_candidate_ids=_core._known_catalog_ids(),
     )
     result: dict[str, Any] = {
-        "status": "completed" if process.returncode == 0 else "failed",
-        "execution": "completed" if process.returncode == 0 else "failed",
+        "status": "completed" if not failure and process.returncode == 0 else "failed",
+        "execution": "completed" if not failure and process.returncode == 0 else "failed",
         "exit_code": process.returncode,
         "model_called": True,
         "auth_copied": profile["auth_copied"],
@@ -182,6 +180,7 @@ def _run_live_arm(
         "skill_sha256": skill_sha256,
         "hooks_configured": treatment,
         "event_count": parsed["event_count"],
+        "partial_event_stream": bool(failure),
         "first_assistant_ms": (
             parsed["first_assistant"]["elapsed_ms"] if parsed["first_assistant"] else None
         ),
@@ -197,7 +196,9 @@ def _run_live_arm(
         )
         result["advisor_metrics"] = metrics
         result["advice_metric"] = _core.correlate_advice(parsed, metrics)
-    if process.returncode != 0:
+    if failure:
+        result["failure"] = failure
+    elif process.returncode != 0:
         result["failure"] = "codex_nonzero_exit"
     return result
 

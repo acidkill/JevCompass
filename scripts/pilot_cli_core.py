@@ -567,6 +567,7 @@ def _isolated_environment(*, home: Path, isolated_python: Path) -> dict[str, str
 
 def _collect_events(
     process: subprocess.Popen[bytes], *, started: float, timeout: int,
+    preserve_on_failure: bool = False,
 ) -> tuple[list[str], list[float], str | None]:
     """Collect bounded JSONL into memory; never write raw events to a file."""
     if process.stdout is None:
@@ -613,13 +614,13 @@ def _collect_events(
     if failure:
         process.kill()
         process.wait()
-        return [], [], failure
+        return (lines, times, failure) if preserve_on_failure else ([], [], failure)
     try:
         process.wait(timeout=max(0.01, deadline - time.monotonic()))
     except subprocess.TimeoutExpired:
         process.kill()
         process.wait()
-        return [], [], "timeout"
+        return (lines, times, "timeout") if preserve_on_failure else ([], [], "timeout")
     return lines, times, None
 
 
