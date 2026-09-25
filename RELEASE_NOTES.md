@@ -1,3 +1,11 @@
+# JevCompass v0.1.16
+
+This release adds conditional guidance to read a suggested skill's `SKILL.md` when its use condition matches the task (PR #63). It also includes an explicitly opt-in, experimental `jevcompass skills install` command for two bundled coding workflows. The default installation continues to register two nonblocking advisory hooks. Skills are never installed automatically, and advice does not run a skill or replace required project instructions and checks. Install with `pipx install jevcompass==0.1.16`, inspect `jevcompass install --dry-run`, run `jevcompass install` and `jevcompass doctor`, then review `/hooks` in a fresh Codex session. Only after reading the bundled skill files, opt in with `jevcompass skills install --dry-run` and `jevcompass skills install` if desired.
+
+One source-built C05 pair read the suggested `create-plan` skill, while the blinded scores tied 6/7. This is a single limited observation and demonstrates no speed or quality benefit. Desktop behavior remains unverified. Check the release page and package registry for published artifacts; source tests alone do not verify an installed release. JevCompass remains Apache-2.0 licensed. Privacy boundaries and platform limitations are described in [README.md](README.md).
+
+---
+
 # JevCompass v0.1.15
 
 This patch narrows security-specific skill suggestions: an ordinary code review no longer offers `security-requirement-extraction` solely because it matches the broad software domain. Explicit security, authentication, and signed-webhook tasks can still receive it. The signal is checked locally; task text is never sent to Jev. Manual `recommend --domain security` remains available.
