@@ -232,6 +232,44 @@ def doctor(*, test_jev: bool = False) -> dict[str, Any]:
     return checks
 
 
+def _display_test_order(result: Any, as_json: bool) -> int:
+    payload = {
+        "status": result.status,
+        "ordered": [{"id": item.candidate_id, "kind": item.kind.value,
+                     "command": item.command} for item in result.ordered_candidates],
+        "required": [{"id": item.required_id, "command": item.command}
+                     for item in result.required],
+        "executed": False,
+    }
+    if as_json:
+        print(json.dumps(payload, ensure_ascii=False))
+    else:
+        print(f"Focused checks in suggested order ({result.status}; none executed):")
+        for index, item in enumerate(result.ordered_candidates, start=1):
+            print(f"{index}. {item.command}")
+        print("Required repository checks (always run):")
+        for item in result.required:
+            print(f"- {item.command}")
+        if not result.required:
+            print("- None supplied; confirm repository-required validation separately.")
+    return 0
+
+
+def _discover_tests_cli(repo: str, required_commands: list[str], as_json: bool) -> int:
+    """Discover local Python focused checks and keep caller-provided gates."""
+    from .test_discovery import discover_test_candidates
+    from .test_order import RequiredTest, rank_tests
+
+    if any(not 1 <= len(command) <= 512 or "\n" in command for command in required_commands):
+        print("Invalid required test command; no command was executed.", file=sys.stderr)
+        return 2
+    candidates = discover_test_candidates(repo)
+    required = [RequiredTest(command, f"required-{index}")
+                for index, command in enumerate(required_commands, start=1)]
+    result = rank_tests("python", candidates, required)
+    return _display_test_order(result, as_json)
+
+
 def _rank_tests_cli(source: str, as_json: bool) -> int:
     """Order explicit local commands; never execute them or send them to Jev."""
     from pathlib import Path
@@ -262,26 +300,7 @@ def _rank_tests_cli(source: str, as_json: bool) -> int:
     except (OSError, ValueError, TypeError):
         print("Invalid local test metadata; no command was executed.", file=sys.stderr)
         return 2
-    payload = {
-        "status": result.status,
-        "ordered": [{"id": item.candidate_id, "kind": item.kind.value,
-                     "command": item.command} for item in result.ordered_candidates],
-        "required": [{"id": item.required_id, "command": item.command}
-                     for item in result.required],
-        "executed": False,
-    }
-    if as_json:
-        print(json.dumps(payload, ensure_ascii=False))
-    else:
-        print(f"Focused checks in suggested order ({result.status}; none executed):")
-        for index, item in enumerate(result.ordered_candidates, start=1):
-            print(f"{index}. {item.command}")
-        print("Required repository checks (always run):")
-        for item in result.required:
-            print(f"- {item.command}")
-        if not result.required:
-            print("- None supplied; confirm repository-required validation separately.")
-    return 0
+    return _display_test_order(result, as_json)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -311,6 +330,11 @@ def main(argv: list[str] | None = None) -> int:
     strategy_choose.add_argument("--json", action="store_true", help="Print machine-readable result")
     tests_parser = sub.add_parser("tests", help="Order focused tests after a code change without running them")
     tests_sub = tests_parser.add_subparsers(dest="tests_action", required=True)
+    tests_discover = tests_sub.add_parser("discover", help="Discover changed Python tests and rank their order")
+    tests_discover.add_argument("--repo", default=".", help="Local Git repository root (default: current directory)")
+    tests_discover.add_argument("--required", action="append", required=True,
+                                help="Repository-required validation command; repeat for multiple gates")
+    tests_discover.add_argument("--json", action="store_true", help="Print machine-readable result")
     tests_rank = tests_sub.add_parser("rank", help="Rank candidate tests from local JSON metadata")
     tests_rank.add_argument("--input", required=True, help="Local JSON file, or - for stdin")
     tests_rank.add_argument("--json", action="store_true", help="Print machine-readable local result")
@@ -385,6 +409,8 @@ def main(argv: list[str] | None = None) -> int:
                 print("No relevant strategy; continue with the normal Codex workflow.")
         return 0
     if args.command == "tests":
+        if args.tests_action == "discover":
+            return _discover_tests_cli(args.repo, args.required, args.json)
         return _rank_tests_cli(args.input, args.json)
     if args.command == "doctor":
         result = doctor(test_jev=args.test_jev)

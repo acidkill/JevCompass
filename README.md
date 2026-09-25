@@ -69,13 +69,13 @@ For a substantial coding task, use only coarse signals you verified locally. The
 
 ## Post-change test order (source candidate)
 
-The source checkout has an explicit `jevcompass tests rank` command for a coding agent that already knows the changed surface, plausible focused checks, and the repository-required gate. It **prints an order; it does not execute tests**. This command is not in the published v0.1.22 package, and no speed or quality improvement has been established.
+The source checkout can discover Python focused checks from staged, unstaged, and untracked changes: `jevcompass tests discover --required 'python -m unittest discover -s tests -v' --json` from the Git root. Supply the actual required command from your repository's instructions or CI; JevCompass does not invent that gate. Discovery bounds the scan, rejects symlinks and ambiguous filename mappings, and abstains when it cannot safely associate code and tests. Unit and integration tests for the same changed module become distinct alternatives. For other languages or curated candidates, `jevcompass tests rank` accepts explicit local JSON metadata. It **prints an order; it does not execute tests**. This command is not in the published v0.1.22 package, and no speed or quality improvement has been established.
 
 ```json
 {"surface":"api","candidates":[{"id":"unit","kind":"unit","command":"python -m unittest tests.test_api_unit","relevance":0.5},{"id":"contract","kind":"contract","command":"python -m unittest tests.test_api_contract","relevance":0.5}],"required":[{"id":"ci","command":"python -m unittest discover -s tests -v"}]}
 ```
 
-Save this as `test-order.json`, then run `jevcompass tests rank --input test-order.json --json`. `status: remote-choice` means Jev ranked genuine competing test kinds; `no-remote-choice` uses stable local relevance order when one choice is obvious, Jev is unavailable, or its answer is uncertain. The required list is returned unchanged and must still be run. Commands and caller IDs stay local: only coarse surface, test kinds, generic descriptors and opaque IDs may reach OpenRouter. Do not put secrets in command strings; this local file and CLI output are readable on your machine. Candidate discovery from changed files and matched outcome trials are still planned.
+Save this as `test-order.json`, then run `jevcompass tests rank --input test-order.json --json`. `status: remote-choice` means Jev ranked genuine competing test kinds; `no-remote-choice` uses stable local relevance order when one choice is obvious, Jev is unavailable, or its answer is uncertain. The required list is returned unchanged and must still be run. Commands and caller IDs stay local: only coarse surface, test kinds, generic descriptors and opaque IDs may reach OpenRouter. Do not put secrets in command strings; this local file and CLI output are readable on your machine. Python filename-based discovery is available in the source checkout; support for other layouts and matched outcome trials remain open.
 
 ## Triage an ambiguous failed test (source candidate)
 
