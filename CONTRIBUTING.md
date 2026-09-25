@@ -1,6 +1,6 @@
 # Contributing to JevCompass
 
-Thanks for helping make Codex tool and skill selection more useful. Open an issue for a reproducible problem or a focused pull request for a change. For security-sensitive reports, contact the maintainer privately through GitHub; never post credentials, private prompts, or raw hook logs in a public issue.
+Thanks for helping make Codex tool and skill selection more useful. Contributions to this project are provided under the [Apache License 2.0](LICENSE). Open an issue for a reproducible problem or a focused pull request for a change. For security-sensitive reports, contact the maintainer privately through GitHub; never post credentials, private prompts, or raw hook logs in a public issue.
 
 ## First contribution
 

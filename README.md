@@ -106,7 +106,11 @@ More host validation, narrower coding recommendations, and a measured 20-case co
 
 ## Contribute
 
-Issues and pull requests are welcome. Helpful contributions include reproducible compatibility reports, careful documentation fixes, and synthetic tests that preserve the privacy boundary. Please do not post credentials, raw prompts, private code, or unredacted logs. Licensing terms are pending an owner decision; public visibility alone does not grant a general reuse license.
+Issues and pull requests are welcome. Helpful contributions include reproducible compatibility reports, careful documentation fixes, and synthetic tests that preserve the privacy boundary. Please do not post credentials, raw prompts, private code, or unredacted logs.
+
+## License
+
+JevCompass is licensed under the [Apache License 2.0](LICENSE). Copyright 2026 Toni Nowak.
 
 ## Project links
 

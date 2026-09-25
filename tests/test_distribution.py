@@ -13,9 +13,10 @@ from tools.check_distribution import check
 def source_tree(root: Path, version: str = "7.4.2") -> dict[str, bytes]:
     files = {
         "pyproject.toml": (
-            '[project]\nname = "jevcompass"\nversion = "' + version + '"\n'
+            '[project]\nname = "jevcompass"\nlicense = "Apache-2.0"\nlicense-files = ["LICENSE"]\nversion = "' + version + '"\n'
         ).encode(),
         "README.md": b"# JevCompass\nCurrent release notes.\n",
+        "LICENSE": b"Apache License\nVersion 2.0, January 2004\n",
         "src/jevcompass/__init__.py": b'"""Fresh package."""\n',
         "src/jevcompass/cli.py": b"def main():\n    return 0\n",
         "src/jevcompass/catalog_data.json": b'{"skills": []}\n',
@@ -33,7 +34,8 @@ def make_archive(
 ) -> Path:
     description = files["README.md"] if metadata_readme is None else metadata_readme
     metadata = (
-        f"Metadata-Version: 2.1\nName: jevcompass\nVersion: {metadata_version}\n\n"
+        f"Metadata-Version: 2.4\nName: jevcompass\nVersion: {metadata_version}\n"
+        "License-Expression: Apache-2.0\nLicense-File: LICENSE\n\n"
     ).encode() + description
     if kind == "wheel":
         archive = tmp_path / "jevcompass-7.4.2-py3-none-any.whl"
@@ -46,6 +48,7 @@ def make_archive(
             "README.md": files["README.md"],
             "pyproject.toml": files["pyproject.toml"],
             "jevcompass-7.4.2.dist-info/METADATA": metadata,
+            "jevcompass-7.4.2.dist-info/licenses/LICENSE": files["LICENSE"],
         })
         with zipfile.ZipFile(archive, "w") as bundle:
             for name, data in members.items():
@@ -89,6 +92,15 @@ class DistributionFreshnessTests(unittest.TestCase):
 
                     with self.assertRaisesRegex(AssertionError, "stale packaged file"):
                         self._check_variant(kind, make_stale)
+
+    def test_stale_license_fails_for_wheel_and_sdist(self):
+        for kind in ("wheel", "sdist"):
+            with self.subTest(kind=kind):
+                def make_stale(files):
+                    files["LICENSE"] = b"outdated license text\n"
+
+                with self.assertRaisesRegex(AssertionError, "missing or stale Apache license"):
+                    self._check_variant(kind, make_stale)
 
     def test_stale_metadata_version_fails(self):
         for kind in ("wheel", "sdist"):
