@@ -32,6 +32,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "cli_core"
 CASE_IDS = ("P01", "P03", "P05", "P07", "R01", "R02", "R03", "R04", "R05", "R06")
 PUBLISHED_PILOT_VERSION = "0.1.16"
+BUNDLED_SKILL_NAMES = ("jevcompass-focused-tests", "jevcompass-regression-review")
 PROMPTS = {
     "P01": "Implement a small Python helper that normalizes whitespace in a string, and add focused tests for empty input and repeated spaces.",
     "P03": "Fix the Bash script's unset-variable defect and run a syntax check on the edited script.",
@@ -549,6 +550,39 @@ def _install_treatment_hooks(
     from jevcompass.installer import install
 
     install(home=home)
+
+
+def _install_bundled_skills(home: Path, installed_python: Path) -> dict[str, bytes]:
+    """Install and read back the published skill pack in one temporary profile."""
+    codex_home = home / ".codex"
+    env = _isolated_environment(
+        home=home, isolated_python=home / "python", installed_python=installed_python,
+    )
+    try:
+        completed = subprocess.run(
+            [str(installed_python), "-m", "jevcompass", "skills", "install"],
+            env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL, timeout=15, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise RuntimeError("bundled skill setup failed") from error
+    if completed.returncode != 0:
+        raise RuntimeError("bundled skill setup failed")
+
+    contents_by_name: dict[str, bytes] = {}
+    skills_root = codex_home / "skills"
+    for name in BUNDLED_SKILL_NAMES:
+        skill_dir = skills_root / name
+        entrypoint = skill_dir / "SKILL.md"
+        if (skill_dir.is_symlink() or not skill_dir.is_dir()
+                or entrypoint.is_symlink() or not entrypoint.is_file()):
+            raise RuntimeError("bundled skill verification failed")
+        try:
+            content = entrypoint.read_bytes()
+        except OSError as error:
+            raise RuntimeError("bundled skill verification failed") from error
+        contents_by_name[name] = content
+    return contents_by_name
 
 
 def _case_settings(case_id: str) -> dict[str, str]:
@@ -1447,6 +1481,7 @@ def run_pilot(
     codex: str | None = None, rng: Any = None, preflight: bool = False,
     blind_dir: str | Path | None = None, blind_quality_artifacts: bool = False,
     installed_python: Path | None = None, allow_openrouter_key: bool = False,
+    with_bundled_skills: bool = False,
 ) -> dict[str, Any]:
     if timeout < 1 or timeout > MAX_TIMEOUT:
         raise ValueError(f"timeout must be between 1 and {MAX_TIMEOUT} seconds")
@@ -1461,6 +1496,8 @@ def run_pilot(
         raise ValueError("blind quality artifacts require --blind-dir")
     if allow_openrouter_key and (mode != "run" or installed_python is None):
         raise ValueError("OpenRouter key forwarding requires a live installed-release pair")
+    if with_bundled_skills and (mode not in {"run", "dry-run"} or installed_python is None):
+        raise ValueError("bundled skills require an installed-release run or dry run")
     if allow_openrouter_key and not os.environ.get("OPENROUTER_API_KEY"):
         raise ValueError("OpenRouter API key is unavailable")
     if installed_python is not None:
@@ -1496,6 +1533,22 @@ def run_pilot(
                 arms[label] = (home, fixture_copy)
             if digests[0] != digests[1]:
                 raise RuntimeError("paired fixture copies differ")
+            skill_metadata = None
+            if with_bundled_skills:
+                if installed_python is None:
+                    raise ValueError("bundled skills require an installed-release interpreter")
+                baseline_skills = _install_bundled_skills(arms["baseline"][0], installed_python)
+                treatment_skills = _install_bundled_skills(arms["treatment"][0], installed_python)
+                if baseline_skills != treatment_skills:
+                    raise RuntimeError("paired bundled skill contents differ")
+                skill_metadata = {
+                    "installed": True,
+                    "skill_count": len(baseline_skills),
+                    "content_sha256": {
+                        name: hashlib.sha256(content).hexdigest()
+                        for name, content in baseline_skills.items()
+                    },
+                }
             result_arms: dict[str, Any] = {}
             for label in arm_order:
                 treatment = label == "treatment"
@@ -1544,7 +1597,7 @@ def run_pilot(
                         case_id, arms[label][1], final_answer,
                     )
                 result_arms[label] = arm_result
-            cases_summary[case_id] = {
+            case_summary = {
                 "arm_order": arm_order,
                 "source_sha256": digests[0],
                 "fixture_copies_identical": True,
@@ -1552,6 +1605,9 @@ def run_pilot(
                 "routine_negative_control": case_id in ROUTINE_CASES,
                 "arms": result_arms,
             }
+            if skill_metadata is not None:
+                case_summary["bundled_skills"] = skill_metadata
+            cases_summary[case_id] = case_summary
     failed = any(
         arm.get("status") == "failed"
         for case in cases_summary.values()
@@ -1606,6 +1662,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--blind-dir", type=Path, help="write private, opaque per-arm evaluator receipts and separate mapping")
     parser.add_argument("--installed-python", type=Path,
                         help="absolute interpreter path of published JevCompass 0.1.16")
+    parser.add_argument("--with-bundled-skills", action="store_true",
+                        help="install and verify the published bundled skills in both temporary profiles (live or dry run)")
     parser.add_argument("--allow-openrouter-key", action="store_true",
                         help="opt in to equal OpenRouter key presence in both live installed-release arms")
     parser.add_argument(
@@ -1645,6 +1703,7 @@ def main(argv: list[str] | None = None) -> int:
             blind_quality_artifacts=args.blind_quality_artifacts,
             installed_python=args.installed_python,
             allow_openrouter_key=args.allow_openrouter_key,
+            with_bundled_skills=args.with_bundled_skills,
         )
     except (OSError, RuntimeError, ValueError) as error:
         print(json.dumps({"pilot": "jevcompass-cli-core", "status": "failed", "failure": str(error)}))
