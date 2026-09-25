@@ -424,6 +424,229 @@ class CodexSetupPairTests(unittest.TestCase):
             self.assertTrue(result["advice_id_before_first_tool"])
             self.assertNotIn("synthetic-test-secret", json.dumps(result))
 
+    def test_c03_action_telemetry_counts_only_completed_successful_exact_reads(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixture = root / "fixture"
+            home = root / "home"
+            counter = fixture / "counter.py"
+            code_review = home / ".codex" / "skills" / "code-review-excellence" / "SKILL.md"
+            security = (
+                home / ".codex" / "plugins" / "cache" / "claude-code-workflows"
+                / "security-scanning" / "1.3.2" / "skills"
+                / "security-requirement-extraction" / "SKILL.md"
+            )
+
+            def completed(command, exit_code=0):
+                return json.dumps({
+                    "type": "item.completed",
+                    "item": {
+                        "type": "command_execution",
+                        "command": command,
+                        "exit_code": exit_code,
+                    },
+                })
+
+            lines = [
+                json.dumps({
+                    "type": "item.started",
+                    "item": {"type": "command_execution", "command": f"cat {counter}"},
+                }),
+                completed(f"cat {counter}"),
+                completed(f"sed -n '1,20p' {code_review}"),
+                completed(f"head -n 10 {security}"),
+                completed(f"cat {counter}", exit_code=1),
+                completed(f"ls -la {fixture}"),
+                completed(f"rg -n 'counter.py' {fixture}"),
+                completed(f"echo 'read {code_review}'"),
+                completed(f"cat {counter} | wc -l"),
+                completed(f"cat --help {counter}"),
+                completed(f"head --help {counter}"),
+                completed(f"sed -i 's/return/replace/' {counter}"),
+            ]
+            telemetry = runner._c03_action_telemetry(
+                lines,
+                event_times=[100.01, 100.125, 100.25, 100.5, 100.6, 100.7, 100.8, 100.9, 101.0],
+                start_monotonic=100.0,
+                fixture=fixture,
+                home=home,
+            )
+
+            self.assertEqual(telemetry, {
+                "counter_read_ms": 125.0,
+                "candidate_skill_reads": [
+                    {"id": "code-review-excellence", "elapsed_ms": 250.0},
+                    {"id": "security-requirement-extraction", "elapsed_ms": 500.0},
+                ],
+            })
+            serialized = json.dumps(telemetry)
+            self.assertNotIn(str(root), serialized)
+            self.assertNotIn("counter.py", serialized)
+            self.assertNotIn("SKILL.md", serialized)
+            self.assertNotIn("cat", serialized)
+
+    def test_c03_action_telemetry_ignores_mentions_and_nonmatching_paths(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixture = root / "fixture"
+            home = root / "home"
+            counter = fixture / "counter.py"
+            skill = home / ".codex" / "skills" / "code-review-excellence" / "SKILL.md"
+            lines = [
+                json.dumps({
+                    "type": "item.completed",
+                    "item": {"type": "agent_message", "text": f"Read {counter} and {skill}"},
+                }),
+                json.dumps({
+                    "type": "item.completed",
+                    "item": {
+                        "type": "command_execution",
+                        "command": f"cat {fixture / 'different.py'}",
+                        "exit_code": 0,
+                    },
+                }),
+                json.dumps({
+                    "type": "item.completed",
+                    "item": {
+                        "type": "command_execution",
+                        "command": f"cat {counter}",
+                        "exit_code": 1,
+                    },
+                }),
+            ]
+            telemetry = runner._c03_action_telemetry(
+                lines, event_times=[4.1, 4.2, 4.3], start_monotonic=4.0,
+                fixture=fixture, home=home,
+            )
+            self.assertEqual(telemetry, {
+                "counter_read_ms": None,
+                "candidate_skill_reads": [],
+            })
+
+    def test_c03_action_telemetry_unwraps_one_limited_shell_layer(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixture = root / "fixture"
+            home = root / "home"
+            counter = fixture / "counter.py"
+            skill = home / ".codex" / "skills" / "code-review-excellence" / "SKILL.md"
+
+            def completed(command):
+                return json.dumps({
+                    "type": "item.completed",
+                    "item": {
+                        "type": "command_execution",
+                        "command": command,
+                        "exit_code": 0,
+                    },
+                })
+
+            wrapped_counter = f"/usr/bin/bash -lc \"sed -n '1,240p' {counter}\""
+            wrapped_skill = f"/bin/sh -lc \"cat {skill}\""
+            telemetry = runner._c03_action_telemetry(
+                [completed(wrapped_counter), completed(wrapped_skill)],
+                event_times=[12.125, 12.25],
+                start_monotonic=12.0,
+                fixture=fixture,
+                home=home,
+            )
+            self.assertEqual(telemetry, {
+                "counter_read_ms": 125.0,
+                "candidate_skill_reads": [
+                    {"id": "code-review-excellence", "elapsed_ms": 250.0},
+                ],
+            })
+
+            rejected_commands = [
+                f"/usr/bin/bash -lc \"cat {counter} && echo done\"",
+                f"/usr/bin/bash -lc \"bash -lc 'cat {counter}'\"",
+                f"/usr/bin/bash -lc \"python -c 'open(\\\"{counter}\\\").read()'\"",
+                f"/usr/bin/bash -lc \"cat {counter}\" extra",
+            ]
+            rejected = runner._c03_action_telemetry(
+                [completed(command) for command in rejected_commands],
+                event_times=[12.3, 12.4, 12.5, 12.6],
+                start_monotonic=12.0,
+                fixture=fixture,
+                home=home,
+            )
+            self.assertEqual(rejected, {
+                "counter_read_ms": None,
+                "candidate_skill_reads": [],
+            })
+
+    def test_c03_action_telemetry_supports_nl_and_two_read_conjunction(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixture = root / "fixture"
+            home = root / "home"
+            counter = fixture / "counter.py"
+
+            def completed(command):
+                return json.dumps({
+                    "type": "item.completed",
+                    "item": {
+                        "type": "command_execution",
+                        "command": command,
+                        "exit_code": 0,
+                    },
+                })
+
+            baseline = (
+                f"/usr/bin/bash -lc \"sed -n '1,240p' counter.py "
+                f"&& nl -ba counter.py\""
+            )
+            listing = (
+                "/usr/bin/bash -lc \"rg --files -g 'counter.py' "
+                "-g 'AGENTS.md' -g 'SKILL.md'\""
+            )
+            treatment = "/usr/bin/bash -lc 'nl -ba counter.py'"
+            telemetry = runner._c03_action_telemetry(
+                [completed(baseline), completed(listing), completed(treatment)],
+                event_times=[20.125, 20.2, 20.3],
+                start_monotonic=20.0,
+                fixture=fixture,
+                home=home,
+            )
+            self.assertEqual(telemetry, {
+                "counter_read_ms": 125.0,
+                "candidate_skill_reads": [],
+            })
+
+            direct_nl = runner._c03_action_telemetry(
+                [completed(f"/usr/bin/nl -ba {counter}")],
+                event_times=[20.25],
+                start_monotonic=20.0,
+                fixture=fixture,
+                home=home,
+            )
+            self.assertEqual(direct_nl["counter_read_ms"], 250.0)
+
+            rejected = runner._c03_action_telemetry(
+                [
+                    completed(
+                        f"/usr/bin/bash -lc \"rg --files -g 'counter.py' && "
+                        "nl -ba counter.py\""
+                    ),
+                    completed(
+                        f"/usr/bin/bash -lc \"sed -n '1,240p' counter.py && "
+                        "echo done\""
+                    ),
+                    completed(
+                        f"/usr/bin/bash -lc \"cat counter.py && nl -ba counter.py "
+                        "&& cat counter.py\""
+                    ),
+                ],
+                event_times=[20.4, 20.5, 20.6],
+                start_monotonic=20.0,
+                fixture=fixture,
+                home=home,
+            )
+            self.assertEqual(rejected, {
+                "counter_read_ms": None,
+                "candidate_skill_reads": [],
+            })
+
     def test_timeout_is_bounded(self):
         with self.assertRaises(ValueError):
             runner.run_pair(mode="mock", model=None, timeout=runner.MAX_TIMEOUT + 1)
