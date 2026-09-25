@@ -327,6 +327,12 @@ def select_advice(
     if len(items) == 1 and items[0]["id"] == "exec_command" and category != "package-docs":
         _metric(name, category, "low-signal-skip", started, trace)
         return None
+    # A spawn-time hint containing only the generic shell and Git consumes the
+    # child's attention without narrowing its task. Wait for a specific skill,
+    # MCP tool, or test runner; other hook events retain their existing policy.
+    if name == "PreToolUse" and all(item["id"] in {"exec_command", "git"} for item in items):
+        _metric(name, category, "low-signal-skip", started, trace)
+        return None
 
     questions = _questions(items)
     singleton_ids = [
