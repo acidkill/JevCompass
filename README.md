@@ -17,7 +17,7 @@ A useful skill can be buried in your setup. JevCompass discovers installed candi
 Requirements: Python 3.11 or newer, [pipx](https://pipx.pypa.io/stable/installation/), and a Codex installation with hooks enabled. Download the wheel from the [latest GitHub release](https://github.com/acidkill/JevCompass/releases/latest), verify its SHA-256 against the release asset digest, then run:
 
 ```bash
-pipx install ./jevcompass-0.1.12-py3-none-any.whl
+pipx install ./jevcompass-0.1.13-py3-none-any.whl
 jevcompass recommend --category review --domain python
 ```
 
@@ -93,7 +93,7 @@ JevCompass does not infer Codex Plan UI mode. Check `/hooks` and start a fresh s
 
 Evidence is deliberately limited to the environments tested:
 
-- A fresh isolated Codex CLI 0.155.1 smoke using the published v0.1.12 wheel received `openai-docs` advice before its first tool, with a matching local hook ID. Other attempts had mixed agent echo; this verifies one delivery, not broad coverage or effectiveness.
+- A fresh isolated Codex CLI 0.155.1 smoke using the published v0.1.12 wheel received `openai-docs` advice before its first tool, with a matching local hook ID. Additional synthetic CLI pairs confirmed remote Jev advice IDs before the first tool. The published v0.1.13 wheel adds bounded skill use/skip conditions; these checks do not prove broad coverage or effectiveness.
 - The initial four blinded synthetic CLI pairs tied on task quality. Later focused pairs had mixed results, including one baseline win and one treatment win; no repeatable speed or quality improvement has been demonstrated.
 - One native Desktop `explorer` child reported an advice ID before its first tool in a correlated smoke test. Other subagent probes were inconclusive, and fresh Desktop prompt delivery has not been confirmed.
 - macOS runtime behavior and broad usefulness remain unverified.
