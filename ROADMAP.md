@@ -6,7 +6,7 @@ Published [v0.1.21](https://github.com/acidkill/JevCompass/releases/tag/v0.1.21)
 
 ## 0.1.22 candidate and remaining release evidence
 
-The source candidate places selected candidate IDs immediately below the advice ID. This follows installed-0.1.21 CLI probes that prepared a full `exec_command`/`unittest` advisory but sometimes got an agent pre-tool report with no candidate IDs or no advice. One source-built synthetic CLI session reported both IDs and the matching trace before its first command (9.24 ms local hook). Different model runs and a tiny sample preclude a causal effectiveness claim. Hosted CI, artifact audit, registry install and fresh Desktop delivery remain open for this candidate.
+Published v0.1.22 places selected candidate IDs immediately below the advice ID. Installed-0.1.21 CLI probes prepared a full `exec_command`/`unittest` advisory but sometimes got an agent pre-tool report with no candidate IDs or no advice. One source-built synthetic CLI session reported both IDs before first command (9.24 ms). PR #101 passed hosted CI; tag peels to `9720cd7`, exact-tree artifact audit and Trusted Publishing run 36156580002 passed. Registry wheel package members matched local bytes. Fresh registry pipx 0.1.22 doctor found two hooks; an isolated CLI session reported both IDs and matching trace `0623c35b` before first command (5.99 ms local hook). Different model runs and a tiny sample preclude a causal effectiveness claim. Fresh Desktop prompt delivery remains open.
 
 ## 0.1.21 candidate and release evidence
 

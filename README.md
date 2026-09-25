@@ -24,7 +24,7 @@ jevcompass doctor
 
 Start with `jevcompass doctor` to see which representative tasks have enough locally available candidates for a recommendation. Before hook installation it may exit nonzero because the hooks are not registered yet; the capacity report is still useful. Then try a manual request only when the report shows a useful choice for that task; for example, run `jevcompass recommend --category coding --domain python` when **coding_python** reports `decision candidates` or `local candidates`. A clean profile may report `low signal skip` or `silent`, in which case that request can correctly return no recommendation.
 
-To install from source instead, clone this repository and run `pipx install .` from the checkout. For the verified release, use `pipx install jevcompass==0.1.21`; check [releases](https://github.com/acidkill/JevCompass/releases) for the latest version. Version 0.1.21 keeps a relevant local test command alongside its shell executor without asking Jev to choose between them. The release passed 275 Python tests, hosted CI, Trusted Publishing and a fresh registry pipx setup. A clean-profile synthetic request composed `exec_command` and `unittest` locally in 2.96 ms; broader host-level impact is unmeasured.
+To install from source instead, clone this repository and run `pipx install .` from the checkout. For the verified release, use `pipx install jevcompass==0.1.22`; check [releases](https://github.com/acidkill/JevCompass/releases) for the latest version. Version 0.1.22 puts validated candidate IDs immediately after the advice ID. It passed 276 Python tests, hosted CI, Trusted Publishing and a fresh registry pipx setup. One isolated CLI session on the published package reported `exec_command` and `unittest` before first tool; broader host-level impact is unmeasured.
 
 The recommendation is environment-dependent: it can show local advice, an unranked shortlist, or no recommendation. The manual command uses explicit category/domain metadata and never takes a task prompt.
 
@@ -147,7 +147,7 @@ JevCompass does not infer Codex Plan UI mode. Check `/hooks` and start a fresh s
 
 Evidence is deliberately limited to the environments tested:
 
-- The next source candidate places the selected IDs at the top of each advisory. One isolated CLI smoke reported `exec_command` and `unittest` with a correlated advice ID before first tool. This is one model response, not a measured benefit. Published 0.1.21 remains the verified package until the candidate passes release checks.
+- The published 0.1.22 package places selected IDs at the top of each advisory. A fresh isolated CLI 0.155.1 session reported `exec_command` and `unittest` with correlated advice ID `0623c35b` before its first tool. The matching local hook took 5.99 ms, exit was 0, and the fictional fixture was unchanged. This single smoke does not measure task benefit.
 
 - [PyPI v0.1.21](https://pypi.org/project/jevcompass/0.1.21/) and its [GitHub release](https://github.com/acidkill/JevCompass/releases/tag/v0.1.21) passed 275 Python 3.11 tests, hosted CI, Trusted Publishing, exact-tag distribution checks and a clean pipx registry install with two advisory hooks and doctor PASS. A single isolated synthetic `testing/python` request composed the shell executor and `unittest` locally in 2.96 ms; it is not a host delivery or broad effectiveness measurement.
 
