@@ -176,6 +176,8 @@ def _event_receipts(
     first_useful_error_ms: float | None = None
     pending_ranks: dict[str, float] = {}
     rank_payloads: list[tuple[float, str]] = []
+    rank_exit_code: int | None = None
+    rank_output_status = "not_invoked"
     command_counts = {"unit": 0, "contract": 0, "required": 0}
     for index, line in enumerate(lines):
         try:
@@ -222,6 +224,8 @@ def _event_receipts(
                             first_useful_error_ms = elapsed_ms
             if event_id in pending_ranks:
                 rank_started = pending_ranks.pop(event_id)
+                raw_exit = item.get("exit_code")
+                rank_exit_code = raw_exit if isinstance(raw_exit, int) and not isinstance(raw_exit, bool) else None
                 output = item.get("aggregated_output")
                 if not isinstance(output, str):
                     output = item.get("output")
@@ -229,10 +233,15 @@ def _event_receipts(
                 elapsed = max(0.0, (observed - rank_started) * 1000)
                 if isinstance(output, str):
                     rank_payloads.append((elapsed, output))
+                    rank_output_status = "captured"
+                else:
+                    rank_output_status = "missing_output"
     choice = (
         _validated_choice(rank_payloads[-1][1])
         if rank_payloads else {"status": "unscored", "candidate_ids": []}
     )
+    if rank_output_status == "captured":
+        rank_output_status = "valid_choice" if choice["status"] != "unscored" else "invalid_choice"
     focused: list[dict[str, Any]] = []
     for candidate in CHOICE_IDS:
         matched = next((entry["exit_code"] for entry in reversed(completed_tests)
@@ -244,6 +253,8 @@ def _event_receipts(
     return {
         "choice": choice,
         "choice_latency_ms": round(rank_payloads[-1][0], 2) if rank_payloads else None,
+        "rank_exit_code": rank_exit_code,
+        "rank_output_status": rank_output_status,
         "focused_test_exits": focused,
         "first_observed_focused_failure_ms": first_observed_focused_failure_ms,
         "first_useful_error_ms": first_useful_error_ms,
@@ -335,7 +346,8 @@ def _run_arm(
             "token_usage_status": "unscored", "token_usage": None,
             "billing_estimate": None,
             "choice": {"status": "unscored", "candidate_ids": []},
-            "choice_latency_ms": None, "focused_test_exits": [],
+            "choice_latency_ms": None, "rank_exit_code": None,
+            "rank_output_status": "not_invoked", "focused_test_exits": [],
             "first_observed_focused_failure_ms": None, "first_useful_error_ms": None,
             "focused_invocation_count": 0, "required_suite_exit": None,
             "required_suite_invocation_observed": False,
