@@ -70,6 +70,17 @@ class AdvisorTests(unittest.TestCase):
         client.assert_not_called()
         metric.assert_called_once_with("UserPromptSubmit", "testing", "local", mock.ANY, None)
 
+    def test_candidate_ids_appear_before_explanatory_prose(self):
+        executor = {**ITEMS[1], "availability": "available"}
+        command = {"id": "unittest", "kind": "tool", "invocation": "shell_command",
+                   "capability": "Run Python unit tests", "availability": "available"}
+        output = advisor._context("UserPromptSubmit", ["exec_command", "unittest"],
+                                  [executor, command], "trace123")
+        lines = output["hookSpecificOutput"]["additionalContext"].splitlines()
+        self.assertEqual(lines[0], "JevCompass advice ID: trace123")
+        self.assertEqual(lines[1], "Candidate IDs: exec_command, unittest")
+        self.assertIn("local command `unittest`", "\n".join(lines[2:]))
+
     def test_shell_command_stays_with_remote_skill_choice(self):
         executor = {**ITEMS[1], "availability": "available"}
         command = {"id": "unittest", "kind": "tool", "invocation": "shell_command",

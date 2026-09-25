@@ -267,7 +267,11 @@ def _context(
         suffix += " Verify current authoritative local sources and mark missing facts. Keep drafts unsent unless explicitly authorized."
     if category == "package-docs":
         suffix += " For Python package install docs, check project metadata and the existing README. Preserve its exact supported CLI help invocation (such as `python -m package --help`) unless a replacement is verified by running it. Check the documented test command; distinguish pre-existing test failures."
-    context = (f"JevCompass advice ID: {trace}\n" if trace else "") + prefix + "\n".join(lines) + suffix
+    # Put the selected identifiers ahead of explanatory prose so the agent can
+    # verify the actual candidate set before making its first tool choice.
+    identity = (f"JevCompass advice ID: {trace}\n" if trace else "")
+    identifiers = "Candidate IDs: " + ", ".join(selected) + "\n"
+    context = identity + identifiers + prefix + "\n".join(lines) + suffix
     if len(context) > MAX_CONTEXT_CHARS:
         if has_criteria:
             compact = [{**item, "use_when": None, "avoid_when": None} for item in items]
