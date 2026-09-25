@@ -4,6 +4,8 @@ This release adds focused setup advice for users configuring Codex Desktop and C
 
 A synthetic Codex CLI 0.155.1 session confirmed that this advice reached the agent before its first tool; the corresponding local hook took 2.75 ms. A current Desktop `explorer` negative control showed that the hook ran and intentionally stayed silent when only the generic shell was available. These are delivery and abstention checks, not measured speed or quality improvements. See [PILOT.md](PILOT.md) for the evidence and limits.
 
+The annotated source tag peels to `9c78801c75fc063ef68369f16e1105125007dbb9`. Hosted PR #16 CI passed all 180 Python 3.11 tests; the exact-source archive passed the same suite and distribution-content check. Isolated pipx installation from the built wheel succeeded. Independent downloads match GitHub's SHA-256 digests: wheel `e2df11a7e83e5108f976a44c861125c35234d8dbdb853a5352ce9276d380b462`, sdist `da0292fa103158668da9b77c234655e33b684f2178afcbc0cbaa1849748df8cb`.
+
 ## Install from the GitHub release
 
 Download the v0.1.12 wheel from the [GitHub releases page](https://github.com/acidkill/JevCompass/releases), compare its SHA-256 with GitHub's asset digest, then run:
