@@ -113,4 +113,6 @@ For installed JevCompass 0.1.16, `python3 scripts/pilot_cli_core.py --dry-run --
 
 ## Preflight verification
 
+P07 now runs in a disposable workspace-write sandbox because its fixture requires saving `STATUS_API.md`; its blind artifact is the authored file. The previous read-only P07 bank result is invalid as a write task. The `contract_indicators` keyword heuristic can miss semantically equivalent optional-field tables, so blinded contract review remains authoritative.
+
 The exact core prompt texts require a fresh local classification before each study because product routing can evolve. The current CLI bank is P01 `coding/python`, P03 `debugging/shell`, P05 `package-docs/python`, P07 `api-design/python`; an offline test guards these labels and all six CLI routine controls. Earlier preflight labels for P03 and P05 were stale and must not be used as coverage evidence. Desktop prompt and routine classifications require their own current-host check. The six core subagent categories are fixed role profiles, not inferred from task text. These checks validate the case bank only; no Codex arms were run and no live-pilot score is claimed.

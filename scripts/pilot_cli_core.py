@@ -45,7 +45,7 @@ PROMPTS = {
     "R05": "List the top-level Python files in the synthetic fixture.",
     "R06": "Check whether README.md contains the word timeout.",
 }
-READ_ONLY_CASES = frozenset({"P07", "R01", "R02", "R03", "R04", "R05", "R06"})
+READ_ONLY_CASES = frozenset({"R01", "R02", "R03", "R04", "R05", "R06"})
 ROUTINE_CASES = frozenset({"R01", "R02", "R03", "R04", "R05", "R06"})
 PREFLIGHT_CASES = frozenset({"P01", "P03", "P05", "P07"})
 PREFLIGHT_INSTRUCTION = (
@@ -66,7 +66,7 @@ QUALITY_FILE_ALLOWLIST = {
     "P01": ("tinytext/text.py", "tests/test_text.py"),
     "P03": ("scripts/render_report.sh",),
     "P05": ("README.md",),
-    "P07": (),
+    "P07": ("STATUS_API.md",),
 }
 PRIVATE_PATH_RE = re.compile(
     r"(?<![A-Za-z0-9])/(?:home|Users|root|tmp)/\S+"
@@ -390,9 +390,17 @@ def _fixture_outcome_checks(
             "test_instruction_exit": observed_exits.get("fixture_tests") == 0 if "fixture_tests" in observed_exits else None,
         }
     if case_id == "P07":
-        if not assistant_text or not assistant_text.strip():
-            return {"contract_indicators": None}
-        lowered = assistant_text.lower()
+        try:
+            authored_contract = _read_fixture_relative(fixture, "STATUS_API.md", MAX_BLIND_FILE_BYTES)
+        except (OSError, ValueError):
+            return {"contract_indicators": False}
+        if authored_contract is None:
+            return {"contract_indicators": False}
+        try:
+            contract = authored_contract.decode("utf-8", errors="strict")
+        except UnicodeDecodeError:
+            return {"contract_indicators": False}
+        lowered = contract.lower()
         method_route = "post" in lowered and "/status" in lowered
         inputs = "required" in lowered and "optional" in lowered
         outputs = "status" in lowered and bool(re.search(r"\b(result|response|success)\b", lowered))
@@ -832,15 +840,6 @@ def _write_new_file_at(directory_fd: int, name: str, payload: bytes, mode: int) 
 def _validate_quality_artifact(artifact: dict[str, Any], case_id: str) -> dict[str, Any]:
     if not isinstance(artifact, dict) or artifact.get("schema") != "jevcompass-blind-cli-quality-v1" or artifact.get("case_id") != case_id:
         raise ValueError("quality artifact has an unknown schema or case")
-    if case_id == "P07":
-        if set(artifact) != {"schema", "case_id", "final_answer"}:
-            raise ValueError("P07 quality artifact has unknown or missing fields")
-        answer = artifact["final_answer"]
-        if answer is not None:
-            _validate_quality_text(answer, MAX_BLIND_ANSWER_BYTES, "final answer")
-            if PROMPTS[case_id] in answer or PREFLIGHT_INSTRUCTION in answer:
-                raise ValueError("final answer must not include the task prompt or preflight transcript")
-        return {"schema": artifact["schema"], "case_id": case_id, "final_answer": answer}
     if set(artifact) != {"schema", "case_id", "files"} or not isinstance(artifact["files"], list):
         raise ValueError("quality artifact has unknown or missing fields")
     allowed = set(QUALITY_FILE_ALLOWLIST[case_id])
@@ -853,6 +852,8 @@ def _validate_quality_artifact(artifact: dict[str, Any], case_id: str) -> dict[s
         if not isinstance(relative, str) or relative not in allowed or relative in seen:
             raise ValueError("quality artifact contains a path outside its fixed allowlist")
         _validate_quality_text(content, MAX_BLIND_FILE_BYTES, "quality artifact file")
+        if case_id == "P07" and (PROMPTS[case_id] in content or PREFLIGHT_INSTRUCTION in content):
+            raise ValueError("P07 quality artifact file must not include the task prompt or preflight transcript")
         seen.add(relative)
         files.append({"path": relative, "content": content})
     normalized = {"schema": artifact["schema"], "case_id": case_id, "files": files}
@@ -1088,30 +1089,23 @@ def build_quality_artifact(
         "schema": "jevcompass-blind-cli-quality-v1",
         "case_id": case_id,
     }
-    if case_id == "P07":
-        if final_answer is not None:
-            # Strip incidental workspace paths from the answer before storing a blind artifact.
-            final_answer = PRIVATE_PATH_RE.sub("[local path]", final_answer)
-            _validate_quality_text(final_answer, MAX_BLIND_ANSWER_BYTES, "final answer")
-            if PROMPTS[case_id] in final_answer or PREFLIGHT_INSTRUCTION in final_answer:
-                raise ValueError("final answer must not include the task prompt or preflight transcript")
-        artifact["final_answer"] = final_answer
-    else:
-        files: list[dict[str, str]] = []
-        for relative in QUALITY_FILE_ALLOWLIST[case_id]:
-            updated = _read_fixture_relative(fixture, relative, MAX_BLIND_FILE_BYTES)
-            if updated is None:
-                continue
-            original = _read_fixture_relative(FIXTURE, relative, MAX_BLIND_FILE_BYTES)
-            if updated == original:
-                continue
-            try:
-                content = updated.decode("utf-8", errors="strict")
-            except UnicodeDecodeError as error:
-                raise ValueError("quality artifact file must contain UTF-8 text") from error
-            _validate_quality_text(content, MAX_BLIND_FILE_BYTES, "quality artifact file")
-            files.append({"path": relative, "content": content})
-        artifact["files"] = files
+    files: list[dict[str, str]] = []
+    for relative in QUALITY_FILE_ALLOWLIST[case_id]:
+        updated = _read_fixture_relative(fixture, relative, MAX_BLIND_FILE_BYTES)
+        if updated is None:
+            continue
+        original = _read_fixture_relative(FIXTURE, relative, MAX_BLIND_FILE_BYTES)
+        if updated == original:
+            continue
+        try:
+            content = updated.decode("utf-8", errors="strict")
+        except UnicodeDecodeError as error:
+            raise ValueError("quality artifact file must contain UTF-8 text") from error
+        _validate_quality_text(content, MAX_BLIND_FILE_BYTES, "quality artifact file")
+        if case_id == "P07" and (PROMPTS[case_id] in content or PREFLIGHT_INSTRUCTION in content):
+            raise ValueError("P07 quality artifact file must not include the task prompt or preflight transcript")
+        files.append({"path": relative, "content": content})
+    artifact["files"] = files
     encoded = json.dumps(artifact, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
     if len(encoded) > MAX_BLIND_ARTIFACT_BYTES:
         raise ValueError("quality artifact exceeds its total size limit")

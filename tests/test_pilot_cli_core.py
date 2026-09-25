@@ -78,6 +78,13 @@ elif "install instructions" in task:
     (root / "README.md").write_text(nl.join(readme) + nl, encoding="utf-8")
     answer = "Updated the install, help, and test instructions."
 else:
+    contract = [
+        "# Status API contract",
+        "POST /status accepts a required request_id and optional detail flag.",
+        "A successful response returns a validated status result with request_id and state.",
+        "Invalid input returns HTTP 400; server failures return HTTP 500.",
+    ]
+    (root / "STATUS_API.md").write_text(nl.join(contract) + nl, encoding="utf-8")
     answer = "POST /status accepts required and optional inputs, validates the status response, returns documented fields, and describes invalid input and server error responses."
 print(json.dumps({"type":"item.completed","item":{"type":"agent_message","text":answer}}), flush=True)
 print(json.dumps({"type":"turn.completed"}), flush=True)
@@ -604,15 +611,35 @@ class PilotCliCoreTests(unittest.TestCase):
         self.assertTrue(runner._answer_indicator("R05", "There are no top-level Python files.", fixture))
         self.assertTrue(runner._answer_indicator("R06", "README.md contains timeout.", fixture))
 
-    def test_p07_requires_basic_contract_indicators_and_reports_unknown_without_text(self):
-        self.assertEqual(
-            runner._fixture_outcome_checks("P07", runner.FIXTURE, None),
-            {"contract_indicators": None},
-        )
-        good = "POST /status accepts required and optional inputs, returns a validated status response, and handles invalid input and server errors."
-        bad = "POST /status returns a result."
-        self.assertEqual(runner._fixture_outcome_checks("P07", runner.FIXTURE, good), {"contract_indicators": True})
-        self.assertEqual(runner._fixture_outcome_checks("P07", runner.FIXTURE, bad), {"contract_indicators": False})
+    def test_p07_outcome_checks_authored_contract_file_not_final_answer(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory)
+            contract = fixture / "STATUS_API.md"
+            good = "POST /status accepts required and optional inputs, returns a validated status response, and handles invalid input and server errors."
+            bad = "POST /status returns a result."
+            contract.write_text(good, encoding="utf-8")
+            self.assertEqual(
+                runner._fixture_outcome_checks("P07", fixture, bad),
+                {"contract_indicators": True},
+            )
+            contract.write_text(bad, encoding="utf-8")
+            self.assertEqual(
+                runner._fixture_outcome_checks("P07", fixture, good),
+                {"contract_indicators": False},
+            )
+            contract.unlink()
+            outside = fixture.parent / "outside-contract.md"
+            outside.write_text(good, encoding="utf-8")
+            contract.symlink_to(outside)
+            self.assertEqual(
+                runner._fixture_outcome_checks("P07", fixture, good),
+                {"contract_indicators": False},
+            )
+            contract.unlink()
+            self.assertEqual(
+                runner._fixture_outcome_checks("P07", fixture, good),
+                {"contract_indicators": False},
+            )
 
     def test_p01_p05_never_execute_modified_fixture_python(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -672,8 +699,8 @@ class PilotCliCoreTests(unittest.TestCase):
             self.assertIsNone(classify_task(runner.PROMPTS[case_id]), case_id)
 
     def test_routine_controls_are_read_only_and_case_sandbox_is_explicit(self):
-        self.assertEqual(runner.READ_ONLY_CASES, {"P07", "R01", "R02", "R03", "R04", "R05", "R06"})
-        self.assertEqual({case for case in runner.CASE_IDS if runner._case_settings(case)["sandbox"] == "workspace-write"}, {"P01", "P03", "P05"})
+        self.assertEqual(runner.READ_ONLY_CASES, {"R01", "R02", "R03", "R04", "R05", "R06"})
+        self.assertEqual({case for case in runner.CASE_IDS if runner._case_settings(case)["sandbox"] == "workspace-write"}, {"P01", "P03", "P05", "P07"})
         self.assertEqual(runner.ROUTINE_CASES, {"R01", "R02", "R03", "R04", "R05", "R06"})
 
     def test_installed_release_is_exact_and_credential_free_during_version_check(self):
@@ -1002,8 +1029,8 @@ class PilotCliCoreTests(unittest.TestCase):
             p05 = next(item for item in artifacts if item["case_id"] == "P05")
             self.assertEqual([item["path"] for item in p05["files"]], ["README.md"])
             p07 = next(item for item in artifacts if item["case_id"] == "P07")
-            self.assertIn("invalid input", p07["final_answer"])
-            self.assertNotIn("files", p07)
+            self.assertEqual([item["path"] for item in p07["files"]], ["STATUS_API.md"])
+            self.assertIn("invalid input", p07["files"][0]["content"].lower())
 
             scores_path = root / "scores.json"
             scores = [
@@ -1057,18 +1084,24 @@ class PilotCliCoreTests(unittest.TestCase):
                     },
                     "P01",
                 )
+            contract = fixture / "STATUS_API.md"
+            contract.write_text("Authorization: Bearer super-secret-token-value", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "private data"):
-                runner.build_quality_artifact(
-                    "P07", fixture, "Authorization: Bearer super-secret-token-value",
-                )
-            sanitized = runner.build_quality_artifact(
-                "P07", fixture, "API contract from /tmp/synthetic-run/source.py: validate status input.",
-            )
-            self.assertNotIn("/tmp/synthetic-run", json.dumps(sanitized))
-            self.assertIn("[local path]", sanitized["final_answer"])
-            runner._validate_quality_artifact(sanitized, "P07")
+                runner.build_quality_artifact("P07", fixture)
+            contract.write_text("See /tmp/synthetic-run/source.py for details.", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "private data"):
+                runner.build_quality_artifact("P07", fixture)
+            contract.write_text(runner.PROMPTS["P07"], encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "task prompt"):
-                runner.build_quality_artifact("P07", fixture, runner.PROMPTS["P07"])
+                runner.build_quality_artifact("P07", fixture)
+            contract.write_text("POST /status handles required and optional fields and documents validation errors.", encoding="utf-8")
+            artifact = runner.build_quality_artifact(
+                "P07", fixture,
+                "This final answer must not replace the authored contract artifact.",
+            )
+            self.assertEqual(artifact["files"][0]["path"], "STATUS_API.md")
+            self.assertNotIn("final_answer", artifact)
+            runner._validate_quality_artifact(artifact, "P07")
             self.assertTrue(source.is_file())
 
 
