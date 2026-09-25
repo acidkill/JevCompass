@@ -1,3 +1,9 @@
+# JevCompass v0.1.22 (candidate)
+
+The advice context now places locally validated candidate IDs immediately after its trace ID and before explanatory prose. This addresses a narrow observed CLI case where installed 0.1.21 emitted a full `exec_command`/`unittest` advisory but agent pre-tool reports sometimes omitted the candidates. One source-built fictional-repository CLI smoke reported both IDs before its first tool, matching a `testing/local` hook metric of 9.24 ms. The 276-test Python 3.11 suite passed locally. This is not a controlled effectiveness result; hosted CI, artifact verification, publication and fresh Desktop prompt delivery are pending. The published verified release remains v0.1.21.
+
+---
+
 # JevCompass v0.1.21
 
 Shell-invoked commands such as `unittest` are composed with their `exec_command` executor locally; Jev no longer receives a false either-or choice for the pair. Genuine alternatives can still be ranked remotely, and the relevant command remains in the advice. The clean-profile installed 0.1.20 synthetic request exposing this took 321.15 ms and returned a local fallback. Two contract tests cover the corrected behavior; 275 Python 3.11 tests, graphify rebuild, wheel/sdist audit and isolated pipx wheel install passed. PR #99 passed hosted CI at 87bb952; annotated tag v0.1.21 peels to ecffe5e. GitHub assets match local SHA-256 wheel `eaff6ee385a32844f01c280ba53d312a4334f53d66cee66e0645b6e7d06cbd66` and sdist `5d078f40f9b7cb870bd4c8c5e5289cc0219c59161bece5b8d447a6d2bcd060ee`. Trusted Publishing run 36154620335 passed. The registry wheel's 13 package members match local bytes; fresh registry pipx 0.1.21 installation, two advisory hooks and doctor passed. An isolated synthetic testing/python recommendation composed `exec_command` and `unittest` locally in 2.96 ms. This is a narrow comparison, not a broad speed or quality claim; fresh Desktop prompt delivery, macOS runtime and paired efficacy remain unverified.

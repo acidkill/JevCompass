@@ -10,6 +10,7 @@ A useful skill can be buried in your setup. JevCompass discovers installed candi
 - **Keep control:** suggestions never run tools, grant permissions, or override required checks.
 - **Choose your privacy level:** local advice works without a key; optional Jev ranking sees only coarse candidate metadata through OpenRouter.
 
+
 [Get started](#quick-start) · [See real output](#60-second-demo) · [Understand the boundary](#privacy) · [Check the evidence](#what-has-been-verified) · [Contribute](#contribute)
 
 ## Quick start
@@ -145,6 +146,8 @@ JevCompass does not infer Codex Plan UI mode. Check `/hooks` and start a fresh s
 ## What has been verified
 
 Evidence is deliberately limited to the environments tested:
+
+- The next source candidate places the selected IDs at the top of each advisory. One isolated CLI smoke reported `exec_command` and `unittest` with a correlated advice ID before first tool. This is one model response, not a measured benefit. Published 0.1.21 remains the verified package until the candidate passes release checks.
 
 - [PyPI v0.1.21](https://pypi.org/project/jevcompass/0.1.21/) and its [GitHub release](https://github.com/acidkill/JevCompass/releases/tag/v0.1.21) passed 275 Python 3.11 tests, hosted CI, Trusted Publishing, exact-tag distribution checks and a clean pipx registry install with two advisory hooks and doctor PASS. A single isolated synthetic `testing/python` request composed the shell executor and `unittest` locally in 2.96 ms; it is not a host delivery or broad effectiveness measurement.
 

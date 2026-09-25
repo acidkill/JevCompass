@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jevcompass"
-version = "0.1.21"
+version = "0.1.22"
 description = "Privacy-first tool and skill recommendations for Codex Desktop and CLI, powered by Jev"
 readme = "README.md"
 license = "Apache-2.0"
