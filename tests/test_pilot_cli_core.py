@@ -65,11 +65,11 @@ import json, pathlib, sys
 task = sys.argv[-1]
 root = pathlib.Path.cwd()
 nl = chr(10)
-if "normalizes whitespace" in task:
+if "normalize_whitespace" in task:
     (root / "tinytext" / "text.py").write_text("def normalize(value):" + nl + "    return ' '.join(value.split())" + nl, encoding="utf-8")
     (root / "tests" / "test_text.py").write_text("def test_normalize():" + nl + "    assert normalize('a  b') == 'a b'" + nl, encoding="utf-8")
     answer = "Implemented the normalizer and focused test."
-elif "unset-variable defect" in task:
+elif "render_report.sh" in task:
     script = ["#!/usr/bin/env bash", "set -euo pipefail", ': "${OUTPUT_PATH:?required}"', "printf done"]
     (root / "scripts" / "render_report.sh").write_text(nl.join(script) + nl, encoding="utf-8")
     answer = "Fixed the unset output guard and syntax checked it."
@@ -710,14 +710,41 @@ class PilotCliCoreTests(unittest.TestCase):
                 encoding="utf-8",
             )
             checks = runner._fixture_outcome_checks("P03", fixture, None)
-            self.assertEqual(checks, {"bash_syntax": True, "no_unset_output_path_defect": False})
+            self.assertEqual(checks, {"bash_syntax": True, "no_unset_output_path_defect": False,
+                                     "bash_syntax_command_exit": None,
+                                     "bash_syntax_invocation_observed": False,
+                                     "bash_syntax_completion_observed": False})
             self.assertFalse((fixture / "SHOULD_NOT_EXIST").exists())
             script.write_text(
                 '#!/usr/bin/env bash\nset -u\n: "${OUTPUT_PATH:?required}"\nprintf "%s\\n" "$OUTPUT_PATH"\n',
                 encoding="utf-8",
             )
             checks = runner._fixture_outcome_checks("P03", fixture, None)
-            self.assertEqual(checks, {"bash_syntax": True, "no_unset_output_path_defect": True})
+            self.assertEqual(checks, {"bash_syntax": True, "no_unset_output_path_defect": True,
+                 "bash_syntax_command_exit": None,
+                 "bash_syntax_invocation_observed": False,
+                 "bash_syntax_completion_observed": False})
+
+    def test_p03_records_the_agent_bash_syntax_command_exit(self):
+        self.assertEqual(
+            runner._command_check_kind("bash -n scripts/render_report.sh"),
+            "bash_syntax_check",
+        )
+        self.assertIsNone(runner._command_check_kind("bash -n unrelated.sh"))
+        lines = [
+            json.dumps({"type": "item.started", "item": {
+                "id": "shell-1", "type": "command_execution",
+                "command": "bash -n scripts/render_report.sh",
+            }}),
+            json.dumps({"type": "item.completed", "item": {
+                "id": "shell-1", "type": "command_execution", "exit_code": 0,
+            }}),
+        ]
+        parsed = runner.parse_event_stream(lines, start_monotonic=0.0, event_times=[0.1, 0.2])
+        checks = runner._fixture_outcome_checks("P03", runner.FIXTURE, None, parsed["events"])
+        self.assertTrue(checks["bash_syntax_invocation_observed"])
+        self.assertTrue(checks["bash_syntax_completion_observed"])
+        self.assertTrue(checks["bash_syntax_command_exit"])
 
     def test_p03_argument_based_output_does_not_require_output_path_variable(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -729,7 +756,10 @@ class PilotCliCoreTests(unittest.TestCase):
             )
             self.assertEqual(
                 runner._fixture_outcome_checks("P03", fixture, None),
-                {"bash_syntax": True, "no_unset_output_path_defect": True},
+                {"bash_syntax": True, "no_unset_output_path_defect": True,
+                 "bash_syntax_command_exit": None,
+                 "bash_syntax_invocation_observed": False,
+                 "bash_syntax_completion_observed": False},
             )
 
     def test_fixture_answer_indicators_are_limited_and_unknown_without_text(self):
