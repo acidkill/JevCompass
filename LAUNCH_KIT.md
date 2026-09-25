@@ -1,12 +1,12 @@
 # JevCompass launch kit
 
-This file contains draft copy and a launch checklist. Nothing here is an announcement that has been posted or a claim that PyPI is live.
+This file contains draft copy and a launch checklist. Nothing here is an announcement that has been posted or a claim that PyPI is live. For collaborator-facing setup, the [README](README.md) is authoritative; [PILOT.md](PILOT.md) and [TASKS.md](TASKS.md) contain evidence and release status.
 
 ## Positioning
 
-**Tagline:** Find the right Codex tool or skill before the work begins.
+**Tagline:** Start a Codex task with the right available tool or skill in view.
 
-**One-sentence pitch:** JevCompass gives Codex Desktop and CLI a short, optional recommendation from a locally checked tool and skill catalog at the start of a substantive task or supported subagent session.
+**One-sentence pitch:** JevCompass checks a reviewed catalog against your available Codex tools and skills, then gives a short, optional recommendation when it has a specific suggestion. It adds guidance to supported prompt and subagent events; it does not control the session.
 
 **Who it is for:** Developers using Codex who have several tools, skills, or integrations and want a quick first choice without adding a gate to everyday commands.
 
@@ -46,6 +46,26 @@ Publish this version only after the PyPI project and `pipx install jevcompass` a
 > A compass for Codex tools and skills. JevCompass offers a small, optional recommendation when a real task starts and gets out of the way for everyday commands. Local catalog first; Jev ranking when useful. [Insert an actually accessible install link after verification.]
 
 ## One-minute demo outline
+
+For an invited collaborator with repository access, this command-line demo is reproducible. Set `CODEX_HOME` to a new temporary directory first so the demo hook install does not alter your regular Codex profile:
+
+```bash
+export CODEX_HOME="$(mktemp -d)"
+git clone https://github.com/acidkill/JevCompass.git
+cd JevCompass
+pipx install .
+jevcompass recommend --category review --domain python
+jevcompass install --dry-run
+```
+
+The recommendation is environment-dependent; do not script or promise a particular candidate. Continue only after reviewing the dry run:
+
+```bash
+jevcompass install
+jevcompass doctor
+```
+
+Then:
 
 1. Show `jevcompass doctor` in a clean profile: two advisory hooks registered, no tool gate, and the local candidate-capacity report.
 2. Use a synthetic Git repository and a read-only review prompt. Before the first tool, show the agent-visible advice ID and the locally available `exec_command`/`git` suggestions.
