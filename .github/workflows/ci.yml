@@ -17,3 +17,23 @@ jobs:
       - run: python -m unittest discover -s tests -v
         env:
           PYTHONPATH: src
+      - name: Require release documentation on version changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch origin "$BASE_SHA" --depth=1
+          python - <<'PY'
+          import os
+          import pathlib
+          import subprocess
+          import tomllib
+
+          base = os.environ['BASE_SHA']
+          previous = tomllib.loads(subprocess.check_output(['git', 'show', f'{base}:pyproject.toml'], text=True))['project']['version']
+          current = tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version']
+          if previous != current:
+              changed = set(subprocess.check_output(['git', 'diff', '--name-only', base, 'HEAD'], text=True).splitlines())
+              required = {'TASKS.md', 'ROADMAP.md', 'README.md', 'RELEASE_NOTES.md'}
+              missing = required - changed
+              assert not missing, f'Release PR must update: {sorted(missing)}'
+          PY
