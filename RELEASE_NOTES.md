@@ -2,18 +2,20 @@
 
 This release respects installed skill MCP prerequisites during candidate discovery (PR #40) and adds **optional** task-aware advice when Codex creates an agent (PR #42). The default installation still registers only `UserPromptSubmit` and `SubagentStart`. The extra hook is matched to agent creation only and never gates shell, Git, Helm or network commands.
 
-Download the v0.1.14 wheel from [GitHub releases](https://github.com/acidkill/JevCompass/releases/tag/v0.1.14), verify its SHA-256 against the asset digest, then run:
+Install [v0.1.14 from PyPI](https://pypi.org/project/jevcompass/0.1.14/) with an isolated pipx environment:
 
 ```bash
-pipx install ./jevcompass-0.1.14-py3-none-any.whl
+pipx install jevcompass==0.1.14
 jevcompass install --dry-run
 jevcompass install
 jevcompass doctor
 ```
 
+The PyPI Trusted Publisher workflow completed successfully in [GitHub Actions run 36114012972](https://github.com/acidkill/JevCompass/actions/runs/36114012972) from tag commit `7e44137f3471532dfbf74d7a61c0e8946a58062f`. PyPI JSON reports wheel SHA-256 `b4331c437f1b193ffd50a3da60dcf6105e0cb50b6f085f4745f14cd5ec1bcd7a` and sdist SHA-256 `a066bef4c3fd700b938e1b9f705556d755a4d423e33a92a5653c4b6f22e27303`. An isolated pipx install from the published registry package succeeded; the default install's doctor check passed with two hooks and no `PreToolUse` hook.
+
 To try the experimental spawn advisor, run `jevcompass install --spawn-advice`, review and trust the new entry in Codex `/hooks`, and start a fresh session. `jevcompass install --disable-spawn-advice` removes only that entry. The installer backs up an existing `hooks.json` when it changes it and preserves unrelated smem hooks.
 
-One isolated CLI source-checkout experiment confirmed that the child saw an advice ID before its first tool when the host encoded the message and supplied a descriptive task title. It has not established skill use, improved outcomes, fresh Desktop delivery or macOS compatibility. The C05 equal-environment planning pair (PR #41) tied 6/7 on blind scores and showed no speed gain. PyPI publication is separate. JevCompass remains [Apache-2.0 licensed](LICENSE). Previous release: [v0.1.13](https://github.com/acidkill/JevCompass/releases/tag/v0.1.13).
+One isolated CLI source-checkout experiment confirmed that the child saw an advice ID before its first tool when the host encoded the message and supplied a descriptive task title. It has not established skill use, improved outcomes, fresh Desktop delivery or macOS compatibility. The C05 equal-environment planning pair (PR #41) tied 6/7 on blind scores and showed no speed gain. These results do not establish measured task benefit. JevCompass remains [Apache-2.0 licensed](LICENSE). Previous release: [v0.1.13](https://github.com/acidkill/JevCompass/releases/tag/v0.1.13).
 
 The annotated tag peels to `7e44137f3471532dfbf74d7a61c0e8946a58062f`. PR #43 passed hosted CI; an exact-source archive passed 224 Python 3.11 tests and the wheel/sdist content audit. An isolated pipx Python 3.11 install confirmed the default pair, reversible spawn opt-in and `doctor` PASS. A clean synthetic CLI child received the wheel's spawn advice in context before its first tool; it did not echo the ID before that tool. Public assets were downloaded independently and matched SHA-256: wheel `edd405e752544476ac67efc112eb45e8cb47f9eafab93f715d1b1fc3e9a53c33`, sdist `8d206b3530c08531eff73557d9c02f26d22b08b3fd83c161a9813a1b36b6bee0`. This is delivery evidence, not measured task benefit.
 
