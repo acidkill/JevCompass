@@ -154,6 +154,45 @@ class CodexSetupPairTests(unittest.TestCase):
                     skill_source=skill, codex="/unused",
                 )
 
+    def test_blind_answers_use_private_opaque_files_and_separate_mapping(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = root / "jevcompass-blind-pair"
+            count = runner._write_blind_answers(directory, [
+                {"case": "C01", "arm": "baseline", "answer": "Fixture citation: docs/verification.md"},
+                {"case": "C01", "arm": "treatment", "answer": "Fixture citation: docs/hook-requirements.md"},
+            ])
+            self.assertEqual(count, 2)
+            self.assertEqual(stat.S_IMODE(directory.stat().st_mode), 0o700)
+            mapping = json.loads((directory / "mapping.json").read_text(encoding="utf-8"))
+            self.assertEqual({item["arm"] for item in mapping}, {"baseline", "treatment"})
+            self.assertEqual(len(list(directory.glob("*.txt"))), 2)
+            for entry in mapping:
+                self.assertRegex(entry["token"], r"^[a-f0-9]{24}$")
+                answer = directory / f'{entry["token"]}.txt'
+                self.assertEqual(stat.S_IMODE(answer.stat().st_mode), 0o600)
+                self.assertNotIn(entry["arm"], answer.name)
+            self.assertEqual(stat.S_IMODE((directory / "mapping.json").stat().st_mode), 0o600)
+            with self.assertRaises(ValueError):
+                runner._write_blind_answers(root / "jevcompass-other", [
+                    {"case": "C01", "arm": "baseline", "answer": "api_key=synthetic-secret"},
+                ])
+            self.assertFalse((root / "jevcompass-other").exists())
+            with self.assertRaises(ValueError):
+                runner._write_blind_answers(root / "jevcompass-revealed", [
+                    {"case": "C01", "arm": "treatment", "answer": "JevCompass advice ID: abcdef12"},
+                ])
+            self.assertFalse((root / "jevcompass-revealed").exists())
+
+    def test_final_answer_ignores_partial_and_tool_events(self):
+        lines = [
+            json.dumps({"type": "item.completed", "item": {"type": "agent_message", "text": "preflight"}}),
+            json.dumps({"type": "item.completed", "item": {"type": "command_execution", "text": "private"}}),
+            json.dumps({"type": "item.started", "item": {"type": "agent_message", "text": "draft"}}),
+            json.dumps({"type": "item.completed", "item": {"type": "agent_message", "text": "final"}}),
+        ]
+        self.assertEqual(runner._final_answer(lines), "final")
+
     def test_timeout_keeps_only_parsed_partial_metadata(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
