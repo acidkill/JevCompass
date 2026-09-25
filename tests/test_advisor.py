@@ -76,6 +76,24 @@ class AdvisorTests(unittest.TestCase):
             client.assert_not_called()
         self.assertEqual(json.loads(advisor.LOG_PATH.read_text().splitlines()[0])["status"], "low-signal-skip")
 
+    def test_ci_backed_unittest_omits_duplicate_focused_skill_unless_tests_requested(self):
+        executor = {**ITEMS[1], "availability": "available"}
+        focused = {**ITEMS[2], "id": "jevcompass-focused-tests", "availability": "available"}
+        runner = {"id": "unittest", "kind": "tool", "invocation": "shell_command",
+                  "capability": "Run exact local unittest CI command", "availability": "available"}
+        prompt = "Implement the Python helper and follow the repository CI validation."
+        with mock.patch.object(advisor, "candidates", return_value=[executor, focused, runner]), \
+                mock.patch.object(advisor, "DecisionsClient") as client:
+            ordinary = advisor.evaluate({"hook_event_name": "UserPromptSubmit", "prompt": prompt})
+            selected = advisor.evaluate({"hook_event_name": "UserPromptSubmit",
+                "prompt": prompt + " Choose focused tests for this change."})
+            self.assertIn("unittest", ordinary["hookSpecificOutput"]["additionalContext"])
+            self.assertNotIn("jevcompass-focused-tests", ordinary["hookSpecificOutput"]["additionalContext"])
+            self.assertIn("jevcompass-focused-tests", selected["hookSpecificOutput"]["additionalContext"])
+            role_only = advisor.select_advice("SubagentStart", "coding", "python", "worker")
+            self.assertIn("jevcompass-focused-tests", role_only["hookSpecificOutput"]["additionalContext"])
+            client.assert_not_called()
+
     def test_shell_command_is_not_presented_as_a_codex_tool(self):
         pytest_command = {
             "id": "pytest", "kind": "tool", "invocation": "shell_command",
@@ -459,7 +477,8 @@ class AdvisorTests(unittest.TestCase):
         self.assertIsNotNone(output)
         select.assert_called_once_with(
             "UserPromptSubmit", "codebase", "software", "primary", None,
-            security_relevant=True, test_command_supplied=False
+            security_relevant=True, test_command_supplied=False,
+            test_selection_requested=False
         )
 
     def test_proposal_review_uses_source_review_without_exposing_content(self):
