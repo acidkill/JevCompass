@@ -14,7 +14,7 @@ Published 0.1.21 treats shell-invoked commands as companions to the executor rat
 
 ## Efficiency experiments
 
-The supplemental P09 coding comparison exposed an exact-CI-validation gap: baseline ran the fixture CI command in two pairs, while treatment produced correct code but did not have that exact check observed. One treatment received advice before first tool; another had no confirmed delivery. Prioritize exact CI command guidance and safe equivalence observation before another completion-time claim. [PILOT.md](PILOT.md) records both paired receipts.
+The supplemental P09 comparison exposed an exact-CI measurement gap. Earlier substring receipts cannot prove exact or equivalent checks. The corrected parser safely unwraps the observed Codex `bash -lc` form; a fresh pair had treatment execute exact CI while baseline executed the same unittest suite without verbosity. Treatment was slower (55.60 versus 29.38 s), and a completed strict exact-command pair remains open. Reduce redundant skill overhead and repeat pairs before an efficiency claim. [PILOT.md](PILOT.md) records both paired receipts.
 
 The source advisor now skips redundant testing advice when a coding prompt prescribes an exact runner, and offers unittest for Python code changes only with unambiguous local unittest CI. A P01 negative control with silent treatment passed quality and checks in both arms; 16.97 s treatment versus 22.24 s baseline cannot establish advice benefit. Next run advised pairs without a prescribed command and compare completion time, quality and required checks; see [PILOT.md](PILOT.md).
 

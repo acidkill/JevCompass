@@ -6,7 +6,7 @@ R01-R06 cases. It is kept outside the temporary project copied for each arm.
 | Case | Expected check |
 |---|---|
 | P01 | `normalize_whitespace("") == ""`; `normalize_whitespace("  red   fox  ") == "red fox"`; run `python -m unittest discover -s tests` successfully. |
-| P09 (supplemental) | Same helper behavior; inspect the copied fixture's local CI workflow and run its exact `python -m unittest discover -s tests -v` command successfully. A generic unittest observation is not proof of this exact check. |
+| P09 (supplemental) | Same helper behavior; inspect the copied fixture's local CI workflow and run its exact `python -m unittest discover -s tests -v` command successfully. A standalone unverbose discovery of the same `tests` suite is recorded as equivalent, but it is not proof of this exact check; wrappers are accepted only when their inner command is standalone. |
 | P03 | Remove reliance on an unset `OUTPUT_PATH` (for example, accept/validate an argument or provide a safe default); `bash -n scripts/render_report.sh` exits 0. |
 | P05 | README install instructions use the current `pyproject.toml`/Python package workflow, document `python -m tinytext --help` and `python -m unittest discover -s tests`, and agree with the actual help and tests. |
 | P07 | Contract defines method/path, JSON content, required and optional request fields, validated success response, and explicit client-input and server-error cases. |
