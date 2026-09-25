@@ -254,6 +254,10 @@ def main(argv: list[str] | None = None) -> int:
         "--disable-spawn-advice", action="store_false", dest="spawn_advice",
         help="Remove the JevCompass spawn advice hook",
     )
+    skills = sub.add_parser("skills", help="Manage optional bundled Codex skills")
+    skills_sub = skills.add_subparsers(dest="skills_action", required=True)
+    skills_install = skills_sub.add_parser("install", help="Install two reviewed, local workflow skills")
+    skills_install.add_argument("--dry-run", action="store_true", help="Validate without writing skill files")
     auth = sub.add_parser("auth", help="Manage the OpenRouter key in the system keyring")
     auth_sub = auth.add_subparsers(dest="auth_action", required=True)
     auth_sub.add_parser("status", help="Show redacted credential availability")
@@ -327,6 +331,15 @@ def main(argv: list[str] | None = None) -> int:
             print("MCP configuration and installed skill metadata do not prove tools are callable in this Codex session.")
             print("Private integration and skill names, configuration values, and local paths are withheld.")
         return 0 if result["ok"] else 1
+    if args.command == "skills":
+        from .skill_pack import install_skills
+
+        try:
+            print(install_skills(dry_run=args.dry_run))
+        except (OSError, ValueError, RuntimeError, UnicodeError) as error:
+            print(f"JevCompass skill install failed: {error}", file=sys.stderr)
+            return 1
+        return 0
     if args.command == "auth":
         return auth_main(args.auth_action)
     if args.command == "install":

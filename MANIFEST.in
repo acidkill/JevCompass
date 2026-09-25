@@ -1,2 +1,3 @@
 prune tests
 exclude PILOT.md
+recursive-include src/jevcompass/bundled_skills SKILL.md
