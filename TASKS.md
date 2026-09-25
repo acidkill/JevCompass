@@ -177,3 +177,9 @@ Important limits: the Codex event has no reliable task objective; the article th
 - Advice names model-facing tools such as `exec_command`; tool hooks use Codex's canonical matcher name `Bash` for that shell channel.
 - Required project instructions, validation, and authoritative test results remain in force.
 - If a host does not provide sufficient event data, record the limitation and use the explicit `jevcompass recommend` command where appropriate.
+
+## 2026-09-25 documentation accuracy
+
+| ID | Task | Status | Exit checks |
+|---|---|---|---|
+| VCR-135 | Align first-user docs with v0.1.9 and precise CI evidence | Complete | README and ROADMAP cite v0.1.9 Linux checks. README, ROADMAP, RELEASE_NOTES and LAUNCH_KIT distinguish GitHub's exact runner-start annotation from the unverified account-side cause. No workflow, payment setting, or external release changed. |

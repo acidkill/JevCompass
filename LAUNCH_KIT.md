@@ -71,7 +71,7 @@ The recorded CLI 0.1.8 example is advice ID `a14d8368` with a local fallback and
 
 - [x] Private GitHub wheel/sdist and active Linux pipx installation verified at v0.1.9 (Linux scope and limits are recorded in `TASKS.md`).
 - [x] One fresh CLI v0.1.8 agent-visible advice ID confirmed before its first tool.
-- [ ] Fix GitHub Actions billing and run the declared Linux/macOS checks.
+- [ ] Resolve GitHub's payment-or-spending-limit runner-start annotation and run the declared Linux/macOS checks.
 - [ ] Verify a fresh Desktop prompt receives advice before the agent's first tool.
 - [ ] If choosing public PyPI distribution, confirm the pending publisher, run the approved workflow, inspect the public project and install it with pipx from a clean profile.
 - [ ] If choosing public source access, separately review repository visibility, license, support process, and included files.

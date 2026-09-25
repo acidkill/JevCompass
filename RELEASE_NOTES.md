@@ -20,4 +20,4 @@ Review and trust the two advisory hooks in Codex `/hooks`, then start a fresh se
 
 Linux CPython 3.11–3.14 test, packaging, artifact-content, isolated pipx install, and `doctor` results are recorded in `TASKS.md` for the tagged release commit. The active Linux pipx installation is updated to v0.1.9 and its hook-config hash is checked there.
 
-CI jobs did not reach runner steps because of the account billing/spending-limit gate. macOS runtime and current Desktop prompt delivery remain unverified. Broader usefulness and a productivity or quality benefit are not established; previous synthetic CLI quality comparisons tied. Advice does not grant permissions, install skills, or replace required tests.
+CI jobs did not reach runner steps; GitHub annotated the run with failed recent account payments or a spending limit. The specific account-side cause is unverified. macOS runtime and current Desktop prompt delivery remain unverified. Broader usefulness and a productivity or quality benefit are not established; previous synthetic CLI quality comparisons tied. Advice does not grant permissions, install skills, or replace required tests.
