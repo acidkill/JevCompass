@@ -79,23 +79,23 @@ If your Codex host does not load either hook, run `jevcompass doctor --json` to 
 
 ## 60-second demo
 
-After the quick start, ask about setting up a Python project:
+A clean Codex profile may have only a generic shell tool. JevCompass stays silent in that case because repeating “use the shell” would add no value. To see a concrete suggestion, explicitly preview and install the two optional first-party coding skills:
 
 ```bash
-jevcompass recommend --category project-setup --domain python
+jevcompass skills install --dry-run
+jevcompass skills install
+jevcompass recommend --category coding --domain python
 ```
 
-For example, on a Linux checkout with `OPENROUTER_API_KEY` unset, the CLI returned this local shortlist (excerpt):
+On a fresh isolated Linux profile using the published 0.1.16 package with no OpenRouter key, the final command returned this excerpt:
 
 ```text
 Local unranked fallback; Jev did not select these candidates.
 - tool `exec_command`: Codex built-in exec_command for bounded local shell commands
-- local command `git`: Inspect repository changes and history
-- skill `create-plan`: Create an implementation plan grounded in repository context
-- skill `python-packaging`: Build and distribute a Python package
+- skill `jevcompass-focused-tests`: Choose focused tests after a change and complete required repository validation
 ```
 
-Your shortlist depends on the tools and skills actually installed. An unranked fallback is not a Jev choice. `jevcompass install --dry-run` previews the two hook registrations without writing them; after installation, trust them in Codex `/hooks` and start a fresh session. With an OpenRouter key, an eligible task can ask Jev to rank safe metadata and may incur provider charges. [Evidence and current limits](#what-has-been-verified) distinguish hook delivery from measured benefit.
+The skill is available locally after installation; read its `SKILL.md` and use it only when its condition fits. The recommendation does not prove the agent read or followed it, and installing a skill does not guarantee faster or better work. If you want no added skills, leave the profile unchanged; `doctor` and `recommend` will explain or demonstrate when JevCompass has enough of your existing candidates to advise. Hook installation is separate: `jevcompass install --dry-run`, then `jevcompass install`, review `/hooks`, and start a fresh session. Optional OpenRouter ranking uses coarse metadata only and may incur charges.
 
 ## How it works
 
