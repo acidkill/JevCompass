@@ -2,7 +2,11 @@
 
 This patch narrows security-specific skill suggestions: an ordinary code review no longer offers `security-requirement-extraction` solely because it matches the broad software domain. Explicit security, authentication, and signed-webhook tasks can still receive it. The signal is checked locally; task text is never sent to Jev. Manual `recommend --domain security` remains available.
 
-The default installation has two nonblocking advisory hooks. Agent-spawn advice remains opt-in. Required project instructions and tests remain authoritative. This release changes candidate relevance; it does not establish faster task completion or higher task quality. See [PILOT.md](PILOT.md) for the current evidence limits.
+Install with `pipx install jevcompass==0.1.15`, then run `jevcompass install` and `jevcompass doctor`. The default installation has two nonblocking advisory hooks. Agent-spawn advice remains opt-in. Required project instructions and tests remain authoritative. This release changes candidate relevance; it does not establish faster task completion or higher task quality. See [PILOT.md](PILOT.md) for the current evidence limits.
+
+PR #48 passed hosted Python CI at exact head `b607924`, and annotated tag `v0.1.15` peels to merge commit `d3214509ecfa997fe36b40290a4931373ae1994b` with the same tree. The exact-tag archive passed 225 Python 3.11 tests, wheel/sdist content checks, and an isolated pipx wheel install with `doctor` PASS. The [GitHub release](https://github.com/acidkill/JevCompass/releases/tag/v0.1.15) has independently downloaded SHA-256 digests: wheel `3971d0a913f057f3b873556505f474659e36ab496f0ed0b947493c1cf3d0828b`, sdist `4d5267c7ffdfda0b6262736f67bbdaa5cd8659d738fd9a10bf616393e7769402`.
+
+[PyPI 0.1.15](https://pypi.org/project/jevcompass/0.1.15/) was published through [Trusted Publishing run 36114841895](https://github.com/acidkill/JevCompass/actions/runs/36114841895). The separately built registry artifacts have SHA-256 wheel `e364bb3530b35ac4447a76595e388803133bcb9c7a3e540ec439879582d2941a`, sdist `7b008e4583a9b0aa9e8995b89813ae941a0d66a9b11da50b8895db3f350a3ca9`. The ten packaged Python/catalog files in the PyPI and GitHub wheels matched byte for byte despite different archive digests. A fresh pipx installation from PyPI eventually succeeded after a transient index cache miss; the default two-hook install and `doctor --json` passed. macOS runtime and measurable task benefit remain unverified.
 
 ---
 
