@@ -35,22 +35,18 @@ MAX_TIMEOUT = 120
 MAX_OUTPUT_BYTES = 4 * 1024 * 1024
 SPAWN_MATCHER = "^(Agent|spawn_agent|collaborationspawn_agent)$"
 SPAWN_TOOL_NAMES = {"Agent", "spawn_agent", "collaborationspawn_agent"}
-ADVICE_RE = re.compile(
-    r"(?m)^JevCompass advice ID: (none|[a-f0-9]{8}); selected catalog IDs: "
-    r"(none|[a-z0-9_.-]+(?:,[a-z0-9_.-]+){0,5})$", re.I,
-)
+ADVICE_ID_RE = re.compile(r"(?m)^JevCompass advice ID: ([a-f0-9]{8})[ \t]*$", re.I)
+CONTEXT_SKILL_RE = re.compile(r"(?m)^- skill `jevcompass-focused-tests`:")
+MAX_CONTEXT_EVIDENCE_CHARS = 8192
+MAX_CONTEXT_CANDIDATE_LINES = 6
+MAX_ADVICE_CONTEXTS = 16
+MAX_DEVELOPER_CONTEXTS = 32
 SAFE_ID_RE = re.compile(r"[A-Za-z0-9_.:-]{1,128}\Z")
 
 PROMPT = (
     "Spawn exactly one explorer child using task_name `plan_python_webhook_tests` "
     "to produce a short local Python test plan for the fictional webhook "
-    "requirements. Before spawning, pass through any "
-    "JevCompass advice ID and selected catalog IDs visible to you; never invent "
-    "them. The child must first report exactly what JevCompass advice ID and "
-    "selected catalog IDs it received in its own initial context, before any "
-    "tool call, using this line format: `JevCompass advice ID: <8 lowercase "
-    "hex characters or none>; selected catalog IDs: <comma-separated IDs or "
-    "none>`. Then have the child read the installed skill "
+    "requirements. Have the child read the installed skill "
     f"`{SKILL_FILE}`, followed by `{FIXTURE_FILE}` as its first task-source "
     "read, and return a concise test plan. Do not edit files, access a network, "
     "or use other children."
@@ -186,45 +182,6 @@ def _event_item(event: dict[str, Any]) -> dict[str, Any]:
     return item if isinstance(item, dict) else event
 
 
-def _child_id(event: dict[str, Any], item: dict[str, Any]) -> str | None:
-    for source in (event, item):
-        for key in ("agent_id",):
-            value = source.get(key)
-            if isinstance(value, str) and SAFE_ID_RE.fullmatch(value):
-                return value
-        agent = source.get("agent")
-        if isinstance(agent, dict):
-            for key in ("agent_id", "id"):
-                value = agent.get(key)
-                if isinstance(value, str) and SAFE_ID_RE.fullmatch(value):
-                    return value
-    return None
-
-
-def _explicit_child_role(event: dict[str, Any], item: dict[str, Any]) -> bool:
-    """Require a host child-role marker; an arbitrary root agent_id is not proof."""
-    for source in (event, item):
-        if any(
-            isinstance(source.get(key), str) and source[key].lower() == "explorer"
-            for key in ("agent_type", "agent_name")
-        ):
-            return True
-        path = source.get("agent_path")
-        if isinstance(path, str) and path.rstrip("/").endswith("/explorer"):
-            return True
-        agent = source.get("agent")
-        if isinstance(agent, dict):
-            if any(
-                isinstance(agent.get(key), str) and agent[key].lower() == "explorer"
-                for key in ("agent_type", "agent_name", "name")
-            ):
-                return True
-            path = agent.get("path")
-            if isinstance(path, str) and path.rstrip("/").endswith("/explorer"):
-                return True
-    return False
-
-
 def _item_text(item: dict[str, Any]) -> str:
     if isinstance(item.get("text"), str):
         return item["text"]
@@ -237,11 +194,16 @@ def _item_text(item: dict[str, Any]) -> str:
     return ""
 
 
+def _message_role(item: dict[str, Any]) -> str:
+    role = item.get("role")
+    return role.lower() if isinstance(role, str) else ""
+
+
 def _is_tool(item: dict[str, Any], event: dict[str, Any]) -> bool:
     kind = str(item.get("type") or item.get("item_type") or "").lower()
     if kind in {
         "command_execution", "function_call", "tool_call", "mcp_tool_call",
-        "collaboration_tool_call", "web_search",
+        "collaboration_tool_call", "custom_tool_call", "web_search",
     }:
         return True
     return event.get("type") in {"item.started", "item.completed"} and bool(kind) and kind not in {
@@ -251,14 +213,125 @@ def _is_tool(item: dict[str, Any], event: dict[str, Any]) -> bool:
 
 def _read_evidence(item: dict[str, Any]) -> tuple[bool, bool]:
     """Inspect tool arguments in memory only; emit booleans, never raw values."""
-    blob = json.dumps(item, ensure_ascii=False).lower()
-    return SKILL_FILE.lower() in blob, FIXTURE_FILE.lower() in blob
+    args = {
+        key: item[key]
+        for key in ("input", "arguments", "tool_input", "command")
+        if key in item
+    }
+    blob = json.dumps(args, ensure_ascii=False)
+    skill = bool(re.search(
+        r"(?<![A-Za-z0-9_.-])\.codex/skills/jevcompass-focused-tests/SKILL\.md(?![A-Za-z0-9_.-])",
+        blob,
+        re.I,
+    ))
+    fixture = bool(re.search(
+        r"(?<![A-Za-z0-9_.-])WEBHOOK_BRIEF\.md(?![A-Za-z0-9_.-])",
+        blob,
+        re.I,
+    ))
+    return skill, fixture
 
 
-def parse_child_transcript(lines: Iterable[str]) -> dict[str, Any]:
-    """Summarize explicit child ID, first response/tool order, and observed reads."""
-    parsed: list[tuple[int, dict[str, Any], dict[str, Any]]] = []
-    spawn_observed = False
+def _selected_known_skill(context: str) -> bool:
+    """Inspect only the advisor's bounded candidate bullet list for our known skill."""
+    candidate_lines = 0
+    for line in context[:MAX_CONTEXT_EVIDENCE_CHARS].splitlines():
+        if not line.startswith("- "):
+            continue
+        candidate_lines += 1
+        if candidate_lines > MAX_CONTEXT_CANDIDATE_LINES:
+            break
+        if CONTEXT_SKILL_RE.match(line):
+            return True
+    return False
+
+
+def _session_meta(path: Path) -> dict[str, Any] | None:
+    """Read only the first JSONL record when it is a session metadata row."""
+    try:
+        with path.open(encoding="utf-8", errors="replace") as stream:
+            first = json.loads(next(stream, ""))
+    except (OSError, StopIteration, json.JSONDecodeError):
+        return None
+    if not isinstance(first, dict) or first.get("type") != "session_meta":
+        return None
+    payload = first.get("payload")
+    return payload if isinstance(payload, dict) else None
+
+
+def _session_files(codex_home: Path) -> list[Path]:
+    """Find regular session logs without following symlinks."""
+    sessions = codex_home / "sessions"
+    if not sessions.is_dir() or sessions.is_symlink():
+        return []
+    return sorted(
+        path for path in sessions.rglob("*.jsonl")
+        if path.is_file() and not path.is_symlink()
+    )
+
+
+def parse_persisted_child_sessions(
+    paths: Iterable[Path], *, treatment: bool, spawn_trace_ids: Iterable[str] = (),
+) -> dict[str, Any]:
+    """Summarize one child session linked to one root; never return transcript data."""
+    sessions: list[tuple[Path, dict[str, Any]]] = []
+    for path in paths:
+        meta = _session_meta(path)
+        if meta is not None:
+            sessions.append((path, meta))
+
+    roots = [
+        (path, meta) for path, meta in sessions
+        if isinstance(meta.get("id"), str) and SAFE_ID_RE.fullmatch(meta["id"])
+        and not meta.get("forked_from_id")
+        and not meta.get("agent_nickname")
+        and not meta.get("agent_path")
+    ]
+    if len(roots) != 1:
+        return {"status": "inconclusive", "reason": "root_session_identity_ambiguous"}
+    root_path, root_meta = roots[0]
+    root_id = root_meta["id"]
+    children = [
+        (path, meta) for path, meta in sessions
+        if path != root_path
+        and meta.get("forked_from_id") == root_id
+        and isinstance(meta.get("id"), str) and SAFE_ID_RE.fullmatch(meta["id"])
+        and isinstance(meta.get("agent_nickname"), str) and bool(meta["agent_nickname"])
+        and isinstance(meta.get("agent_path"), str) and bool(meta["agent_path"])
+        # Codex may name the path after the task, not the agent's explorer role.
+    ]
+    linked = [
+        (path, meta) for path, meta in sessions
+        if path != root_path and meta.get("forked_from_id") == root_id
+    ]
+    if len(linked) != 1 or len(children) != 1:
+        return {"status": "inconclusive", "reason": "child_session_identity_ambiguous"}
+
+    child_path, _child_meta = children[0]
+    valid_spawn_traces = {
+        trace.lower() for trace in spawn_trace_ids
+        if isinstance(trace, str) and re.fullmatch(r"[a-f0-9]{8}", trace, re.I)
+    }
+    try:
+        with child_path.open(encoding="utf-8", errors="replace") as stream:
+            return _summarize_child_lines(
+                stream, treatment=treatment, spawn_trace_ids=valid_spawn_traces,
+            )
+    except OSError:
+        return {"status": "inconclusive", "reason": "child_session_unreadable"}
+
+
+def _summarize_child_lines(
+    lines: Iterable[str], *, treatment: bool, spawn_trace_ids: set[str],
+) -> dict[str, Any]:
+    """Reduce child events to evidence booleans and safe catalog IDs."""
+    first_context_order: int | None = None
+    advice_contexts: dict[str, bool] = {}
+    advice_contexts_truncated = False
+    developer_context_count = 0
+    first_tool: int | None = None
+    skill_read_order: int | None = None
+    fixture_read_order: int | None = None
     for index, line in enumerate(lines, 1):
         try:
             event = json.loads(line)
@@ -267,79 +340,84 @@ def parse_child_transcript(lines: Iterable[str]) -> dict[str, Any]:
         if not isinstance(event, dict):
             continue
         item = _event_item(event)
-        tool_name = item.get("name") or item.get("tool_name") or item.get("tool")
-        spawn_observed = spawn_observed or (
-            isinstance(tool_name, str) and tool_name in SPAWN_TOOL_NAMES
-        )
-        parsed.append((index, event, item))
-
-    # CLI formats vary. A stable agent_id must occur on a child assistant event;
-    # agent_type/name alone is not enough to prove that these are child events.
-    child_events = [
-        (n, e, i, _child_id(e, i)) for n, e, i in parsed
-        if _child_id(e, i) and _explicit_child_role(e, i)
-    ]
-    child_id = child_events[0][3] if child_events else None
-    if child_id is None:
-        return {
-            "status": "inconclusive", "reason": "child_identity_unobservable",
-            "spawn_tool_observed": spawn_observed,
-        }
-
-    first_assistant: tuple[int, str] | None = None
-    first_tool: int | None = None
-    skill_read_order: int | None = None
-    fixture_read_order: int | None = None
-    for order, event, item, identity in child_events:
-        if identity != child_id:
-            continue
         kind = str(item.get("type") or item.get("item_type") or "").lower()
-        if kind in {"agent_message", "assistant_message", "message"}:
-            if first_assistant is None:
-                first_assistant = (order, _item_text(item))
+        if kind == "message" and _message_role(item) == "developer" and first_tool is None:
+            if first_context_order is None:
+                first_context_order = index
+            developer_context_count += 1
+            if developer_context_count <= MAX_DEVELOPER_CONTEXTS:
+                text = _item_text(item)[:MAX_CONTEXT_EVIDENCE_CHARS]
+                match = ADVICE_ID_RE.search(text)
+                if match:
+                    advice_id = match.group(1).lower()
+                    selected = _selected_known_skill(text)
+                    if advice_id in advice_contexts:
+                        advice_contexts[advice_id] = advice_contexts[advice_id] or selected
+                    elif len(advice_contexts) < MAX_ADVICE_CONTEXTS:
+                        advice_contexts[advice_id] = selected
+                    else:
+                        advice_contexts_truncated = True
+            else:
+                advice_contexts_truncated = True
         if _is_tool(item, event):
-            first_tool = first_tool or order
+            first_tool = first_tool or index
             saw_skill, saw_fixture = _read_evidence(item)
             if saw_skill and skill_read_order is None:
-                skill_read_order = order
+                skill_read_order = index
             if saw_fixture and fixture_read_order is None:
-                fixture_read_order = order
-
-    report: dict[str, Any] | None = None
-    if first_assistant:
-        match = ADVICE_RE.search(first_assistant[1])
-        if match:
-            advice, selected = match.groups()
-            report = {
-                "advice_id": None if advice.lower() == "none" else advice.lower(),
-                "selected_ids": [] if selected.lower() == "none" else list(dict.fromkeys(selected.split(","))),
-                "before_first_tool": first_tool is None or first_assistant[0] < first_tool,
-            }
-    verified_order = bool(
-        spawn_observed and first_assistant and first_tool
-        and first_assistant[0] < first_tool
-    )
+                fixture_read_order = index
+    verified_order = bool(first_context_order and first_tool and first_context_order < first_tool)
     reads_observed = bool(
         skill_read_order is not None and fixture_read_order is not None
         and skill_read_order < fixture_read_order
     )
-    status = (
-        "confirmed" if verified_order and report and report["before_first_tool"] and reads_observed
-        else "inconclusive"
-    )
-    reason = None if status == "confirmed" else "child_advice_or_read_order_not_observed"
+    evidence_complete = bool(verified_order and reads_observed)
+    if treatment:
+        report: dict[str, Any] | None = None
+        if len(spawn_trace_ids) == 1:
+            spawn_trace = next(iter(spawn_trace_ids))
+            if spawn_trace in advice_contexts:
+                report = {
+                    "advice_id": spawn_trace,
+                    "selected_ids": [SKILL_NAME] if advice_contexts[spawn_trace] else [],
+                    "before_first_tool": True,
+                }
+        advice_complete = bool(
+            report and SKILL_NAME in report["selected_ids"] and not advice_contexts_truncated
+        )
+        status = "confirmed" if evidence_complete and advice_complete else "inconclusive"
+        if status == "confirmed":
+            reason = None
+        elif advice_contexts_truncated:
+            reason = "advice_contexts_ambiguous"
+        elif len(spawn_trace_ids) != 1:
+            reason = "spawn_metric_ambiguous_or_missing"
+        elif report is None:
+            reason = "spawn_advice_not_in_initial_context"
+        elif SKILL_NAME not in report["selected_ids"]:
+            reason = "spawn_advice_missing_required_skill"
+        else:
+            reason = "child_read_order_not_observed"
+    else:
+        status = "confirmed" if evidence_complete and not spawn_trace_ids else "inconclusive"
+        reason = None if status == "confirmed" else (
+            "unexpected_spawn_metric" if spawn_trace_ids else "child_read_order_not_observed"
+        )
+        report = None
     return {
         "status": status,
         "reason": reason,
-        "spawn_tool_observed": spawn_observed,
-        "child_id": child_id,
+        "child_session_observed": True,
         "advice_report": report,
+        "advice_context_count": len(advice_contexts),
+        "developer_context_count": min(developer_context_count, MAX_DEVELOPER_CONTEXTS + 1),
+        "advice_contexts_truncated": advice_contexts_truncated,
         "skill_read_observed": skill_read_order is not None,
         "first_fixture_read_observed": bool(
             fixture_read_order is not None and skill_read_order is not None
             and skill_read_order < fixture_read_order
         ),
-        "first_assistant_before_tool": verified_order,
+        "initial_context_before_first_tool": verified_order,
     }
 
 
@@ -370,7 +448,8 @@ def _collect(process: subprocess.Popen[bytes], timeout: int) -> tuple[list[str],
         return [], "cli_output_unavailable"
     selector = selectors.DefaultSelector()
     selector.register(process.stdout, selectors.EVENT_READ)
-    pending = bytearray()
+    # Drain the CLI stream to prevent pipe deadlock, but discard it: child
+    # evidence comes from the isolated persisted sessions below.
     lines: list[str] = []
     total = 0
     failure = None
@@ -390,13 +469,6 @@ def _collect(process: subprocess.Popen[bytes], timeout: int) -> tuple[list[str],
                 if total > MAX_OUTPUT_BYTES:
                     failure = "output_limit"
                     break
-                pending.extend(chunk)
-                while True:
-                    newline = pending.find(b"\n")
-                    if newline < 0:
-                        break
-                    lines.append(bytes(pending[:newline]).decode("utf-8", errors="replace"))
-                    del pending[:newline + 1]
             if failure:
                 break
     finally:
@@ -406,8 +478,6 @@ def _collect(process: subprocess.Popen[bytes], timeout: int) -> tuple[list[str],
         process.kill()
         process.wait()
         return [], failure
-    if pending:
-        lines.append(bytes(pending).decode("utf-8", errors="replace"))
     try:
         process.wait(timeout=max(0.01, deadline - time.monotonic()))
     except subprocess.TimeoutExpired:
@@ -469,7 +539,7 @@ def _run_arm(*, codex: str, model: str, arm: str, profile: dict[str, Any], timeo
     if not auth.is_file() or stat.S_IMODE(auth.stat().st_mode) != 0o600:
         return {"status": "failed", "reason": "auth_mode_invalid"}
     command = [
-        codex, "exec", "--json", "--ephemeral", "--sandbox", "read-only",
+        codex, "exec", "--json", "--sandbox", "read-only",
         "--skip-git-repo-check", "--dangerously-bypass-hook-trust", "--enable",
         "multi_agent", "--model", model, PROMPT,
     ]
@@ -481,27 +551,42 @@ def _run_arm(*, codex: str, model: str, arm: str, profile: dict[str, Any], timeo
         )
         lines, failure = _collect(process, timeout)
     except OSError:
-        return {"status": "failed", "reason": "codex_unavailable"}
+        return {"status": "inconclusive", "reason": "codex_unavailable"}
     if failure:
-        return {"status": "failed", "reason": failure}
+        return {"status": "inconclusive", "reason": failure}
     if process.returncode != 0:
-        return {"status": "failed", "reason": "codex_nonzero_exit", "exit_code": process.returncode}
-    summary = parse_child_transcript(lines)
+        return {"status": "inconclusive", "reason": "codex_nonzero_exit", "exit_code": process.returncode}
+    # The root --json stream does not reliably contain child events. Read the
+    # isolated profile's persisted session files and retain only a safe summary.
     metrics = _safe_metrics(codex_home.parent / ".local" / "state" / "jevcompass" / "advisor.jsonl")
+    pretool_metrics = [item for item in metrics if item["event"] == "PreToolUse"]
+    pretool_trace_ids = sorted({item["trace"] for item in pretool_metrics if item["trace"]})
+    summary = parse_persisted_child_sessions(
+        _session_files(codex_home), treatment=arm == "treatment",
+        spawn_trace_ids=pretool_trace_ids,
+    )
     summary.update({
         "exit_code": process.returncode,
         "elapsed_seconds": round(time.monotonic() - started, 2),
-        "pretool_spawn_metric_observed": any(item["event"] == "PreToolUse" for item in metrics),
-        "pretool_spawn_trace_ids": [item["trace"] for item in metrics if item["event"] == "PreToolUse" and item["trace"]],
+        "pretool_spawn_metric_observed": bool(pretool_metrics),
+        "pretool_spawn_metric_count": len(pretool_metrics),
+        "pretool_spawn_trace_count": len(pretool_trace_ids),
     })
     if arm == "treatment":
         advice_id = (summary.get("advice_report") or {}).get("advice_id")
         summary["spawn_advice_correlated_to_child"] = bool(
-            advice_id and advice_id in summary["pretool_spawn_trace_ids"]
+            advice_id and len(pretool_trace_ids) == 1 and advice_id == pretool_trace_ids[0]
+        )
+        # Delivery and task-source reads are separate outcomes. A correlated
+        # child-context ID can be confirmed even if the child skips the brief.
+        summary["delivery_status"] = (
+            "confirmed" if summary["spawn_advice_correlated_to_child"] else "inconclusive"
         )
         if not summary["spawn_advice_correlated_to_child"]:
             summary["status"] = "inconclusive"
             summary["reason"] = "spawn_advice_not_correlated_to_child_context"
+    if arm == "baseline":
+        summary["delivery_status"] = "not_applicable"
     if arm == "baseline" and summary.get("pretool_spawn_metric_observed"):
         summary["status"] = "failed"
         summary["reason"] = "unexpected_pretool_metric_in_baseline"
