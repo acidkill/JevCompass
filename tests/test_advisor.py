@@ -57,6 +57,25 @@ class AdvisorTests(unittest.TestCase):
             self.assertIn(expected, context)
         self.assertNotIn("decision", compact)
 
+    def test_prescribed_test_command_does_not_repeat_selection_guidance(self):
+        executor = {**ITEMS[1], "availability": "available"}
+        focused = {**ITEMS[2], "id": "jevcompass-focused-tests", "availability": "available"}
+        runner = {"id": "unittest", "kind": "tool", "invocation": "shell_command",
+                  "capability": "Run repository unittest", "availability": "available"}
+        base = "Implement normalize_whitespace so repeated whitespace is collapsed. "
+        with mock.patch.object(advisor, "candidates", return_value=[executor, focused, runner]), \
+                mock.patch.object(advisor, "DecisionsClient") as client:
+            prescribed = advisor.evaluate({"hook_event_name": "UserPromptSubmit",
+                "prompt": base + "Run python -m unittest discover -s tests."}, trace="trace123")
+            self.assertIsNone(prescribed)
+            selected = advisor.evaluate({"hook_event_name": "UserPromptSubmit",
+                "prompt": base + "Choose focused tests and run python -m unittest discover -s tests."})
+            self.assertIn("jevcompass-focused-tests", selected["hookSpecificOutput"]["additionalContext"])
+            unspecified = advisor.evaluate({"hook_event_name": "UserPromptSubmit", "prompt": base})
+            self.assertIn("unittest", unspecified["hookSpecificOutput"]["additionalContext"])
+            client.assert_not_called()
+        self.assertEqual(json.loads(advisor.LOG_PATH.read_text().splitlines()[0])["status"], "low-signal-skip")
+
     def test_shell_command_is_not_presented_as_a_codex_tool(self):
         pytest_command = {
             "id": "pytest", "kind": "tool", "invocation": "shell_command",
@@ -439,7 +458,8 @@ class AdvisorTests(unittest.TestCase):
             output = advisor.evaluate({"hook_event_name": "UserPromptSubmit", "prompt": prompt})
         self.assertIsNotNone(output)
         select.assert_called_once_with(
-            "UserPromptSubmit", "codebase", "software", "primary", None, security_relevant=True
+            "UserPromptSubmit", "codebase", "software", "primary", None,
+            security_relevant=True, test_command_supplied=False
         )
 
     def test_proposal_review_uses_source_review_without_exposing_content(self):

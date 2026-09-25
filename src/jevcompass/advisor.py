@@ -94,6 +94,8 @@ SECURITY_INTENT = re.compile(
     r"\b(?:secur\w*|auth(?:entication|orization)?\b|permission\w*|signature\w*|signed\b|secret\w*|credential\w*|replay\b|csrf\b|injection\b|vulnerab\w*|bezpiecze\w*|uprawnieni\w*|uwierzytel\w*|podpis\w*)",
     re.I,
 )
+EXPLICIT_TEST_COMMAND = re.compile(r"\b(?:python(?:3(?:\.\d+)?)?\s+-m\s+(?:unittest|pytest)|pytest\s+(?:-\w+\s+)*[\w./-]+|bash\s+-n\s+[\w./-]+)\b", re.I)
+TEST_SELECTION_INTENT = re.compile(r"\b(?:choose|select|pick|dobierz|wybierz|targeted|focused)\b.{0,35}\btests?\b", re.I)
 MIN_TASK_CHARS = 20
 SIMPLE_REQUEST = re.compile(
     r"^\s*(?:run|execute|show|list|find|search|grep|report|check|display|explain|describe|inspect|investigate|read|change|update|edit|adjust|modify|rename|uruchom|pokaż|znajdź|sprawdź|wyjaśnij|opisz|przejrzyj|zmień|zaktualizuj|popraw)\b",
@@ -321,6 +323,7 @@ def _load_advice_dependencies() -> None:
 def select_advice(
     name: str, category: str, domain: str, role: str, trace: str | None = None,
     security_relevant: bool = False,
+    test_command_supplied: bool = False,
 ) -> dict[str, Any] | None:
     _load_advice_dependencies()
     started = time.monotonic()
@@ -329,6 +332,9 @@ def select_advice(
     # domain match alone cannot make it relevant to an ordinary code review.
     if not security_relevant and domain != "security":
         pool = [item for item in pool if item["id"] != "security-requirement-extraction"]
+    if category == "coding" and test_command_supplied:
+        # Selecting tests again is redundant when the task prescribes the runner.
+        pool = [item for item in pool if item["id"] not in {"jevcompass-focused-tests", "unittest", "pytest"}]
     if category == "codex-setup":
         # Office-document tooling is a broad `document` match, not Codex setup guidance.
         pool = [item for item in pool if item["id"] == "openai-docs"]
@@ -421,10 +427,13 @@ def evaluate(event: dict[str, Any], trace: str | None = None) -> dict[str, Any] 
     name = event.get("hook_event_name")
     started = time.monotonic()
     security_relevant = False
+    test_command_supplied = False
     if name == "UserPromptSubmit":
         prompt = event.get("prompt")
         parsed = classify_task(prompt)
         security_relevant = isinstance(prompt, str) and bool(SECURITY_INTENT.search(prompt))
+        test_command_supplied = (isinstance(prompt, str) and bool(EXPLICIT_TEST_COMMAND.search(prompt))
+                                 and not bool(TEST_SELECTION_INTENT.search(prompt)))
         if parsed is None:
             if trace:
                 _metric(name, "none", "classification-skip", started, trace)
@@ -457,7 +466,8 @@ def evaluate(event: dict[str, Any], trace: str | None = None) -> dict[str, Any] 
             )
     else:
         return None
-    return select_advice(name, category, domain, role, trace, security_relevant=security_relevant)
+    return select_advice(name, category, domain, role, trace,
+                         security_relevant=security_relevant, test_command_supplied=test_command_supplied)
 
 
 def hook_main() -> int:
