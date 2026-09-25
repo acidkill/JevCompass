@@ -124,6 +124,44 @@ class CodexSetupPairTests(unittest.TestCase):
             self.assertTrue(result["cases"]["C01"]["arms"]["treatment"]["hooks_configured"])
             self.assertTrue(result["cases"]["R10"]["routine_negative_control"])
 
+    def test_installed_release_setup_uses_explicit_python_and_excludes_checkout_path(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            skill = make_skill(root)
+            interpreter = root / "installed-python"
+            interpreter.write_text("synthetic", encoding="utf-8")
+            with mock.patch.object(runner, "_check_installed_version") as verify, \
+                 mock.patch.object(runner.subprocess, "run", return_value=mock.Mock(returncode=0)) as launch, \
+                 mock.patch.dict("os.environ", {"OPENROUTER_API_KEY": "never-forward"}):
+                result = runner.run_pair(
+                    mode="dry-run", model=None, cases=("C02",), auth_root=root,
+                    skill_source=skill, installed_python=interpreter, rng=ReverseRandom(),
+                )
+            verify.assert_called_once_with(interpreter)
+            self.assertEqual(result["advisor_source"], "installed-release")
+            self.assertEqual(result["advisor_version"], "0.1.12")
+            self.assertTrue(result["cases"]["C02"]["arms"]["treatment"]["hooks_configured"])
+            self.assertFalse(result["cases"]["C02"]["arms"]["baseline"]["hooks_configured"])
+            args, kwargs = launch.call_args
+            self.assertEqual(args[0][:3], [str(interpreter), "-m", "jevcompass"])
+            self.assertEqual(args[0][3], "install")
+            self.assertNotIn("PYTHONPATH", kwargs["env"])
+            self.assertNotIn("OPENROUTER_API_KEY", kwargs["env"])
+            self.assertIn(".codex", kwargs["env"]["CODEX_HOME"])
+
+    def test_installed_version_must_match_exact_release(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            interpreter = Path(temporary) / "python"
+            interpreter.write_text("synthetic", encoding="utf-8")
+            with mock.patch.object(runner.subprocess, "run", return_value=mock.Mock(returncode=0, stdout="0.1.11\n")):
+                with self.assertRaisesRegex(RuntimeError, "does not match"):
+                    runner._check_installed_version(interpreter)
+            with mock.patch.object(runner.subprocess, "run", return_value=mock.Mock(returncode=0, stdout="0.1.12\n")) as launch:
+                runner._check_installed_version(interpreter)
+            args, kwargs = launch.call_args
+            self.assertEqual(args[0][1], "-I")
+            self.assertNotIn("PYTHONPATH", kwargs["env"])
+
     def test_c02_preflight_is_same_prompt_in_both_arms_and_not_core_case(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

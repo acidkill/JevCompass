@@ -41,6 +41,7 @@ CASE_PROMPTS["C02"] = (
 DEFAULT_TIMEOUT = 90
 MAX_TIMEOUT = 300
 MAX_SKILL_BYTES = 2 * 1024 * 1024
+EXPECTED_INSTALLED_VERSION = "0.1.12"
 CASE_IDS = ("C01", "R10")
 SELECTABLE_CASE_IDS = ("C01", "C02", "R10")
 
@@ -49,6 +50,22 @@ if _spec is None or _spec.loader is None:
     raise RuntimeError("CLI pilot helpers are unavailable")
 _core = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_core)
+
+
+def _check_installed_version(python: Path) -> None:
+    """Prove the explicit interpreter resolves the tested release, not this checkout."""
+    env = {key: os.environ[key] for key in ("PATH", "LANG", "LC_ALL", "LC_CTYPE") if key in os.environ}
+    try:
+        result = subprocess.run(
+            [str(python), "-I", "-c",
+             "from importlib.metadata import version; print(version('jevcompass'))"],
+            env=env, stdin=subprocess.DEVNULL, capture_output=True,
+            text=True, timeout=5, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise RuntimeError("installed JevCompass version could not be verified") from error
+    if result.returncode != 0 or result.stdout.strip() != EXPECTED_INSTALLED_VERSION:
+        raise RuntimeError("installed JevCompass version does not match the tested release")
 
 
 def _skill_digest(source: Path) -> str:
@@ -100,7 +117,7 @@ def _safe_failure(code: str) -> dict[str, Any]:
 
 def _prepare_profile(
     *, home: Path, skill_source: Path, skill_sha256: str, treatment: bool,
-    auth_source: Path | None,
+    auth_source: Path | None, installed_python: Path | None = None,
 ) -> dict[str, Any]:
     home.mkdir(mode=0o700)
     codex_home = home / ".codex"
@@ -122,8 +139,19 @@ def _prepare_profile(
     isolated_python = home / "python"
     if treatment:
         try:
-            _core._install_treatment_hooks(home, isolated_python)
-        except (OSError, RuntimeError, ValueError):
+            if installed_python is None:
+                _core._install_treatment_hooks(home, isolated_python)
+            else:
+                env = _core._isolated_environment(home=home, isolated_python=isolated_python)
+                env.pop("PYTHONPATH", None)
+                completed = subprocess.run(
+                    [str(installed_python), "-m", "jevcompass", "install"],
+                    env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL, timeout=15, check=False,
+                )
+                if completed.returncode != 0:
+                    return {"failure": "hooks_setup_failed"}
+        except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired):
             return {"failure": "hooks_setup_failed"}
     return {
         "auth_copied": auth_copied,
@@ -149,15 +177,19 @@ def _run_live_arm(
     *, codex: str, model: str, reasoning_effort: str, fixture: Path, home: Path,
     skill_source: Path, skill_sha256: str, case_id: str, timeout: int,
     treatment: bool, auth_source: Path, answer_sink: list[str] | None = None,
+    installed_python: Path | None = None,
 ) -> dict[str, Any]:
     profile = _prepare_profile(
         home=home, skill_source=skill_source, skill_sha256=skill_sha256,
         treatment=treatment, auth_source=auth_source,
+        installed_python=installed_python,
     )
     if "failure" in profile:
         return _safe_failure(profile["failure"])
     isolated_python = profile["isolated_python"]
     env = _core._isolated_environment(home=home, isolated_python=isolated_python)
+    if installed_python is not None:
+        env.pop("PYTHONPATH", None)
     started = time.monotonic()
     try:
         process = subprocess.Popen(
@@ -303,6 +335,7 @@ def run_pair(
     reasoning_effort: str = "medium", codex: str | None = None,
     rng: Any = None, auth_root: Path | None = None, skill_source: Path | None = None,
     blind_dir: Path | None = None, cases: tuple[str, ...] = CASE_IDS,
+    installed_python: Path | None = None,
 ) -> dict[str, Any]:
     if mode not in {"run", "mock", "dry-run"}:
         raise ValueError("mode must be run, mock, or dry-run")
@@ -316,6 +349,10 @@ def run_pair(
         raise ValueError("an explicit Codex model is required")
     if blind_dir is not None and mode != "run":
         raise ValueError("blind answer capture requires a live run")
+    if installed_python is not None:
+        if not installed_python.is_absolute() or not installed_python.is_file():
+            raise ValueError("installed Python must be an existing absolute file")
+        _check_installed_version(installed_python)
     if not FIXTURE.is_dir():
         raise FileNotFoundError("synthetic Codex setup fixture is unavailable")
 
@@ -340,6 +377,8 @@ def run_pair(
         "reasoning_effort": reasoning_effort,
         "timeout_seconds_per_arm": timeout,
         "openrouter_key_forwarded": False,
+        "advisor_source": "installed-release" if installed_python is not None else "checkout",
+        "advisor_version": EXPECTED_INSTALLED_VERSION if installed_python is not None else None,
         "sandbox": "read-only",
         "core_20_denominator_included": False,
         "receipt_scope": "redacted metadata only; no prompts, answers, source, paths, auth, or secrets",
@@ -373,6 +412,7 @@ def run_pair(
                     profile = _prepare_profile(
                         home=home, skill_source=skill_path, skill_sha256=skill_sha256,
                         treatment=treatment, auth_source=None,
+                        installed_python=installed_python,
                     )
                     arm_result = {
                         "status": "not_run",
@@ -387,6 +427,7 @@ def run_pair(
                     profile = _prepare_profile(
                         home=home, skill_source=skill_path, skill_sha256=skill_sha256,
                         treatment=treatment, auth_source=None,
+                        installed_python=installed_python,
                     )
                     arm_result = (
                         _safe_failure(profile["failure"])
@@ -401,7 +442,7 @@ def run_pair(
                         fixture=fixture_copy, home=home, skill_source=skill_path,
                         skill_sha256=skill_sha256, case_id=case_id, timeout=timeout,
                         treatment=treatment, auth_source=auth_source,
-                        answer_sink=captured_answer,
+                        answer_sink=captured_answer, installed_python=installed_python,
                     )
                     if captured_answer:
                         blind_entries.append({
@@ -441,6 +482,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--blind-dir", type=Path, help="new private directory outside the repository for blinded synthetic answers")
     parser.add_argument("--case", action="append", choices=SELECTABLE_CASE_IDS,
                         help="select one or more cases; default is C01 and R10")
+    parser.add_argument("--installed-python", type=Path,
+                        help="absolute interpreter path of installed JevCompass 0.1.12 release")
     args = parser.parse_args(argv)
     selected_mode = "dry-run" if args.dry_run else "mock" if args.mock else "run"
     if selected_mode == "run" and not args.model:
@@ -450,6 +493,7 @@ def main(argv: list[str] | None = None) -> int:
             mode=selected_mode, model=args.model, timeout=args.timeout,
             reasoning_effort=args.reasoning_effort, blind_dir=args.blind_dir,
             cases=tuple(args.case) if args.case else CASE_IDS,
+            installed_python=args.installed_python,
         )
     except FileNotFoundError as error:
         code = "skill_unavailable" if "skill" in str(error) else "fixture_unavailable"
