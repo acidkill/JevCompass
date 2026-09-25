@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Bounded end-to-end canary probe for Codex UserPromptSubmit context delivery.
+"""Bounded end-to-end canary probes for Codex hook context delivery.
 
-The probe uses a temporary CODEX_HOME and workspace, a synthetic prompt, and
-Codex's read-only ephemeral CLI mode. Its JSON output contains status and event
-ordering only; it never includes prompt text, the event stream, or auth data.
+The probes use a temporary CODEX_HOME and workspace, synthetic prompts, and
+Codex's read-only ephemeral CLI mode. Their JSON output contains status and
+event ordering only; it never includes prompt text, the event stream, or auth
+data.
 """
 from __future__ import annotations
 
@@ -34,6 +35,13 @@ PROMPT = (
     "Before using any tools, make your first response include the required "
     "diagnostic token; then inspect the file. Do not edit anything."
 )
+SUBAGENT_PROMPT = (
+    "Use exactly one read-only explorer subagent to inspect the synthetic file "
+    "probe.txt and report its single-line contents. The child must make its "
+    "first response include the diagnostic token supplied by its SubagentStart "
+    "hook before it uses any tools. Do not inspect the file in the parent, "
+    "spawn any other agents, or edit anything."
+)
 
 
 def hook_output(canary: str) -> dict[str, object]:
@@ -50,6 +58,20 @@ def hook_output(canary: str) -> dict[str, object]:
     }}
 
 
+def subagent_hook_output(canary: str) -> dict[str, object]:
+    """Return test-only SubagentStart context containing a random marker."""
+    if not CANARY_RE.fullmatch(canary):
+        raise ValueError("invalid canary")
+    context = (
+        "Isolated SubagentStart delivery probe: print this exact diagnostic "
+        f"token in your first response before using any tools: {canary}"
+    )
+    return {"hookSpecificOutput": {
+        "hookEventName": "SubagentStart",
+        "additionalContext": context,
+    }}
+
+
 def hook_main(canary: str, *, stdin: TextIO | None = None, stdout: TextIO | None = None) -> int:
     """Serve one hook event, emitting context only for UserPromptSubmit."""
     source = stdin or sys.stdin
@@ -58,6 +80,29 @@ def hook_main(canary: str, *, stdin: TextIO | None = None, stdout: TextIO | None
         event = json.load(source)
         if isinstance(event, dict) and event.get("hook_event_name") == "UserPromptSubmit":
             print(json.dumps(hook_output(canary)), file=destination)
+    except (OSError, ValueError, TypeError):
+        pass
+    return 0
+
+
+def subagent_hook_main(
+    canary: str, *, stdin: TextIO | None = None, stdout: TextIO | None = None,
+    receipt_path: Path | None = None,
+) -> int:
+    """Serve one SubagentStart event, emitting context only for explorer."""
+    source = stdin or sys.stdin
+    destination = stdout or sys.stdout
+    try:
+        event = json.load(source)
+        if (isinstance(event, dict)
+                and event.get("hook_event_name") == "SubagentStart"
+                and event.get("agent_type") == "explorer"):
+            if receipt_path is not None:
+                try:
+                    receipt_path.write_text("matched", encoding="ascii")
+                except OSError:
+                    pass
+            print(json.dumps(subagent_hook_output(canary)), file=destination)
     except (OSError, ValueError, TypeError):
         pass
     return 0
@@ -116,6 +161,85 @@ def summarize_stream(lines: Iterable[str], canary: str) -> dict[str, object]:
         and first_assistant_has_canary
     )
     return {
+        "assistant_observed": first_assistant_order is not None,
+        "tool_observed": first_tool_order is not None,
+        "canary_in_first_assistant": first_assistant_has_canary,
+        "canary_before_first_tool": before_tool,
+    }
+
+
+def _agent_identity(event: dict[str, object], item: dict[str, object]) -> tuple[bool, bool]:
+    """Return whether identity is present and whether it identifies a child."""
+    has_identity = False
+    is_child = False
+    for source in (event, item):
+        for key in ("agent_type", "agent_name", "agent_id", "agent_path", "thread_id"):
+            value = source.get(key)
+            if isinstance(value, str) and value:
+                has_identity = True
+                if key == "agent_id" or (
+                    key in {"agent_type", "agent_name"} and value.lower() == "explorer"
+                ) or (key == "agent_path" and value.rstrip("/").endswith("/explorer")):
+                    is_child = True
+        agent = source.get("agent")
+        if isinstance(agent, dict):
+            for key in ("agent_type", "agent_name", "name", "id", "agent_id", "path"):
+                value = agent.get(key)
+                if isinstance(value, str) and value:
+                    has_identity = True
+                    if key in {"id", "agent_id"} or (
+                        key in {"agent_type", "agent_name", "name"} and value.lower() == "explorer"
+                    ) or (key == "path" and value.rstrip("/").endswith("/explorer")):
+                        is_child = True
+        elif isinstance(agent, str) and agent:
+            has_identity = True
+            is_child = is_child or agent.lower() == "explorer" or agent.startswith("/root/")
+    return has_identity, is_child
+
+
+def summarize_subagent_stream(
+    lines: Iterable[str], canary: str,
+) -> dict[str, object]:
+    """Check the first identifiable explorer message and tool ordering.
+
+    If the CLI stream does not label child events as explorer, leave delivery
+    unconfirmed rather than treating a parent response as child evidence.
+    """
+    first_assistant_order: int | None = None
+    first_assistant_has_canary = False
+    first_tool_order: int | None = None
+    child_observed = False
+    for order, line in enumerate(lines, 1):
+        try:
+            event = json.loads(line)
+        except (TypeError, json.JSONDecodeError):
+            continue
+        if not isinstance(event, dict):
+            continue
+        item = event.get("item")
+        if not isinstance(item, dict):
+            item = event.get("payload")
+        if not isinstance(item, dict):
+            item = event
+        has_identity, is_child = _agent_identity(event, item)
+        if not has_identity or not is_child:
+            continue
+        child_observed = True
+        kind, text = _classify_event(event)
+        if kind == "assistant" and text and first_assistant_order is None:
+            first_assistant_order = order
+            first_assistant_has_canary = canary in text
+        elif kind == "tool" and first_tool_order is None:
+            first_tool_order = order
+
+    before_tool = bool(
+        first_assistant_order is not None
+        and first_tool_order is not None
+        and first_assistant_order < first_tool_order
+        and first_assistant_has_canary
+    )
+    return {
+        "child_observed": child_observed,
         "assistant_observed": first_assistant_order is not None,
         "tool_observed": first_tool_order is not None,
         "canary_in_first_assistant": first_assistant_has_canary,
@@ -202,6 +326,22 @@ def _write_hook_config(codex_home: Path, canary: str) -> None:
     os.chmod(config_path, 0o600)
 
 
+def _write_subagent_hook_config(codex_home: Path, canary: str, receipt_path: Path) -> None:
+    command = shlex.join([
+        sys.executable, str(Path(__file__).resolve()), "--subagent-hook-canary", canary,
+        "--receipt-path", str(receipt_path),
+    ])
+    config = {"hooks": {"SubagentStart": [{
+        "matcher": "^explorer$",
+        "hooks": [{"type": "command", "command": command,
+                   "timeout": 2, "additionalContextLimit": 400}],
+    }]}}
+    codex_home.mkdir(mode=0o700, parents=True, exist_ok=True)
+    config_path = codex_home / "hooks.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    os.chmod(config_path, 0o600)
+
+
 def run_probe(
     *, model: str, codex: str = "codex", timeout: int = DEFAULT_TIMEOUT,
     auth_path: Path | None = None,
@@ -271,18 +411,96 @@ def run_probe(
         return {"status": "failed", "reason": "probe_setup_failed"}
 
 
+def run_subagent_probe(
+    *, model: str, codex: str = "codex", timeout: int = DEFAULT_TIMEOUT,
+    auth_path: Path | None = None,
+) -> dict[str, object]:
+    """Run an isolated SubagentStart canary with one synthetic child task."""
+    if not model.strip():
+        raise ValueError("model must be specified")
+    if timeout < 1 or timeout > MAX_TIMEOUT:
+        raise ValueError(f"timeout must be between 1 and {MAX_TIMEOUT} seconds")
+    executable = shutil.which(codex) if os.path.sep not in codex else codex
+    if not executable or not Path(executable).is_file():
+        return {"status": "failed", "reason": "codex_unavailable"}
+
+    auth_source = auth_path or (
+        Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")) / "auth.json"
+    )
+    canary = secrets.token_hex(12)
+    try:
+        with tempfile.TemporaryDirectory(prefix="jevcompass-subagent-probe-") as temporary:
+            root = Path(temporary)
+            home = root / "home"
+            home.mkdir(mode=0o700)
+            codex_home = home / ".codex"
+            if not _copy_auth(auth_source, codex_home / "auth.json"):
+                return {"status": "failed", "reason": "auth_unavailable"}
+            receipt_path = root / "subagent-hook-receipt"
+            _write_subagent_hook_config(codex_home, canary, receipt_path)
+            workspace = root / "workspace"
+            workspace.mkdir(mode=0o700)
+            (workspace / "probe.txt").write_text("synthetic subagent fixture\n", encoding="utf-8")
+
+            environment = {
+                key: value for key, value in os.environ.items()
+                if key in {"PATH", "LANG", "LC_ALL", "SSL_CERT_FILE", "SSL_CERT_DIR",
+                           "HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY"}
+            }
+            environment.update({
+                "HOME": str(home),
+                "CODEX_HOME": str(codex_home),
+                "XDG_CONFIG_HOME": str(home / ".config"),
+                "XDG_CACHE_HOME": str(home / ".cache"),
+                "XDG_STATE_HOME": str(home / ".local" / "state"),
+            })
+            command = [
+                executable, "exec", "--json", "--ephemeral", "--sandbox", "read-only",
+                "--skip-git-repo-check", "--dangerously-bypass-hook-trust",
+                "--enable", "multi_agent", "--model", model, SUBAGENT_PROMPT,
+            ]
+            try:
+                process = subprocess.Popen(
+                    command, cwd=workspace, env=environment, stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                )
+                lines, failure = _collect_events(process, timeout=timeout)
+            except OSError:
+                return {"status": "failed", "reason": "cli_unavailable"}
+            if failure:
+                return {"status": "failed", "reason": failure}
+            if process.returncode != 0:
+                return {"status": "failed", "reason": "cli_nonzero_exit", "exit_code": process.returncode}
+            summary = summarize_subagent_stream(lines, canary)
+            return {
+                "status": "completed" if summary["canary_before_first_tool"] else "unconfirmed",
+                "hook_invoked": receipt_path.is_file(),
+                **summary,
+                "exit_code": process.returncode,
+            }
+    except (OSError, ValueError):
+        return {"status": "failed", "reason": "probe_setup_failed"}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", help="explicit Codex model identifier")
     parser.add_argument("--codex", default="codex", help="Codex CLI executable or path")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
+    parser.add_argument("--event", choices=("prompt", "subagent"), default="prompt",
+                        help="hook delivery path to probe (default: prompt)")
     parser.add_argument("--hook-canary", help=argparse.SUPPRESS)
+    parser.add_argument("--subagent-hook-canary", help=argparse.SUPPRESS)
+    parser.add_argument("--receipt-path", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.hook_canary is not None:
         return hook_main(args.hook_canary)
+    if args.subagent_hook_canary is not None:
+        return subagent_hook_main(args.subagent_hook_canary, receipt_path=args.receipt_path)
     if not args.model:
         parser.error("--model is required for a probe run")
-    result = run_probe(model=args.model, codex=args.codex, timeout=args.timeout)
+    probe = run_subagent_probe if args.event == "subagent" else run_probe
+    result = probe(model=args.model, codex=args.codex, timeout=args.timeout)
     print(json.dumps(result, sort_keys=True))
     return 0 if result["status"] == "completed" else 1
 

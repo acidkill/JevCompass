@@ -41,6 +41,38 @@ class HookDeliveryProbeTests(unittest.TestCase):
         )
         self.assertEqual(output.getvalue(), "")
 
+    def test_subagent_hook_emits_only_for_explorer_start(self):
+        import io
+
+        token = "a1b2c3d4e5f60718293a4b5c"
+        output = io.StringIO()
+        probe.subagent_hook_main(
+            token,
+            stdin=io.StringIO('{"hook_event_name":"SubagentStart","agent_type":"explorer"}'),
+            stdout=output,
+        )
+        hook_output = json.loads(output.getvalue())["hookSpecificOutput"]
+        self.assertEqual(hook_output["hookEventName"], "SubagentStart")
+        self.assertIn(token, hook_output["additionalContext"])
+        output = io.StringIO()
+        probe.subagent_hook_main(
+            token,
+            stdin=io.StringIO('{"hook_event_name":"SubagentStart","agent_type":"worker"}'),
+            stdout=output,
+        )
+        self.assertEqual(output.getvalue(), "")
+        with tempfile.TemporaryDirectory() as directory:
+            receipt = Path(directory) / "receipt"
+            output = io.StringIO()
+            probe.subagent_hook_main(
+                token,
+                stdin=io.StringIO('{"hook_event_name":"SubagentStart","agent_type":"explorer"}'),
+                stdout=output,
+                receipt_path=receipt,
+            )
+            self.assertEqual(receipt.read_text(), "matched")
+            self.assertIn(token, output.getvalue())
+
     def test_canary_must_be_in_first_assistant_before_first_tool(self):
         token = "a1b2c3d4e5f60718293a4b5c"
         assistant = json.dumps({
@@ -60,6 +92,37 @@ class HookDeliveryProbeTests(unittest.TestCase):
         })
         self.assertFalse(
             probe.summarize_stream([without_first_echo, assistant, tool], token)["canary_before_first_tool"]
+        )
+
+    def test_subagent_summary_requires_explorer_identity_and_first_tool_order(self):
+        token = "a1b2c3d4e5f60718293a4b5c"
+        parent = json.dumps({
+            "type": "item.completed",
+            "item": {"type": "agent_message", "text": f"{token} parent response"},
+        })
+        child = json.dumps({
+            "type": "item.completed", "agent_type": "explorer",
+            "item": {"type": "agent_message", "text": f"{token} child response"},
+        })
+        tool = json.dumps({
+            "type": "item.started", "agent_type": "explorer",
+            "item": {"type": "command_execution", "name": "exec_command"},
+        })
+        summary = probe.summarize_subagent_stream([parent, child, tool], token)
+        self.assertTrue(summary["child_observed"])
+        self.assertTrue(summary["canary_before_first_tool"])
+        self.assertFalse(probe.summarize_subagent_stream([parent], token)["child_observed"])
+        self.assertFalse(probe.summarize_subagent_stream([tool, child], token)["canary_before_first_tool"])
+        child_by_id = json.dumps({
+            "type": "item.completed", "agent_id": "synthetic-child",
+            "item": {"type": "agent_message", "text": f"{token} child response"},
+        })
+        tool_by_id = json.dumps({
+            "type": "item.started", "agent_id": "synthetic-child",
+            "item": {"type": "command_execution", "name": "exec_command"},
+        })
+        self.assertTrue(
+            probe.summarize_subagent_stream([child_by_id, tool_by_id], token)["canary_before_first_tool"]
         )
 
     def test_fake_cli_exercises_isolated_hook_chain_and_redacts_output(self):
@@ -106,6 +169,49 @@ class HookDeliveryProbeTests(unittest.TestCase):
         self.assertNotIn("private synthetic prompt", rendered)
         self.assertNotIn("I will read the fixture", rendered)
 
+    def test_fake_cli_exercises_isolated_subagent_hook_chain(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fake_cli = root / "fake-codex"
+            fake_cli.write_text(
+                "#!/usr/bin/env python3\n"
+                "import json, os, shlex, subprocess, sys\n"
+                "args = sys.argv[1:]\n"
+                "assert '--ephemeral' in args and '--json' in args and '--enable' in args\n"
+                "assert args[args.index('--enable') + 1] == 'multi_agent'\n"
+                "assert args[args.index('--sandbox') + 1] == 'read-only'\n"
+                "assert args[args.index('--model') + 1] == 'offline-model'\n"
+                "config_path = os.path.join(os.environ['CODEX_HOME'], 'hooks.json')\n"
+                "config = json.load(open(config_path, encoding='utf-8'))\n"
+                "handler = config['hooks']['SubagentStart'][0]['hooks'][0]\n"
+                "event = {'hook_event_name':'SubagentStart','agent_type':'explorer',"
+                "'agent_id':'synthetic-child'}\n"
+                "hook = subprocess.run(shlex.split(handler['command']), input=json.dumps(event), "
+                "text=True, capture_output=True, check=True)\n"
+                "context = json.loads(hook.stdout)['hookSpecificOutput']['additionalContext']\n"
+                "token = context.rsplit(' ', 1)[-1]\n"
+                "print(json.dumps({'type':'item.completed','agent_type':'explorer',"
+                "'item':{'type':'agent_message','text':token + ' child response'}}))\n"
+                "print(json.dumps({'type':'item.started','agent_type':'explorer',"
+                "'item':{'type':'command_execution','name':'exec_command'}}))\n"
+                "print(json.dumps({'type':'turn.completed'}))\n",
+                encoding="utf-8",
+            )
+            fake_cli.chmod(0o700)
+            auth = root / "auth.json"
+            auth.write_text('{"access_token":"SYNTHETIC_SECRET_MUST_NOT_LEAK"}', encoding="utf-8")
+
+            result = probe.run_subagent_probe(
+                model="offline-model", codex=str(fake_cli), timeout=5, auth_path=auth,
+            )
+
+        self.assertEqual(result["status"], "completed")
+        self.assertTrue(result["child_observed"])
+        self.assertTrue(result["canary_before_first_tool"])
+        rendered = json.dumps(result)
+        self.assertNotIn("SYNTHETIC_SECRET", rendered)
+        self.assertNotIn("child response", rendered)
+
     def test_hook_config_and_auth_copy_are_private(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -117,6 +223,12 @@ class HookDeliveryProbeTests(unittest.TestCase):
             handler = config["hooks"]["UserPromptSubmit"][0]["hooks"][0]
             self.assertEqual(handler["additionalContextLimit"], 400)
             self.assertIn("--hook-canary", handler["command"])
+            probe._write_subagent_hook_config(profile, "a1b2c3d4e5f60718293a4b5c", root / "receipt")
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+            handler = config["hooks"]["SubagentStart"][0]["hooks"][0]
+            self.assertEqual(config["hooks"]["SubagentStart"][0]["matcher"], "^explorer$")
+            self.assertEqual(handler["additionalContextLimit"], 400)
+            self.assertIn("--subagent-hook-canary", handler["command"])
             source = root / "source-auth.json"
             source.write_text('{"access_token":"synthetic"}', encoding="utf-8")
             target = profile / "auth.json"
@@ -128,6 +240,8 @@ class HookDeliveryProbeTests(unittest.TestCase):
             probe.run_probe(model=" ")
         with self.assertRaises(ValueError):
             probe.run_probe(model="offline-model", timeout=probe.MAX_TIMEOUT + 1)
+        with self.assertRaises(ValueError):
+            probe.run_subagent_probe(model="offline-model", timeout=probe.MAX_TIMEOUT + 1)
 
     def test_event_collector_enforces_output_cap(self):
         process = subprocess.Popen(
