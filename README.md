@@ -21,7 +21,7 @@ pipx install jevcompass
 jevcompass recommend --category review --domain python
 ```
 
-To install from source instead, clone this repository and run `pipx install .` from the checkout. For a reproducible version, use `pipx install jevcompass==0.1.14`. The latest source on `main` may contain unreleased changes.
+To install from source instead, clone this repository and run `pipx install .` from the checkout. For a reproducible version, use `pipx install jevcompass==0.1.15`. The latest source on `main` may contain unreleased changes.
 
 The recommendation is environment-dependent: it can show local advice, an unranked shortlist, or no recommendation. The manual command uses explicit category/domain metadata and never takes a task prompt.
 
@@ -97,7 +97,7 @@ Evidence is deliberately limited to the environments tested:
 - A fresh isolated Codex CLI 0.155.1 smoke using the published v0.1.12 wheel received `openai-docs` advice before its first tool, with a matching local hook ID. Additional synthetic CLI pairs confirmed remote Jev advice IDs before the first tool. The published v0.1.13 wheel adds bounded skill use/skip conditions; these checks do not prove broad coverage or effectiveness.
 - The initial four blinded synthetic CLI pairs tied on task quality. Later focused pairs had mixed results, including one baseline win and one treatment win; no repeatable speed or quality improvement has been demonstrated.
 - One native Desktop `explorer` child reported an advice ID before its first tool in a correlated smoke test. Other subagent probes were inconclusive, and fresh Desktop prompt delivery has not been confirmed.
-- The published v0.1.14 package is available on PyPI and was installed with `pipx` from the registry in an isolated Python 3.11 profile: the default installation registered two hooks, no `PreToolUse` gate, and `doctor` passed. The repository's later changes are not yet part of that package.
+- The published v0.1.15 package is available on PyPI and was installed with `pipx` from the registry in an isolated Python 3.11 profile: the default installation registered two hooks, no `PreToolUse` gate, and `doctor` passed. It includes the local security-skill relevance filter from PR #45. This validates installation, not task outcomes.
 - The v0.1.14 source includes the changes from PR #40 (respect installed skill MCP prerequisites), PR #41 (C05 equal-environment comparison tied on blind scores), and PR #42 (opt-in agent-spawn advice). The spawn check was an isolated CLI source-checkout run: the child saw an advice ID before its first tool using the descriptive task title because the host message was encoded. The v0.1.14 wheel also passed an isolated pipx install and clean synthetic CLI delivery check: the child's context contained a spawn advice ID before its first tool, though it did not repeat the ID before that tool. Desktop and macOS remain unverified, and no outcome benefit has been demonstrated. The default install remains two advisory hooks; routine commands are not gated.
 - macOS runtime behavior and broad usefulness remain unverified.
 
