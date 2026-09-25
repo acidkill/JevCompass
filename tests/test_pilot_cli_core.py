@@ -18,6 +18,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "pilot_cli_core.py"
 sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT / "scripts"))
 from jevcompass.advisor import classify_task
 SPEC = importlib.util.spec_from_file_location("pilot_cli_core", SCRIPT)
 runner = importlib.util.module_from_spec(SPEC)
@@ -107,6 +108,7 @@ def make_scoring_inputs(root: Path, case_ids=("P01",), *, diagnostics=False):
                     "class": "source_read",
                     "elapsed_ms": 100.0 if arm == "baseline" else 90.0,
                 },
+                "first_tool_start": {"type": "command_execution", "elapsed_ms": 80.0},
                 "outcome_checks": {"answer_indicator": True},
             }
         cases[case_id] = {"arms": arms}
@@ -191,6 +193,34 @@ class PilotCliCoreTests(unittest.TestCase):
         self.assertEqual(duplicate["token_usage_status"], "invalid")
         self.assertIsNone(duplicate["token_usage"])
 
+    def test_cli_core_integrates_redacted_receipt_parser_for_first_tool_start(self):
+        start = time.monotonic()
+        command = "private command containing secret-token"
+        lines = [
+            json.dumps({"type": "item.started", "item": {
+                "id": "private-item-id", "type": "command_execution",
+                "name": "private tool name", "command": command,
+            }}),
+            json.dumps({"type": "turn.completed", "usage": {
+                "input_tokens": 120, "cached_input_tokens": 30,
+                "cache_write_input_tokens": 4, "output_tokens": 52,
+                "reasoning_output_tokens": 10,
+            }, "transcript": "PRIVATE TRANSCRIPT"}),
+        ]
+        parsed = runner.parse_event_stream(
+            lines, start_monotonic=start, event_times=[start + .125, start + .2],
+        )
+        self.assertEqual(parsed["first_tool_start"], {
+            "type": "command_execution", "elapsed_ms": 125.0,
+        })
+        self.assertEqual(parsed["token_usage_status"], "available")
+        self.assertEqual(parsed["token_usage"]["reasoning_output_tokens"], 10)
+        rendered = json.dumps(parsed)
+        for forbidden in (command, "secret-token", "PRIVATE TRANSCRIPT",
+                          "private-item-id", "private tool name"):
+            self.assertNotIn(forbidden, rendered)
+        self.assertNotIn("first_useful_action", parsed)
+
     def test_score_aggregates_usage_and_total_wall_time_and_reads_legacy_v1(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -224,7 +254,8 @@ class PilotCliCoreTests(unittest.TestCase):
 
             for legacy_path in receipts.glob("*.json"):
                 legacy = json.loads(legacy_path.read_text(encoding="utf-8"))
-                for field in ("token_usage_status", "token_usage", "total_wall_time_ms"):
+                for field in ("token_usage_status", "token_usage", "total_wall_time_ms",
+                          "first_tool_start_type", "first_tool_start_ms"):
                     legacy.pop(field)
                 legacy["schema"] = "jevcompass-blind-cli-core-v1"
                 legacy_path.write_text(json.dumps(legacy), encoding="utf-8")
@@ -466,6 +497,17 @@ class PilotCliCoreTests(unittest.TestCase):
             self.assertIn("test-model", command)
             self.assertIn("model_reasoning_effort=high", command)
 
+    def test_mock_cli_requires_explicit_fake_executable(self):
+        with mock.patch("builtins.print") as output:
+            self.assertEqual(runner.main(["--mock", "--cases", "P01"]), 1)
+        self.assertIn("explicit fake Codex executable", output.call_args.args[0])
+        with tempfile.TemporaryDirectory() as directory:
+            fake = make_fake_codex(Path(directory) / "fake-codex")
+            with mock.patch("builtins.print") as output:
+                self.assertEqual(runner.main(["--mock", "--codex", str(fake), "--cases", "P01"]), 0)
+            receipt = json.loads(output.call_args.args[0])
+            self.assertEqual(receipt["status"], "completed")
+
     def test_preflight_appends_same_instruction_without_changing_substantive_classification(self):
         for case_id in sorted(runner.PREFLIGHT_CASES):
             base = runner._build_command(
@@ -541,7 +583,11 @@ class PilotCliCoreTests(unittest.TestCase):
             receipts = [json.loads(path.read_text(encoding="utf-8")) for path in evaluator_files]
             self.assertNotIn("cases", result)
             self.assertEqual({item["case_id"] for item in receipts}, {"P01"})
-            self.assertEqual({item["schema"] for item in receipts}, {"jevcompass-blind-cli-core-v2"})
+            self.assertEqual({item["schema"] for item in receipts}, {"jevcompass-blind-cli-core-v3"})
+            self.assertTrue(all(item["first_tool_start_type"] == "command_execution" for item in receipts))
+            self.assertTrue(all(isinstance(item["first_tool_start_ms"], (int, float))
+                                and item["first_tool_start_ms"] > 0 for item in receipts))
+            self.assertTrue(all("first_useful_action" not in item for item in receipts))
             self.assertEqual({item["token_usage_status"] for item in receipts}, {"available"})
             self.assertTrue(all(item["total_wall_time_ms"] is not None for item in receipts))
             for path, receipt in zip(evaluator_files, receipts):
