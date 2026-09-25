@@ -509,8 +509,10 @@ def _copy_auth(source: Path, destination: Path) -> bool:
     return stat.S_IMODE(destination.stat().st_mode) == 0o600
 
 
-def _check_installed_release(python: Path) -> None:
-    """Verify the explicit interpreter resolves the published pilot version in isolation."""
+def _check_installed_release(python: Path, expected_version: str = PUBLISHED_PILOT_VERSION) -> None:
+    """Verify an explicitly selected published version in an isolated interpreter."""
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", expected_version):
+        raise ValueError("installed version must be a numeric X.Y.Z release")
     if not python.is_absolute() or not python.is_file():
         raise ValueError("installed Python must be an absolute regular file")
     env = {key: os.environ[key] for key in ("PATH", "LANG", "LC_ALL", "LC_CTYPE") if key in os.environ}
@@ -523,7 +525,7 @@ def _check_installed_release(python: Path) -> None:
         )
     except (OSError, subprocess.TimeoutExpired) as error:
         raise RuntimeError("installed JevCompass version could not be verified") from error
-    if completed.returncode != 0 or completed.stdout.strip() != PUBLISHED_PILOT_VERSION:
+    if completed.returncode != 0 or completed.stdout.strip() != expected_version:
         raise RuntimeError("installed JevCompass version does not match published pilot release")
 
 
@@ -1491,8 +1493,8 @@ def run_pilot(
     timeout: int = DEFAULT_TIMEOUT, cases: Iterable[str] = CASE_IDS,
     codex: str | None = None, rng: Any = None, preflight: bool = False,
     blind_dir: str | Path | None = None, blind_quality_artifacts: bool = False,
-    installed_python: Path | None = None, allow_openrouter_key: bool = False,
-    with_bundled_skills: bool = False, source_bundled_skills: bool = False,
+    installed_python: Path | None = None, installed_version: str = PUBLISHED_PILOT_VERSION,
+    allow_openrouter_key: bool = False, with_bundled_skills: bool = False, source_bundled_skills: bool = False,
 ) -> dict[str, Any]:
     if timeout < 1 or timeout > MAX_TIMEOUT:
         raise ValueError(f"timeout must be between 1 and {MAX_TIMEOUT} seconds")
@@ -1514,7 +1516,9 @@ def run_pilot(
     if allow_openrouter_key and not os.environ.get("OPENROUTER_API_KEY"):
         raise ValueError("OpenRouter API key is unavailable")
     if installed_python is not None:
-        _check_installed_release(installed_python)
+        _check_installed_release(installed_python, installed_version)
+    elif installed_version != PUBLISHED_PILOT_VERSION:
+        raise ValueError("installed version requires an installed Python interpreter")
     if reasoning_effort not in {"low", "medium", "high", "xhigh"}:
         raise ValueError("reasoning effort must be low, medium, high, or xhigh")
     if not FIXTURE.is_dir():
@@ -1639,7 +1643,7 @@ def run_pilot(
         "reasoning_effort": reasoning_effort,
         "timeout_seconds_per_arm": timeout,
         "advisor_source": "installed-distribution" if installed_python else "source-checkout",
-        "advisor_version": PUBLISHED_PILOT_VERSION if installed_python else None,
+        "advisor_version": installed_version if installed_python else None,
         "openrouter_key_forwarded": bool(allow_openrouter_key),
         "other_hooks": "none",
         "receipt_scope": "safe metadata only; no prompt, source, transcript, command text, or auth",
@@ -1677,7 +1681,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--preflight", action="store_true", help="ask both arms to report pre-tool JevCompass advice evidence")
     parser.add_argument("--blind-dir", type=Path, help="write private, opaque per-arm evaluator receipts and separate mapping")
     parser.add_argument("--installed-python", type=Path,
-                        help="absolute interpreter path of published JevCompass 0.1.16")
+                        help="absolute interpreter path of a published JevCompass release")
+    parser.add_argument("--installed-version", default=PUBLISHED_PILOT_VERSION,
+                        help="exact published version expected in --installed-python (default: 0.1.16)")
     parser.add_argument("--with-bundled-skills", action="store_true",
                         help="install and verify the published bundled skills in both temporary profiles (live or dry run)")
     parser.add_argument("--source-bundled-skills", action="store_true",
@@ -1720,6 +1726,7 @@ def main(argv: list[str] | None = None) -> int:
             preflight=args.preflight, blind_dir=args.blind_dir,
             blind_quality_artifacts=args.blind_quality_artifacts,
             installed_python=args.installed_python,
+            installed_version=args.installed_version,
             allow_openrouter_key=args.allow_openrouter_key,
             with_bundled_skills=args.with_bundled_skills,
             source_bundled_skills=args.source_bundled_skills,
