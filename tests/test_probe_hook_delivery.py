@@ -109,7 +109,14 @@ class HookDeliveryProbeTests(unittest.TestCase):
             "item": {"type": "command_execution", "name": "exec_command"},
         })
         summary = probe.summarize_subagent_stream([parent, child, tool], token)
+        self.assertFalse(summary["spawn_tool_observed"])
         self.assertTrue(summary["child_observed"])
+        spawn = json.dumps({"type": "item.started", "item": {
+            "type": "collaboration_tool_call", "name": "spawn_agent",
+            "arguments": "private task details"}})
+        self.assertTrue(probe.summarize_subagent_stream([spawn, parent], token)["spawn_tool_observed"])
+        self.assertNotIn("private task details", json.dumps(
+            probe.summarize_subagent_stream([spawn, parent], token)))
         self.assertTrue(summary["canary_before_first_tool"])
         self.assertFalse(probe.summarize_subagent_stream([parent], token)["child_observed"])
         self.assertFalse(probe.summarize_subagent_stream([tool, child], token)["canary_before_first_tool"])

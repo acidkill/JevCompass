@@ -2,6 +2,10 @@
 
 ## Status
 
+### Isolated CLI hook-path comparison (2026-09-25)
+
+In the same Codex CLI 0.155.1 isolated read-only setup, `UserPromptSubmit` canary delivery with `gpt-6-sol` passed (`canary_before_first_tool=true`, exit 0). A `SubagentStart` canary run with `gpt-6-sol` exited 0 but returned `hook_invoked=false`, `child_observed=false`, and `spawn_tool_observed=false`. The last field is based only on allowlisted tool names in the parent JSON event stream; an absent event cannot prove no child existed. These observations isolate the negative result to the subagent path rather than general hook loading. They do not establish emitted-advice delivery for a child. The probe does not send an OpenRouter request or private task data.
+
 ### Current Desktop explorer abstention (2026-09-25)
 
 A fresh native Desktop `explorer` child was asked to identify the SubagentStart classification and context functions in the product code. The child said its original initial context had **no JevCompass advice ID**. A contemporaneous local metric recorded `SubagentStart` / `codebase` / `low-signal-skip` / 55.96 ms / trace `3d3a4f44`. This confirms the adapter was invoked and intentionally did not emit advice for the available singleton candidate. It does **not** test delivery of emitted `additionalContext` or establish usefulness. The CLI canary below also remains unconfirmed.

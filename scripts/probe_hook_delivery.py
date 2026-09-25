@@ -209,6 +209,7 @@ def summarize_subagent_stream(
     first_assistant_has_canary = False
     first_tool_order: int | None = None
     child_observed = False
+    spawn_tool_observed = False
     for order, line in enumerate(lines, 1):
         try:
             event = json.loads(line)
@@ -221,6 +222,9 @@ def summarize_subagent_stream(
             item = event.get("payload")
         if not isinstance(item, dict):
             item = event
+        tool_name = item.get("name") or item.get("tool_name") or item.get("tool")
+        if isinstance(tool_name, str) and tool_name in {"spawn_agent", "collaborationspawn_agent", "Agent"}:
+            spawn_tool_observed = True
         has_identity, is_child = _agent_identity(event, item)
         if not has_identity or not is_child:
             continue
@@ -239,6 +243,7 @@ def summarize_subagent_stream(
         and first_assistant_has_canary
     )
     return {
+        "spawn_tool_observed": spawn_tool_observed,
         "child_observed": child_observed,
         "assistant_observed": first_assistant_order is not None,
         "tool_observed": first_tool_order is not None,
