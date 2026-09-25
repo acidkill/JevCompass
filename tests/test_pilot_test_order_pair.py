@@ -113,6 +113,7 @@ class TestOrderPairRunnerTests(unittest.TestCase):
             )
             auth_file = Path(env["CODEX_HOME"]) / "auth.json"
             calls.append({
+                "command": command,
                 "prompt": prompt,
                 "cwd": str(cwd),
                 "env": dict(env),
@@ -152,6 +153,8 @@ class TestOrderPairRunnerTests(unittest.TestCase):
             self.assertNotEqual(calls[0]["env"]["CODEX_HOME"], calls[1]["env"]["CODEX_HOME"])
             self.assertNotIn("OPENROUTER_API_KEY", calls[0]["env"])
             self.assertNotIn("OPENROUTER_API_KEY", calls[1]["env"])
+            self.assertTrue(all("sandbox_workspace_write.network_access=true" not in call["command"]
+                                for call in calls))
             self.assertEqual(calls[0]["codex_files"], ["auth.json"])
             self.assertEqual(calls[1]["codex_files"], ["auth.json"])
             self.assertEqual(receipt["status"], "completed")
@@ -193,6 +196,8 @@ class TestOrderPairRunnerTests(unittest.TestCase):
                 [call["env"].get("OPENROUTER_API_KEY") for call in calls],
                 ["OPENROUTER_SECRET", "OPENROUTER_SECRET"],
             )
+            self.assertTrue(all("sandbox_workspace_write.network_access=true" in call["command"]
+                                for call in calls))
 
     def test_missing_required_matching_completion_fails_gate(self):
         with tempfile.TemporaryDirectory() as temp:

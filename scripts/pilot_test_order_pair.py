@@ -298,15 +298,18 @@ def _copy_identical_fixture(source: Path, destination: Path) -> str:
     return core.fixture_digest(destination)
 
 
-def _cli_command(codex: str, model: str, reasoning_effort: str, prompt: str) -> list[str]:
+def _cli_command(codex: str, model: str, reasoning_effort: str, prompt: str, *, allow_network: bool = False) -> list[str]:
     if (not SAFE_MODEL.fullmatch(model) or not SAFE_ID.fullmatch(reasoning_effort)):
         raise ValueError("model and reasoning effort must be simple identifiers")
-    return [
+    command = [
         codex, "-a", "never", "exec", "--json", "--ephemeral",
         "--sandbox", "workspace-write", "--skip-git-repo-check",
         "--dangerously-bypass-hook-trust", "--model", model,
-        "--config", f"model_reasoning_effort={reasoning_effort}", prompt,
+        "--config", f"model_reasoning_effort={reasoning_effort}",
     ]
+    if allow_network:
+        command.extend(["--config", "sandbox_workspace_write.network_access=true"])
+    return [*command, prompt]
 
 
 def _run_arm(
@@ -324,7 +327,8 @@ def _run_arm(
     started = time.monotonic()
     try:
         process = subprocess.Popen(
-            _cli_command(codex, model, reasoning_effort, prompt),
+            _cli_command(codex, model, reasoning_effort, prompt,
+                         allow_network=allow_openrouter_key),
             cwd=fixture, env=env, stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
         )
