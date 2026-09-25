@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import hashlib
 import os
+import re
 import shutil
 import subprocess
 import tomllib
@@ -158,6 +159,116 @@ def _codex_shell_available() -> bool:
     return not (isinstance(features, dict) and features.get("shell_tool") is False)
 
 
+_LOCAL_CATALOG_LIMIT = 32
+_LOCAL_FIELDS = ("capability", "use_when", "avoid_when")
+_LOCAL_TEXT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ,.()+'-]*$")
+_LOCAL_NAME = re.compile(r"^[a-z][a-z0-9-]{1,63}$")
+
+
+def _local_catalog_path() -> Path:
+    return resolve_codex_home() / "jevcompass" / "catalog.json"
+
+
+def _read_local_catalog() -> list[dict[str, Any]]:
+    """Ignore damaged or untrusted local metadata rather than breaking hooks."""
+    try:
+        path = _local_catalog_path()
+        if path.is_symlink() or path.stat().st_size > 32_768:
+            return []
+        data = json.loads(path.read_text(encoding="utf-8"))
+        entries = data.get("entries", [])
+        if not isinstance(entries, list) or len(entries) > _LOCAL_CATALOG_LIMIT:
+            return []
+        return entries
+    except (OSError, ValueError, TypeError, AttributeError):
+        return []
+
+
+def _valid_local_entry(entry: Any, installed: dict[str, dict[str, str]]) -> bool:
+    if not isinstance(entry, dict) or entry.get("approved_remote_metadata") is not True:
+        return False
+    name = entry.get("id")
+    if not isinstance(name, str) or not _LOCAL_NAME.fullmatch(name) or name not in installed:
+        return False
+    if not all(
+        isinstance(entry.get(field), str) and 8 <= len(entry[field]) <= 160
+        and _LOCAL_TEXT.fullmatch(entry[field]) for field in _LOCAL_FIELDS
+    ):
+        return False
+    return (
+        entry.get("role") == "guidance"
+        and entry.get("cost") == "low"
+        and isinstance(entry.get("task_kinds"), list)
+        and 1 <= len(entry["task_kinds"]) <= 4
+        and all(isinstance(task, str) and task in _ALLOWED_TASKS for task in entry["task_kinds"])
+        and isinstance(entry.get("domains"), list)
+        and 1 <= len(entry["domains"]) <= 3
+        and all(isinstance(domain, str) and domain in _ALLOWED_DOMAINS for domain in entry["domains"])
+    )
+
+
+_ALLOWED_TASKS = frozenset({
+    "ops", "debug", "testing", "research", "api-design", "document", "code",
+    "codebase", "history", "review", "source-review", "planning", "project", "package-docs",
+})
+_ALLOWED_DOMAINS = frozenset({
+    "general", "software", "python", "web", "shell", "kubernetes", "codex", "security",
+})
+
+
+def register_local_skill(
+    name: str, capability: str, use_when: str, avoid_when: str,
+    task_kinds: list[str], domains: list[str], role: str = "guidance",
+) -> dict[str, Any]:
+    """Register explicitly approved generic metadata for an installed local skill.
+
+    Fields in this returned preview may be sent to OpenRouter during remote
+    selection. The SKILL.md contents and its path are never copied or submitted.
+    """
+    installed = discover_installed_skills()
+    entry = {
+        "id": name, "capability": capability, "use_when": use_when,
+        "avoid_when": avoid_when, "task_kinds": task_kinds, "domains": domains,
+        "role": role, "cost": "low", "approved_remote_metadata": True,
+    }
+    if not _valid_local_entry(entry, installed):
+        raise ValueError("Skill must be installed and metadata must be short, generic, and allowlisted")
+    bundled = json.loads((_HERE / "catalog_data.json").read_text(encoding="utf-8"))["entries"]
+    if any(item["id"] == name for item in bundled):
+        raise ValueError("A bundled catalog entry already uses this identifier")
+    path = _local_catalog_path()
+    if path.exists():
+        try:
+            current = json.loads(path.read_text(encoding="utf-8"))
+            if (path.is_symlink() or path.stat().st_size > 32_768
+                    or not isinstance(current, dict) or current.get("schema_version") != 1
+                    or not isinstance(current.get("entries"), list)
+                    or len(current["entries"]) > _LOCAL_CATALOG_LIMIT
+                    or any(not _valid_local_entry(item, installed) for item in current["entries"])):
+                raise ValueError("Invalid local catalog")
+        except (OSError, ValueError, TypeError) as error:
+            raise ValueError("Existing local catalog is invalid; repair it before registering a skill") from error
+    existing = _read_local_catalog()
+    if any(isinstance(item, dict) and item.get("id") == name for item in existing):
+        raise ValueError("This skill is already registered")
+    if len(existing) >= _LOCAL_CATALOG_LIMIT:
+        raise ValueError("Local catalog is full")
+    path = _local_catalog_path()
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    import tempfile
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
+                                     prefix=".catalog-", delete=False) as stream:
+        temporary = Path(stream.name)
+        os.chmod(temporary, 0o600)
+        json.dump({"schema_version": 1, "entries": [*existing, entry]}, stream, indent=2)
+        stream.write("\n")
+    try:
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return entry
+
+
 def catalog_snapshot() -> tuple[list[dict[str, Any]], dict[str, int]]:
     """Return the curated catalog plus privacy-safe local availability counts."""
     raw = json.loads((_HERE / "catalog_data.json").read_text(encoding="utf-8"))
@@ -196,6 +307,18 @@ def catalog_snapshot() -> tuple[list[dict[str, Any]], dict[str, int]]:
             item["availability"] = "unavailable"
         clean.append(item)
 
+    known = {item["id"] for item in clean}
+    local_entries: list[dict[str, Any]] = []
+    for entry in _read_local_catalog():
+        if not _valid_local_entry(entry, skills) or entry["id"] in known:
+            continue
+        known.add(entry["id"])
+        local_entries.append({
+            key: entry[key] for key in
+            ("id", "capability", "use_when", "avoid_when", "role", "cost", "task_kinds", "domains")
+        } | {"kind": "skill", "privacy": "approved generic metadata", "availability": "available"})
+    clean = local_entries + clean  # Respect an explicit user-curated match within the shortlist limit.
+
     summary = {
         "curated_entries": len(clean),
         "available_tools": sum(item["kind"] == "tool" and item["availability"] == "available" for item in clean),
@@ -215,7 +338,10 @@ def load_catalog() -> list[dict[str, Any]]:
 
 def catalog_version() -> str:
     """Return a stable content hash for the curated catalog data."""
-    digest = hashlib.sha256((_HERE / "catalog_data.json").read_bytes()).hexdigest()
+    data = (_HERE / "catalog_data.json").read_bytes()
+    approved = [item for item in _read_local_catalog() if isinstance(item, dict)]
+    canonical = json.dumps(approved, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    digest = hashlib.sha256(data + b"\0" + canonical).hexdigest()
     return f"sha256:{digest}"
 
 
