@@ -1,6 +1,6 @@
 # VCR-06D Synthetic Matched-Pair Case Bank
 
-**Status:** core case design and classifier preflight; supplemental C01/R10 CLI pair scored separately. See [PILOT.md](PILOT.md) for live delivery and pilot evidence and [ROADMAP.md](ROADMAP.md) for acceptance thresholds.
+**Status:** core case design and classifier preflight; supplemental C01/R10 CLI pair scored separately. P07 now asks explicitly for an authored `STATUS_API.md`; earlier P07 outcomes used different wording and remain historical, not directly comparable. See [PILOT.md](PILOT.md) for live delivery and pilot evidence and [ROADMAP.md](ROADMAP.md) for acceptance thresholds.
 
 ## Purpose and boundary
 
@@ -20,7 +20,7 @@ Run each case in two arms with identical Codex version, model, permissions, temp
 | P04 | Substantive prompt | Desktop | `testing / python` | Add a focused Python test for the timeout fallback, then run that test and report its result. |
 | P05 | Substantive prompt | CLI | `package-docs / python` | Update the Python project README's install instructions to match the current CLI help and existing test behavior. |
 | P06 | Substantive prompt | Desktop | `planning / python` | Prepare a short implementation plan for adapting a Python package to support an optional timeout setting, including tests and compatibility checks. |
-| P07 | Substantive prompt | CLI | `api-design / python` | Design an API contract for a Python endpoint that accepts a request and returns a validated status result; include input and error cases. |
+| P07 | Substantive prompt | CLI | `api-design / python` | Design and write STATUS_API.md as an API contract for the Python POST /status endpoint. Specify required and optional JSON inputs, a validated status result, successful responses, and 4xx and 5xx response cases. Do not implement a server. |
 | P08 | Substantive prompt | Desktop | `project-setup / python` | Create a new Python package repository scaffold with minimal metadata and a smoke test; do not publish or contact external services. |
 | S01 | Subagent start: `explorer` | Desktop | Role profile: `codebase / software` | Inspect a synthetic Python fixture's module layout and identify the relevant test file. |
 | S02 | Subagent start: `worker` | Desktop | Role profile: `coding / software` | Make a one-line change in a synthetic Python fixture and run its focused test. |
