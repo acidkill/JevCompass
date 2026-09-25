@@ -75,7 +75,7 @@ TASK_PATTERNS = (
     ("history", re.compile(r"(?=.*\b(?:git|commit|branch|repository|repo|code|source|function|file|module|repozytorium|kod|plik|funkcj|moduł)\w*\b)(?=.*(?:\bhistory\b|\bhistori\w*|\bprovenance\b|\bblame\b|\bintroduced\b|\bauthored\b|\bwho\s+(?:changed|introduced|authored)\b|\bkto\s+(?:zmienił|wprowadził)\b))", re.I)),
     ("review", re.compile(r"\b(review|audit|diff|pull request|pr|przegląd|audyt)\b", re.I)),
     ("debugging", re.compile(r"\b(debug|diagnos|bug|error|failure|regress|defect|napraw|błąd|awari)\w*|\bfix(?:es|ed|ing)?\b", re.I)),
-    ("planning", re.compile(r"\b(roadmap|task list|task breakdown|list of tasks|prepare.{0,60}task|list[ęa]\s+(?:tasków|taskow|zadań|zadan)|zaplanuj|przygotuj.{0,60}(?:task|zadani|plan)|opracuj\s+plan|priorytetyz\w*|plan\s+(?:a|an|the|this|how|for|to)\b|implementation plan|planowanie|planowania)\b", re.I)),
+    ("planning", re.compile(r"\b(roadmap|task list|task breakdown|list of tasks|prepare.{0,60}task|list[ęa]\s+(?:tasków|taskow|zadań|zadan)|zaplanuj|przygotuj.{0,60}(?:task|zadani|plan)|opracuj\s+plan|priorytetyz\w*|plan\s+(?:a|an|another|the|this|how|for|to)\b|implementation plan|planowanie|planowania)\b", re.I)),
     ("codebase", re.compile(r"\b(inspect|understand|explain|trace|investigat|how does|what does|przejrz|zrozum|wyjaśn)\w*", re.I)),
     ("coding", re.compile(r"\b(implement|refactor|modify|zimplement|modyfik\w*)\w*", re.I)),
     ("documentation", re.compile(r"\b(docs|documentation|readme|instrukcj|dokument)\w*", re.I)),
@@ -96,6 +96,7 @@ SECURITY_INTENT = re.compile(
 )
 EXPLICIT_TEST_COMMAND = re.compile(r"\b(?:python(?:3(?:\.\d+)?)?\s+-m\s+(?:unittest|pytest)|pytest\s+(?:-\w+\s+)*[\w./-]+|bash\s+-n\s+[\w./-]+)\b", re.I)
 TEST_SELECTION_INTENT = re.compile(r"\b(?:choose|select|pick|dobierz|wybierz|targeted|focused)\b.{0,35}\btests?\b", re.I)
+PLAN_MIGRATION_INTENT = re.compile(r"\b(?:migrat\w*|migracj\w*|cutover|cut-over|przenies\w*|data\s+move|schema\s+transition)\b", re.I)
 MIN_TASK_CHARS = 20
 SIMPLE_REQUEST = re.compile(
     r"^\s*(?:run|execute|show|list|find|search|grep|report|check|display|explain|describe|inspect|investigate|read|change|update|edit|adjust|modify|rename|uruchom|pokaż|znajdź|sprawdź|wyjaśnij|opisz|przejrzyj|zmień|zaktualizuj|popraw)\b",
@@ -161,8 +162,9 @@ def _questions(items: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return questions
 
 
-def _cache_key(event: str, category: str, role: str, domain: str, items: list[dict[str, Any]]) -> str:
-    material = ["decisions-v1", catalog_version(), event, category, role, domain,
+def _cache_key(event: str, category: str, role: str, domain: str, items: list[dict[str, Any]],
+               plan_focus: str | None = None) -> str:
+    material = ["decisions-v1", catalog_version(), event, category, role, domain, plan_focus,
                 configured_model(), MIN_CONFIDENCE,
                 sorted((item["id"], item.get("availability"), item.get("capability"),
                         item.get("use_when"), item.get("avoid_when")) for item in items)]
@@ -198,12 +200,15 @@ def _write_cache(key: str, selected: list[str]) -> None:
         pass
 
 
-def _judge(category: str, role: str, domain: str, items: list[dict[str, Any]]) -> list[str] | None:
+def _judge(category: str, role: str, domain: str, items: list[dict[str, Any]],
+           plan_focus: str | None = None) -> list[str] | None:
     questions = _questions(items)
     if not questions:
         return None
     state = {"task_kind": category, "role": role, "domain": domain,
              "candidates": _candidate_payload(items)}
+    if category == "planning" and plan_focus in {"migration", "implementation"}:
+        state["plan_focus"] = plan_focus
     try:
         answers = DecisionsClient(timeout=JEV_TIMEOUT).decide(state, questions)
         if set(answers) != set(questions):
@@ -325,6 +330,7 @@ def select_advice(
     security_relevant: bool = False,
     test_command_supplied: bool = False,
     test_selection_requested: bool = False,
+    plan_focus: str | None = None,
 ) -> dict[str, Any] | None:
     _load_advice_dependencies()
     started = time.monotonic()
@@ -376,12 +382,12 @@ def select_advice(
         _metric(name, category, "local" if output else "insufficient-candidates", started, trace)
         return output
 
-    key = _cache_key(name, category, role, domain, items)
+    key = _cache_key(name, category, role, domain, items, plan_focus)
     allowed = {item["id"] for item in items}
     choices = _read_cache(key, allowed)
     status = "cache" if choices is not None else "jev"
     if choices is None:
-        choices = _judge(category, role, domain, items)
+        choices = _judge(category, role, domain, items, plan_focus)
         if choices:
             _write_cache(key, choices)
         else:
@@ -435,6 +441,7 @@ def evaluate(event: dict[str, Any], trace: str | None = None) -> dict[str, Any] 
     security_relevant = False
     test_command_supplied = False
     test_selection_requested = False
+    plan_focus = None
     if name == "UserPromptSubmit":
         prompt = event.get("prompt")
         parsed = classify_task(prompt)
@@ -447,6 +454,8 @@ def evaluate(event: dict[str, Any], trace: str | None = None) -> dict[str, Any] 
                 _metric(name, "none", "classification-skip", started, trace)
             return None
         category, domain = parsed
+        if category == "planning" and isinstance(prompt, str):
+            plan_focus = "migration" if PLAN_MIGRATION_INTENT.search(prompt) else "implementation"
         if domain == "general" and category in {"coding", "debugging", "testing", "infrastructure", "codebase"}:
             domain = "software"
         role = "primary"
@@ -476,7 +485,7 @@ def evaluate(event: dict[str, Any], trace: str | None = None) -> dict[str, Any] 
         return None
     return select_advice(name, category, domain, role, trace,
                          security_relevant=security_relevant, test_command_supplied=test_command_supplied,
-                         test_selection_requested=test_selection_requested)
+                         test_selection_requested=test_selection_requested, plan_focus=plan_focus)
 
 
 def hook_main() -> int:

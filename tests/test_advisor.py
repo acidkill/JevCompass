@@ -478,7 +478,7 @@ class AdvisorTests(unittest.TestCase):
         select.assert_called_once_with(
             "UserPromptSubmit", "codebase", "software", "primary", None,
             security_relevant=True, test_command_supplied=False,
-            test_selection_requested=False
+            test_selection_requested=False, plan_focus=None
         )
 
     def test_proposal_review_uses_source_review_without_exposing_content(self):
@@ -618,6 +618,40 @@ class AdvisorTests(unittest.TestCase):
         candidates.assert_called_once()
         judge.assert_not_called()
         metric.assert_called_once_with("UserPromptSubmit", "codebase", "local", mock.ANY, "local1234")
+
+    def test_plan_focus_is_bounded_and_separates_remote_choices_and_cache(self):
+        items = [
+            {**ITEMS[1], "availability": "available"},
+            {"id": "jevcompass-plan-implementation", "kind": "skill", "capability": "Implementation sequence",
+             "use_when": "feature work", "avoid_when": "cutover", "availability": "available"},
+            {"id": "jevcompass-plan-cutover", "kind": "skill", "capability": "Migration safety",
+             "use_when": "migration", "avoid_when": "routine change", "availability": "available"},
+        ]
+        seen = []
+        def choose(state, questions):
+            seen.append(state)
+            selected = ("jevcompass-plan-cutover" if state["plan_focus"] == "migration"
+                        else "jevcompass-plan-implementation")
+            self.assertEqual(set(questions), {"skill"})
+            return {"skill": {"type": "choice", "choice": selected, "confidence": 0.9}}
+        with mock.patch.object(advisor, "candidates", return_value=items), \
+                mock.patch.object(advisor, "DecisionsClient") as client:
+            client.return_value.decide.side_effect = choose
+            migration = advisor.evaluate({"hook_event_name": "UserPromptSubmit",
+                "prompt": "Plan a Python migration from a private JSON store to SQLite with rollback."})
+            implementation = advisor.evaluate({"hook_event_name": "UserPromptSubmit",
+                "prompt": "Plan a Python feature implementation with interfaces and tests."})
+            repeated = advisor.evaluate({"hook_event_name": "UserPromptSubmit",
+                "prompt": "Plan another Python migration with confidential records and rollback."})
+        self.assertEqual(client.return_value.decide.call_count, 2)
+        self.assertEqual([state["plan_focus"] for state in seen], ["migration", "implementation"])
+        self.assertIn("jevcompass-plan-cutover", migration["hookSpecificOutput"]["additionalContext"])
+        self.assertIn("jevcompass-plan-implementation", implementation["hookSpecificOutput"]["additionalContext"])
+        self.assertIn("jevcompass-plan-cutover", repeated["hookSpecificOutput"]["additionalContext"])
+        requests = json.dumps(seen)
+        for private in ("private JSON store", "confidential records", "SQLite with rollback"):
+            self.assertNotIn(private, requests)
+        self.assertEqual(set(seen[0]), {"task_kind", "role", "domain", "candidates", "plan_focus"})
 
     def test_configured_only_mcp_is_excluded_from_automatic_advice(self):
         items = [
