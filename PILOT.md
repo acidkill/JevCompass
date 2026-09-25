@@ -6,6 +6,10 @@
 
 Use [PILOT_CASES.md](PILOT_CASES.md) for the planned synthetic case bank, [ROADMAP.md](ROADMAP.md) for the thresholds and remaining gates, and [TASKS.md](TASKS.md) for release receipts. Entries below are dated development evidence, including older private-release observations; later records do not erase earlier results. Paths to local experiment artifacts are historical maintainer records and are not downloadable project assets.
 
+### VCR-252-H core CLI runner receipt integration (2026-09-25)
+
+The existing paired CLI runner now applies the redacted event parser to emit bounded first tool-start type and time in v3 anonymous receipts. Legacy v1 and v2 receipts still score under their own schemas. This field says when a tool started, **not** whether it was useful; the prior heuristic first-action and source-read fields retain their explicit limitations. Existing token and wall-time fields remain. Source integration has synthetic tests only: no new live paired arm has exercised v3, no choice ID is yet exported from an explicit coding-decision CLI invocation, and first useful action/cost remain unscored without independent validation and billing provenance.
+
 ### VCR-252-R receipt contract for future coding pairs (2026-09-25)
 
 A source-only parser now accepts Codex CLI JSON event lines and explicit choice JSON, returning allowlisted candidate IDs, elapsed time, token counters and uncached-input proxy. It never retains raw prompt, command, output, path, key, or backend rationale. A tool start is measured separately from a useful action; the latter is populated only for a caller-supplied independently validated action ID with successful completion. Duplicated or incomplete usage, invalid candidate IDs and inconsistent triage exit status remain unscored. Synthetic tests cover these contracts. The parser has not been wired into the existing matched runner or exercised in a new live pair, so earlier omissions in VCR-249-S2 remain omissions. Billing cost needs explicit provider provenance and stays unscored here. Future paired runs must preserve predeclared validation labels, required test exits, and anonymous blind quality scores.

@@ -28,6 +28,8 @@ import tempfile
 import time
 from typing import Any, Iterable
 
+from pilot_receipts import ACTION_TYPES, parse_codex_json_events
+
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "cli_core"
@@ -231,6 +233,10 @@ def parse_event_stream(
     known_candidate_ids: Iterable[str] = (),
 ) -> dict[str, Any]:
     """Produce metadata-only event order, timings, and reported catalog IDs."""
+    lines = list(lines)
+    receipt_events = parse_codex_json_events(
+        lines, started_at=start_monotonic, event_times=event_times,
+    )
     events: list[dict[str, Any]] = []
     first_assistant = None
     first_tool = None
@@ -329,6 +335,7 @@ def parse_event_stream(
         "events": events,
         "first_assistant": first_assistant,
         "first_tool": first_tool,
+        "first_tool_start": receipt_events["first_tool_start"],
         "first_source_read_ms": first_source_read_ms,
         "first_action": first_action,
         "advice_id": first_assistant["advice_id"] if id_before_tool else None,
@@ -931,6 +938,7 @@ def _run_arm(
         "first_assistant_ms": parsed["first_assistant"]["elapsed_ms"] if parsed["first_assistant"] else None,
         "first_tool_ms": parsed["first_tool"]["elapsed_ms"] if parsed["first_tool"] else None,
         "first_tool_name": parsed["first_tool"]["tool"] if parsed["first_tool"] else None,
+        "first_tool_start": parsed["first_tool_start"],
         "first_source_read_ms": parsed["first_source_read_ms"],
         "first_action": parsed["first_action"],
         "first_source_read_assessment": "heuristic: bounded command text matched a fixture source-reading command; not a usefulness score",
@@ -1106,8 +1114,21 @@ def write_blind_receipts(
                     and not isinstance(raw_wall_time, bool) and math.isfinite(raw_wall_time)
                     and 0 <= raw_wall_time <= MAX_TIMEOUT * 1000 else None
                 )
+                first_tool_start = arm.get("first_tool_start")
+                safe_tool_type = None
+                safe_tool_ms = None
+                if isinstance(first_tool_start, dict):
+                    raw_tool_type = first_tool_start.get("type")
+                    raw_tool_ms = first_tool_start.get("elapsed_ms")
+                    if isinstance(raw_tool_type, str) and SAFE_TOKEN_RE.fullmatch(raw_tool_type):
+                        safe_tool_type = raw_tool_type if raw_tool_type in ACTION_TYPES else None
+                    if (isinstance(raw_tool_ms, (int, float)) and not isinstance(raw_tool_ms, bool)
+                            and math.isfinite(raw_tool_ms) and 0 <= raw_tool_ms <= MAX_TIMEOUT * 1000):
+                        safe_tool_ms = raw_tool_ms
+                if safe_tool_type is None or safe_tool_ms is None:
+                    safe_tool_type = safe_tool_ms = None
                 receipt = {
-                    "schema": "jevcompass-blind-cli-core-v2",
+                    "schema": "jevcompass-blind-cli-core-v3",
                     "arm_token": token,
                     "case_id": case_id,
                     "first_action_class": action_class,
@@ -1118,6 +1139,8 @@ def write_blind_receipts(
                     "token_usage_status": usage_status,
                     "token_usage": safe_usage,
                     "total_wall_time_ms": safe_wall_time,
+                    "first_tool_start_type": safe_tool_type,
+                    "first_tool_start_ms": safe_tool_ms,
                     "limitation": BLIND_LIMITATION,
                 }
                 encoded = json.dumps(receipt, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
@@ -1460,6 +1483,9 @@ def score_blind_pilot(
     expected_v2_receipt_fields = expected_v1_receipt_fields | {
         "token_usage_status", "token_usage", "total_wall_time_ms",
     }
+    expected_v3_receipt_fields = expected_v2_receipt_fields | {
+        "first_tool_start_type", "first_tool_start_ms",
+    }
     for path in files:
         token = path.stem
         if token not in mapped or path.name != f"{token}.json" or token in receipts:
@@ -1468,6 +1494,7 @@ def score_blind_pilot(
         schema = receipt.get("schema")
         expected_fields = (expected_v1_receipt_fields if schema == "jevcompass-blind-cli-core-v1"
                            else expected_v2_receipt_fields if schema == "jevcompass-blind-cli-core-v2"
+                           else expected_v3_receipt_fields if schema == "jevcompass-blind-cli-core-v3"
                            else None)
         if expected_fields is None or set(receipt) != expected_fields:
             raise ValueError("receipt has an unknown schema or fields")
@@ -1499,7 +1526,7 @@ def score_blind_pilot(
             for key, value in outcomes.items()
         ):
             raise ValueError("receipt has invalid outcome checks")
-        if schema == "jevcompass-blind-cli-core-v2":
+        if schema in {"jevcompass-blind-cli-core-v2", "jevcompass-blind-cli-core-v3"}:
             usage_status = receipt["token_usage_status"]
             usage = receipt["token_usage"]
             if usage_status not in {"available", "unavailable", "invalid"}:
@@ -1521,6 +1548,21 @@ def score_blind_pilot(
                 or wall_time > MAX_TIMEOUT * 1000
             ):
                 raise ValueError("receipt has an invalid total wall time")
+            if schema == "jevcompass-blind-cli-core-v3":
+                tool_type = receipt["first_tool_start_type"]
+                tool_ms = receipt["first_tool_start_ms"]
+                if tool_type is not None and (
+                    not isinstance(tool_type, str) or tool_type not in ACTION_TYPES
+                ):
+                    raise ValueError("receipt has an invalid first tool start type")
+                if tool_ms is not None and (
+                    not isinstance(tool_ms, (int, float)) or isinstance(tool_ms, bool)
+                    or not math.isfinite(tool_ms) or tool_ms < 0
+                    or tool_ms > MAX_TIMEOUT * 1000
+                ):
+                    raise ValueError("receipt has an invalid first tool start time")
+                if (tool_type is None) != (tool_ms is None):
+                    raise ValueError("receipt first tool start fields must be paired")
         receipts[token] = receipt
     if set(receipts) != set(mapped):
         raise ValueError("receipt token set does not exactly match private mapping")
@@ -1796,6 +1838,8 @@ def run_pilot(
     if not FIXTURE.is_dir():
         raise FileNotFoundError("synthetic CLI fixture is unavailable")
     executable = codex or (shutil.which("codex") if mode == "run" else None)
+    if mode == "mock" and not executable:
+        raise ValueError("mock mode requires an explicit fake Codex executable")
     if mode == "run" and not executable:
         raise RuntimeError("Codex CLI is unavailable")
     auth_root = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
@@ -1947,6 +1991,7 @@ def main(argv: list[str] | None = None) -> int:
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--dry-run", action="store_true", help="validate fixture and pairing without launching Codex")
     mode.add_argument("--mock", action="store_true", help="run against an offline fake Codex executable")
+    parser.add_argument("--codex", help="path to a fake Codex executable for --mock only")
     parser.add_argument("--model", help="same explicit Codex model for both arms (required for live run)")
     parser.add_argument("--reasoning-effort", choices=("low", "medium", "high", "xhigh"), default="medium")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT, help=f"per-arm timeout, maximum {MAX_TIMEOUT}s")
@@ -1986,13 +2031,15 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(result, sort_keys=True))
         return 0
     selected_mode = "dry-run" if args.dry_run else "mock" if args.mock else "run"
+    if args.codex and selected_mode != "mock":
+        parser.error("--codex is only available with --mock")
     if args.blind_quality_artifacts and args.blind_dir is None:
         parser.error("--blind-quality-artifacts requires --blind-dir")
     if selected_mode == "run" and not args.model:
         parser.error("--model is required for a live pair")
     try:
         result = run_pilot(
-            mode=selected_mode, model=args.model,
+            mode=selected_mode, model=args.model, codex=args.codex,
             reasoning_effort=args.reasoning_effort,
             timeout=args.timeout, cases=args.cases,
             preflight=args.preflight, blind_dir=args.blind_dir,
