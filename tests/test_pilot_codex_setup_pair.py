@@ -187,6 +187,17 @@ class CodexSetupPairTests(unittest.TestCase):
             self.assertNotIn("abcdef12", artifact)
             self.assertNotIn("/tmp/", artifact)
 
+    def test_codex_setup_metric_category_survives_safe_filter(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "advisor.jsonl"
+            path.write_text(json.dumps({
+                "event": "UserPromptSubmit", "category": "codex-setup", "status": "local",
+                "duration_ms": 9.96, "trace": "be80b0ba",
+            }) + "\n", encoding="utf-8")
+            metrics = runner._core.read_safe_metrics(path)
+            self.assertEqual(metrics[0]["category"], "codex-setup")
+            self.assertEqual(metrics[0]["trace"], "be80b0ba")
+
     def test_final_answer_ignores_partial_and_tool_events(self):
         lines = [
             json.dumps({"type": "item.completed", "item": {"type": "agent_message", "text": "preflight"}}),

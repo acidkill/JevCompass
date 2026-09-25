@@ -88,7 +88,7 @@ BLIND_OUTCOME_KEYS = frozenset({
     "answer_indicator",
 })
 PILOT_DIAGNOSTIC_CATEGORIES = frozenset({
-    "api-design", "codebase", "coding", "debugging", "documentation",
+    "api-design", "codebase", "codex-setup", "coding", "debugging", "documentation",
     "infrastructure", "operations", "package-docs", "planning",
     "project-setup", "research", "review", "source-review", "testing",
 })
