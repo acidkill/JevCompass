@@ -1,3 +1,9 @@
+# Unreleased coding test-signal relevance (no package release)
+
+The source advisor omits duplicate focused-test and runner suggestions when a coding task gives an exact test command, except when the task expressly asks to choose tests. The unittest candidate now covers Python coding only when local CI unambiguously requires unittest. A randomized source P01 negative control returned no advice (4.49 ms), both arms passed blind quality and unittest; treatment 16.97 s versus baseline 22.24 s does not demonstrate recommendation benefit. Frozen score SHA-256: `a701e203b86a0c4e2b3be69b3815baeac5646ad9ad684c58da758b2c2600ebef`.
+
+---
+
 # Unreleased compact-advice experiment (default unchanged)
 
 An opt-in `JEVCOMPASS_ADVICE_STYLE=compact` option consolidates repeated context instructions for controlled pilots. One randomized P01 pair tied on blind authored quality and successful unittest in both arms; compact treatment advice arrived before first tool but took 21.24 s versus 18.50 s baseline, with 71,592 versus 69,164 input tokens. The frozen blind score SHA-256 is `7fd6e333abaa5e41b1cc50b93edfe970740cbeed665ee89e1bc3a3ae816aae61`. There is no established speed or billing-cost benefit; the published default remains unchanged.

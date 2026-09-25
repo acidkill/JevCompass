@@ -413,6 +413,9 @@ shell_tool = false
                     ids = {item["id"] for item in catalog.candidates("testing", "any", "python", limit=20)}
                     self.assertIn("unittest", ids)
                     self.assertNotIn("pytest", ids)
+                    coding_ids = {item["id"] for item in catalog.candidates("code", "any", "python", limit=20)}
+                    self.assertIn("unittest", coding_ids)
+                    self.assertNotIn("pytest", coding_ids)
 
                     workflow.write_text("""jobs:
   test:
@@ -422,6 +425,8 @@ shell_tool = false
                     ids = {item["id"] for item in catalog.candidates("testing", "any", "python", limit=20)}
                     self.assertIn("pytest", ids)
                     self.assertNotIn("unittest", ids)
+                    coding_ids = {item["id"] for item in catalog.candidates("code", "any", "python", limit=20)}
+                    self.assertNotIn("unittest", coding_ids)
 
                     workflow.write_text("""jobs:
   test:

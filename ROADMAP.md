@@ -14,6 +14,8 @@ Published 0.1.21 treats shell-invoked commands as companions to the executor rat
 
 ## Efficiency experiments
 
+The source advisor now skips redundant testing advice when a coding prompt prescribes an exact runner, and offers unittest for Python code changes only with unambiguous local unittest CI. A P01 negative control with silent treatment passed quality and checks in both arms; 16.97 s treatment versus 22.24 s baseline cannot establish advice benefit. Next run advised pairs without a prescribed command and compare completion time, quality and required checks; see [PILOT.md](PILOT.md).
+
 A fresh randomized pair of completed simple P01/P03 tasks with equal bundled skills found P01 treatment slower despite local advice (20.60 versus 13.79 seconds), and P03 treatment faster without advice (15.57 versus 18.10 seconds). Both arms passed blind source quality and their required commands. More balanced, advised pairs with first productive action and remote overhead are needed before an efficiency claim; see [PILOT.md](PILOT.md).
 
 The opt-in compact-advice trial reduced one synthetic context from 780 to 616 characters but its one P01 treatment arm took 21.24 s versus 18.50 s baseline with identical blind quality and passing unittest. Keep the published default; repeat advice-versus-advice and baseline pairs across tasks before considering shorter context. Details: [PILOT.md](PILOT.md).
