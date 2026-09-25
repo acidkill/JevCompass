@@ -1,3 +1,9 @@
+# JevCompass v0.1.18
+
+This patch corrects the privacy explanation for the optional custom-skill catalog. The user's approved skill ID and generic capability/use/avoid fields may be sent to OpenRouter when remote Jev ranking is enabled; raw `SKILL.md` contents, paths, prompts and code remain local. The CLI preview and `--approve-remote-metadata` behavior are unchanged. Install with `pipx install jevcompass==0.1.18`. This is a documentation correction, not a new effectiveness claim.
+
+---
+
 # JevCompass v0.1.17
 
 This update makes the first useful recommendation reproducible in a fresh profile: `doctor` points to the optional two-skill pack, and the README shows a keyless local shortlist without pretending that a candidate is a measured benefit. Installed custom skills can now be added to a per-profile catalog with `jevcompass skills add`. The command previews short generic fields, requires explicit `--approve-remote-metadata` to save, and never copies the skill body or path. Only installed names become candidates; editing the local catalog changes the cache key.

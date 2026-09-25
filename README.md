@@ -23,7 +23,7 @@ jevcompass doctor
 
 Start with `jevcompass doctor` to see which representative tasks have enough locally available candidates for a recommendation. Before hook installation it may exit nonzero because the hooks are not registered yet; the capacity report is still useful. Then try a manual request only when the report shows a useful choice for that task; for example, run `jevcompass recommend --category coding --domain python` when **coding_python** reports `decision candidates` or `local candidates`. A clean profile may report `low signal skip` or `silent`, in which case that request can correctly return no recommendation.
 
-To install from source instead, clone this repository and run `pipx install .` from the checkout. For a reproducible release, use `pipx install jevcompass==0.1.17`; check [releases](https://github.com/acidkill/JevCompass/releases) for the current verified version. The latest source on `main` may contain unreleased changes.
+To install from source instead, clone this repository and run `pipx install .` from the checkout. For a reproducible release, use `pipx install jevcompass==0.1.18`; check [releases](https://github.com/acidkill/JevCompass/releases) for the current verified version. The latest source on `main` may contain unreleased changes.
 
 The recommendation is environment-dependent: it can show local advice, an unranked shortlist, or no recommendation. The manual command uses explicit category/domain metadata and never takes a task prompt.
 
@@ -125,7 +125,7 @@ For setup diagnostics, run `jevcompass doctor`; use `jevcompass --version` to id
 
 ## Privacy
 
-Prompt classification and candidate discovery happen locally. When optional Jev ranking is used, JevCompass sends an allowlisted category, domain, role, criteria, and generic descriptions of reviewed candidates to OpenRouter's Decisions API. It does **not** send the raw prompt, source code, diffs, repository paths, memory contents, or private skill descriptions in that request. OpenRouter receives the API key in the HTTPS authorization header.
+Prompt classification and candidate discovery happen locally. When optional Jev ranking is used, JevCompass sends an allowlisted category, domain, role, criteria, and generic descriptions of reviewed candidates to OpenRouter's Decisions API. It does **not** send the raw prompt, source code, diffs, repository paths, memory contents, or unapproved `SKILL.md` descriptions. A skill added with `--approve-remote-metadata` is an exception you control: its ID and your generic capability, use and avoid descriptions can be sent to OpenRouter when remote ranking is enabled. Preview these fields first; omit names or details you consider private. OpenRouter receives the API key in the HTTPS authorization header.
 
 Local metrics contain event/category/outcome/timing and a short advice ID; they do not record the prompt, model response, paths, or memory content. Local cache entries contain selection metadata. As with any external service, review OpenRouter's terms and data handling before enabling remote ranking.
 
