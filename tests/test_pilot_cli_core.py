@@ -859,6 +859,28 @@ class PilotCliCoreTests(unittest.TestCase):
             self.assertTrue(result["cases"]["P01"]["bundled_skills"]["installed"])
             self.assertFalse(result["cases"]["P01"]["arms"]["baseline"]["model_called"])
 
+    def test_source_bundled_skills_dry_run_installs_identical_checkout_skills(self):
+        from jevcompass.skill_pack import SKILL_NAMES
+
+        result = runner.run_pilot(
+            mode="dry-run", model=None, cases=("P03",),
+            source_bundled_skills=True, rng=OrderedRandom(),
+        )
+        metadata = result["cases"]["P03"]["bundled_skills"]
+        self.assertTrue(metadata["installed"])
+        self.assertEqual(metadata["skill_count"], len(SKILL_NAMES))
+        self.assertEqual(set(metadata["content_sha256"]), set(SKILL_NAMES))
+        self.assertFalse(result["cases"]["P03"]["arms"]["baseline"]["model_called"])
+
+    def test_source_bundled_skills_reject_mock_or_installed_release(self):
+        with self.assertRaisesRegex(ValueError, "source bundled skills require"):
+            runner.run_pilot(mode="mock", model="synthetic", cases=("P03",), source_bundled_skills=True)
+        with self.assertRaisesRegex(ValueError, "bundled skills require"):
+            runner.run_pilot(
+                mode="dry-run", model=None, cases=("P03",),
+                source_bundled_skills=True, with_bundled_skills=True,
+            )
+
     def test_bundled_skills_require_installed_live_pair_and_release_check_precedes_setup(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
