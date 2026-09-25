@@ -9,7 +9,7 @@ import zipfile
 
 BLOCKED = (b"/home/acidkill/", b"PERPLEXITY_API_KEY=", b"OPENROUTER_API_KEY=",
            b"private-client-secret", b"node_modules/", b"jev-use@")
-ALLOWED_ROOT = {"README.md", "MANIFEST.in", "pyproject.toml", "PKG-INFO", "setup.cfg"}
+ALLOWED_ROOT = {"README.md", "LICENSE", "MANIFEST.in", "pyproject.toml", "PKG-INFO", "setup.cfg"}
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_SOURCE = Path("src/jevcompass")
 
@@ -82,7 +82,7 @@ def check(archive: Path, source_root: Path = PROJECT_ROOT) -> None:
         f"{archive}: metadata version {parsed.get('Version')!r} != pyproject version {expected_version!r}"
     )
     expected_readme = (source_root / "README.md").read_bytes()
-    assert parsed.get_payload().encode() == expected_readme, (
+    assert parsed.get_payload(decode=True) == expected_readme, (
         f"{archive}: stale README in distribution metadata"
     )
 
