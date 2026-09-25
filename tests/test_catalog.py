@@ -238,7 +238,7 @@ shell_tool = false
         with patch.object(catalog, "_SKILL_ROOTS", ()):
             self.assertEqual(catalog.discover_installed_skills(), {})
 
-    def test_openai_docs_is_scoped_to_codex_documentation_and_debugging(self):
+    def test_openai_docs_is_scoped_to_codex_guidance(self):
         curated = catalog.load_catalog()
         for entry in curated:
             if entry["id"] == "openai-docs":
@@ -246,10 +246,14 @@ shell_tool = false
         with patch.object(catalog, "load_catalog", return_value=curated):
             debug_ids = {item["id"] for item in catalog.candidates("debug", "any", "codex", limit=20)}
             docs_ids = {item["id"] for item in catalog.candidates("document", "any", "codex", limit=20)}
+            explanation_ids = {item["id"] for item in catalog.candidates("codebase", "any", "codex", limit=20)}
+            research_ids = {item["id"] for item in catalog.candidates("research", "any", "codex", limit=20)}
             python_ids = {item["id"] for item in catalog.candidates("document", "any", "python", limit=20)}
             coding_ids = {item["id"] for item in catalog.candidates("code", "any", "codex", limit=20)}
         self.assertIn("openai-docs", debug_ids)
         self.assertIn("openai-docs", docs_ids)
+        self.assertIn("openai-docs", explanation_ids)
+        self.assertIn("openai-docs", research_ids)
         self.assertNotIn("openai-docs", python_ids)
         self.assertNotIn("openai-docs", coding_ids)
 

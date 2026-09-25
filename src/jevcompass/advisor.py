@@ -101,7 +101,7 @@ def classify_task(prompt: str) -> tuple[str, str] | None:
     if task_kind is None:
         return None
     domain = next((name for name, pattern in DOMAIN_PATTERNS if pattern.search(prompt)), "general")
-    if domain == "codex" and task_kind not in {"documentation", "debugging"}:
+    if domain == "codex" and task_kind not in {"documentation", "debugging", "codebase", "research"}:
         domain = next((name for name, pattern in DOMAIN_PATTERNS if name != "codex" and pattern.search(prompt)), "general")
     if task_kind in {"project-setup", "api-design", "history"} and domain == "general":
         domain = "software"

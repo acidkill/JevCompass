@@ -252,6 +252,17 @@ class AdvisorTests(unittest.TestCase):
         self.assertEqual(advisor.classify_task("Build documentation for the Python project"), ("documentation", "python"))
         self.assertIsNone(advisor.classify_task("Explain the timeout handling briefly"))
 
+    def test_codex_explanations_and_research_preserve_specific_domain(self):
+        self.assertEqual(advisor.classify_task(
+            "Explain how Codex Desktop chooses project skills and where Codex hooks are configured, then compare the documented behavior."
+        ), ("codebase", "codex"))
+        self.assertEqual(advisor.classify_task(
+            "Research the official guidance for Codex CLI skills and compare how the hook configuration is loaded across sessions."
+        ), ("research", "codex"))
+        self.assertNotEqual(advisor.classify_task(
+            "Implement a Python function used by Codex CLI and run its unit tests."
+        ), ("coding", "codex"))
+
     def test_explicit_repository_history_is_distinct_from_general_code_explanation(self):
         history_prompts = (
             "Inspect the commit history of this repository to find when the authentication function was introduced.",
