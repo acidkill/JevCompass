@@ -232,6 +232,58 @@ def doctor(*, test_jev: bool = False) -> dict[str, Any]:
     return checks
 
 
+def _rank_tests_cli(source: str, as_json: bool) -> int:
+    """Order explicit local commands; never execute them or send them to Jev."""
+    from pathlib import Path
+    from .test_order import rank_tests
+
+    try:
+        if source == "-":
+            raw = sys.stdin.buffer.read(65_537)
+        else:
+            path = Path(source).expanduser()
+            if path.stat().st_size > 65_536:
+                raise ValueError("input-too-large")
+            raw = path.read_bytes()
+        if len(raw) > 65_536:
+            raise ValueError("input-too-large")
+        data = json.loads(raw)
+        if not isinstance(data, dict) or set(data) != {"surface", "candidates", "required"}:
+            raise ValueError("invalid-shape")
+        candidates, required = data["candidates"], data["required"]
+        if (not isinstance(candidates, list) or not 1 <= len(candidates) <= 8
+                or not isinstance(required, list) or len(required) > 8):
+            raise ValueError("invalid-list-size")
+        for item in candidates + required:
+            if (not isinstance(item, dict) or not isinstance(item.get("command"), str)
+                    or not 1 <= len(item["command"]) <= 512):
+                raise ValueError("invalid-command")
+        result = rank_tests(data["surface"], candidates, required)
+    except (OSError, ValueError, TypeError):
+        print("Invalid local test metadata; no command was executed.", file=sys.stderr)
+        return 2
+    payload = {
+        "status": result.status,
+        "ordered": [{"id": item.candidate_id, "kind": item.kind.value,
+                     "command": item.command} for item in result.ordered_candidates],
+        "required": [{"id": item.required_id, "command": item.command}
+                     for item in result.required],
+        "executed": False,
+    }
+    if as_json:
+        print(json.dumps(payload, ensure_ascii=False))
+    else:
+        print(f"Focused checks in suggested order ({result.status}; none executed):")
+        for index, item in enumerate(result.ordered_candidates, start=1):
+            print(f"{index}. {item.command}")
+        print("Required repository checks (always run):")
+        for item in result.required:
+            print(f"- {item.command}")
+        if not result.required:
+            print("- None supplied; confirm repository-required validation separately.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="jevcompass", description="Privacy-first tool and skill advice for Codex")
     parser.add_argument("--version", action="version", version=f"JevCompass {__version__}")
@@ -241,6 +293,11 @@ def main(argv: list[str] | None = None) -> int:
     recommend.add_argument("--category", required=True, choices=CATEGORIES)
     recommend.add_argument("--domain", required=True, choices=DOMAINS)
     recommend.add_argument("--role", choices=ROLES, default="primary")
+    tests_parser = sub.add_parser("tests", help="Order focused tests after a code change without running them")
+    tests_sub = tests_parser.add_subparsers(dest="tests_action", required=True)
+    tests_rank = tests_sub.add_parser("rank", help="Rank candidate tests from local JSON metadata")
+    tests_rank.add_argument("--input", required=True, help="Local JSON file, or - for stdin")
+    tests_rank.add_argument("--json", action="store_true", help="Print machine-readable local result")
     doctor_parser = sub.add_parser("doctor", help="Check local runtime, catalog, and hook registration")
     doctor_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
     doctor_parser.add_argument("--test-jev", action="store_true", help="Send one synthetic, billed Jev request")
@@ -278,6 +335,8 @@ def main(argv: list[str] | None = None) -> int:
         return advisor.hook_main()
     if args.command == "recommend":
         return _recommend(args.category, args.domain, args.role)
+    if args.command == "tests":
+        return _rank_tests_cli(args.input, args.json)
     if args.command == "doctor":
         result = doctor(test_jev=args.test_jev)
         if args.json:
