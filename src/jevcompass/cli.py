@@ -293,6 +293,14 @@ def main(argv: list[str] | None = None) -> int:
     recommend.add_argument("--category", required=True, choices=CATEGORIES)
     recommend.add_argument("--domain", required=True, choices=DOMAINS)
     recommend.add_argument("--role", choices=ROLES, default="primary")
+    triage_parser = sub.add_parser("triage", help="Rank diagnostic steps from allowlisted failure metadata")
+    triage_parser.add_argument("--exit-code", required=True, type=int, help="Observed failing test process exit code")
+    from .triage import FailureKind, HypothesisId
+    triage_parser.add_argument("--kind", action="append", required=True,
+                               choices=tuple(item.value for item in FailureKind))
+    triage_parser.add_argument("--hypothesis", action="append", required=True,
+                               choices=tuple(item.value for item in HypothesisId))
+    triage_parser.add_argument("--json", action="store_true", help="Print machine-readable result")
     strategy_parser = sub.add_parser("strategy", help="Choose a coding strategy from allowlisted signals")
     strategy_sub = strategy_parser.add_subparsers(dest="strategy_action", required=True)
     strategy_choose = strategy_sub.add_parser("choose", help="Get up to two reviewed pretask strategies")
@@ -343,6 +351,24 @@ def main(argv: list[str] | None = None) -> int:
         return advisor.hook_main()
     if args.command == "recommend":
         return _recommend(args.category, args.domain, args.role)
+    if args.command == "triage":
+        from .triage import triage_failure
+        result = triage_failure(tuple(FailureKind(item) for item in args.kind),
+                                tuple(HypothesisId(item) for item in args.hypothesis), args.exit_code)
+        payload = {"observed_exit_status": result.observed_exit_status,
+                   "test_failed": result.test_failed, "status": result.status,
+                   "steps": [{"id": step.id.value, "title": step.title,
+                              "instruction": step.instruction} for step in result.steps],
+                   "executed": False}
+        if args.json:
+            print(json.dumps(payload))
+        else:
+            print(f"Observed test exit: {result.observed_exit_status}; diagnostic order ({result.status}):")
+            for step in result.steps:
+                print(f"- {step.id.value}: {step.instruction}")
+            if not result.steps:
+                print("No safe diagnostic choice; inspect the original failure locally.")
+        return 0
     if args.command == "strategy":
         from .strategy import choose_strategies
         result = choose_strategies(args.kind, args.signal)
