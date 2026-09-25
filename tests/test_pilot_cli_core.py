@@ -717,6 +717,7 @@ class PilotCliCoreTests(unittest.TestCase):
             "P03": ("debugging", "shell"),
             "P05": ("package-docs", "python"),
             "P07": ("api-design", "python"),
+            "P08": ("project-setup", "python"),
         }
         for case_id, label in expected.items():
             self.assertEqual(classify_task(runner.PROMPTS[case_id]), label, case_id)
@@ -725,7 +726,7 @@ class PilotCliCoreTests(unittest.TestCase):
 
     def test_routine_controls_are_read_only_and_case_sandbox_is_explicit(self):
         self.assertEqual(runner.READ_ONLY_CASES, {"R01", "R02", "R03", "R04", "R05", "R06"})
-        self.assertEqual({case for case in runner.CASE_IDS if runner._case_settings(case)["sandbox"] == "workspace-write"}, {"P01", "P03", "P05", "P07"})
+        self.assertEqual({case for case in runner.CASE_IDS if runner._case_settings(case)["sandbox"] == "workspace-write"}, {"P01", "P03", "P05", "P07", "P08"})
         self.assertEqual(runner.ROUTINE_CASES, {"R01", "R02", "R03", "R04", "R05", "R06"})
 
     def test_installed_release_is_exact_and_credential_free_during_version_check(self):
@@ -1045,6 +1046,43 @@ class PilotCliCoreTests(unittest.TestCase):
         self.assertEqual(lines, ['{"type":"turn.started"}'])
         self.assertEqual(len(times), 1)
         self.assertIsNotNone(process.poll())
+
+    def test_p08_cli_surrogate_exports_only_allowlisted_scaffold_files(self):
+        self.assertEqual(runner.QUALITY_FILE_ALLOWLIST["P08"], (
+            "scaffoldpkg/pyproject.toml", "scaffoldpkg/src/scaffoldpkg/__init__.py",
+            "scaffoldpkg/tests/test_smoke.py",
+        ))
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory)
+            self.assertEqual(runner.build_quality_artifact("P08", fixture)["files"], [])
+            for relative in runner.QUALITY_FILE_ALLOWLIST["P08"]:
+                path = fixture / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("# synthetic package content\n", encoding="utf-8")
+            extra = fixture / "scaffoldpkg" / "private.txt"
+            extra.write_text("not for the evaluator", encoding="utf-8")
+            artifact = runner.build_quality_artifact("P08", fixture)
+        self.assertEqual([item["path"] for item in artifact["files"]], list(runner.QUALITY_FILE_ALLOWLIST["P08"]))
+        self.assertNotIn("private.txt", str(artifact))
+
+    def test_p08_outcome_records_scaffold_and_observed_unittest_exit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory)
+            missing = runner._fixture_outcome_checks("P08", fixture, None)
+            self.assertFalse(missing["scaffold_files_present"])
+            self.assertIsNone(missing["smoke_unittest_exit"])
+            for relative in runner.QUALITY_FILE_ALLOWLIST["P08"]:
+                path = fixture / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("# synthetic\n", encoding="utf-8")
+            observed = runner._fixture_outcome_checks("P08", fixture, None, [
+                {"command_check_started": "fixture_tests"},
+                {"command_check_completed": "fixture_tests", "command_check": "fixture_tests", "exit_code": 0},
+            ])
+            self.assertTrue(observed["scaffold_files_present"])
+            self.assertTrue(observed["smoke_unittest_exit"])
+            self.assertTrue(observed["unittest_invocation_observed"])
+            self.assertTrue(observed["unittest_completion_observed"])
 
     def test_opt_in_quality_artifacts_capture_only_bounded_blind_fixture_outputs(self):
         with tempfile.TemporaryDirectory() as directory:
