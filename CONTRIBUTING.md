@@ -1,6 +1,6 @@
 # Contributing to JevCompass
 
-JevCompass is currently developed in a private repository. Invited collaborators can file issues or propose changes there; this document does not grant an open-source license. For security-sensitive reports, use a private channel with the maintainer and do not paste credentials or private logs into a public issue.
+Thanks for helping make Codex tool and skill selection more useful. Open an issue for a reproducible problem or a focused pull request for a change. For security-sensitive reports, contact the maintainer privately through GitHub; never post credentials, private prompts, or raw hook logs in a public issue.
 
 ## First contribution
 
@@ -8,7 +8,7 @@ JevCompass is currently developed in a private repository. Invited collaborators
 2. Check [open work and release evidence](TASKS.md) and the [acceptance pilot](PILOT.md) before proposing a new claim or behavior.
 3. Use the local checkout and test commands below. Keep examples synthetic; do not include a real prompt, codebase, paths, memory, or credentials in a report.
 
-The repository is private and no open-source license is granted by this guide. Access is limited to invited collaborators.
+Start with a small, synthetic example showing when JevCompass should advise and when it should stay quiet. This keeps review focused and avoids disclosing real project content.
 
 ## Set up a local checkout
 
@@ -43,4 +43,4 @@ Work on a focused branch and open a pull request. The single `ubuntu-slim` CI jo
 - Add focused tests for changed hook, catalog, installer, or HTTP behavior. Check the package archive when adding bundled files.
 - Distinguish a unit-test pass from live host delivery and measured task benefit. For new advice categories, compare equivalent tasks and record negative results too.
 
-When filing a bug, include Codex host/version, OS, Python version, JevCompass version, the relevant category/domain, redacted `jevcompass doctor --json` output, and whether advice appeared before first tool use. The repository's forms are available to invited collaborators; for current claims and open validation, see [PILOT.md](PILOT.md) and [TASKS.md](TASKS.md). Never attach raw hook payloads, secret-bearing environment values, private diffs, or customer data. See [ROADMAP.md](ROADMAP.md) for the outstanding host and efficacy checks.
+When filing a bug, include Codex host/version, OS, Python version, JevCompass version, the relevant category/domain, redacted `jevcompass doctor --json` output, and whether advice appeared before first tool use. Use the repository issue forms; for current claims and open validation, see [PILOT.md](PILOT.md) and [TASKS.md](TASKS.md). Never attach raw hook payloads, secret-bearing environment values, private diffs, or customer data. See [ROADMAP.md](ROADMAP.md) for the outstanding host and efficacy checks.

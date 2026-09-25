@@ -19,6 +19,12 @@ classifiers = [
   "Topic :: Software Development :: Libraries",
 ]
 
+[project.urls]
+Homepage = "https://github.com/acidkill/JevCompass"
+Repository = "https://github.com/acidkill/JevCompass"
+Issues = "https://github.com/acidkill/JevCompass/issues"
+Changelog = "https://github.com/acidkill/JevCompass/blob/main/RELEASE_NOTES.md"
+
 [project.optional-dependencies]
 secure-store = ["keyring>=25"]
 

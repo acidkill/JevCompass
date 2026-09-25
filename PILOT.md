@@ -2,9 +2,9 @@
 
 ## Status
 
-**Acceptance: not yet passed.** Four fresh synthetic CLI pairs (P01, P03, P05, P07) tied on blind quality; the 20-case study has not been run. A synthetic CLI prompt canary reached the first response before the first tool, while recent subagent probes remain inconclusive about child delivery. A fresh Desktop explorer intentionally abstained on a generic singleton suggestion. No productivity or quality gain is established.
+**Acceptance: not yet passed.** The initial four synthetic CLI pairs (P01, P03, P05, P07) tied on blind task quality; later focused P05 pairs produced one baseline win and one treatment win. The 20-case study has not been run. A CLI prompt canary reached the first response before its first tool. One native Desktop `explorer` child reported correlated advice before its first tool; separate subagent probes were inconclusive or correctly abstained. No repeatable productivity or quality gain is established.
 
-Use [PILOT_CASES.md](PILOT_CASES.md) for the planned synthetic case bank, [ROADMAP.md](ROADMAP.md) for the thresholds and remaining gates, and [TASKS.md](TASKS.md) for release receipts. Entries below are retained as dated evidence; later records do not erase earlier results.
+Use [PILOT_CASES.md](PILOT_CASES.md) for the planned synthetic case bank, [ROADMAP.md](ROADMAP.md) for the thresholds and remaining gates, and [TASKS.md](TASKS.md) for release receipts. Entries below are dated development evidence, including older private-release observations; later records do not erase earlier results. Paths to local experiment artifacts are historical maintainer records and are not downloadable project assets.
 
 ### Isolated CLI hook-path comparison (2026-09-25)
 

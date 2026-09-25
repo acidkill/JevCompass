@@ -1,153 +1,105 @@
 # JevCompass
 
-**Choose the right Codex tools and skills for the task, with local discovery and optional Jev ranking.**
+![A compass choosing a path among developer tools and skills](assets/jevcompass-hero.png)
 
-JevCompass checks a reviewed catalog against the tools and skills available in your Codex setup, then offers concise, optional advice when it has a specific suggestion. It is built for developers who want a useful starting point without making routine commands wait on an advisor.
+**Give Codex a map of the tools and skills it already has.**
 
-**New here?** Start with [installation](#get-started-invited-collaborators), try the [manual recommendation](#try-explicit-advice), then follow [setup troubleshooting](#if-you-see-no-advice). Contributors: see [CONTRIBUTING.md](CONTRIBUTING.md). For current proof and open limits, read [pilot status](PILOT.md) and [release tasks](TASKS.md).
+A useful skill can be buried in your setup. JevCompass discovers installed candidates locally, narrows them with a reviewed catalog, and offers a short suggestion when a task has a clear match. It works with Codex Desktop and CLI hooks, without replacing your agent or gating everyday commands.
 
-- Checks local tools and skills, and stays quiet when only a generic shell suggestion remains.
-- Optional Jev ranking receives coarse, reviewed candidate metadata; it does not receive raw prompts or project files.
-- Advice never blocks commands, grants permissions, installs skills, or replaces required project checks.
+- **Start fast:** try explicit advice from the terminal before installing any hooks.
+- **Keep control:** suggestions never run tools, grant permissions, or override required checks.
+- **Choose your privacy level:** local advice works without a key; optional Jev ranking sees only coarse candidate metadata through OpenRouter.
 
-```mermaid
-flowchart LR
-  A[Task begins] --> B[Local category and availability check]
-  B --> C{Specific candidate?}
-  C -- yes --> D[Optional advice; Jev ranking if configured]
-  C -- no --> E[Stay quiet]
-  D --> F[Codex remains in control]
-```
+[Get started](#quick-start) · [See real output](#60-second-demo) · [Understand the boundary](#privacy) · [Check the evidence](#what-has-been-verified) · [Contribute](#contribute)
 
-A real example: an isolated, read-only CLI review using v0.1.8 delivered advice ID `a14d8368` with `exec_command` and `git` before the first tool. That single synthetic smoke verifies delivery in that setup; it does not show that the advice improved the task. See the dated [pilot evidence](PILOT.md#installed-v018-fresh-cli-delivery-smoke-2026-09-24).
+## Quick start
 
-**Evidence so far:** four blinded synthetic CLI pairs tied on quality. The wider acceptance study has not passed; Desktop prompt delivery, macOS runtime, and broad benefit remain unverified.
-
-At hook time, JevCompass classifies the task and checks the catalog locally. If several useful candidates remain, it can ask Jev through OpenRouter to rank their generic descriptions; it does not send raw prompts or project files.
-
-> The GitHub repository and its current release assets are private. Installation from the checkout or a release wheel requires access. Public PyPI installation is not available until a separately verified release.
-
-## Get started (invited collaborators)
-
-**Invited users:** accept the GitHub repository invitation while signed into the invited account, then clone and enter the project:
+Requirements: Python 3.11 or newer, [pipx](https://pipx.pypa.io/stable/installation/), and a Codex installation with hooks enabled. The commands below install from this GitHub source checkout.
 
 ```bash
 git clone https://github.com/acidkill/JevCompass.git
 cd JevCompass
-```
-
-Run the commands below from that checkout. If you were sent a release wheel instead, download it from the private release using that same account and verify the file before installation. The advice example below is illustrative; verify your first result with `jevcompass recommend --category project-setup --domain software`, then open a fresh Codex session for hook delivery.
-
-Requirements: Python 3.11+, `pipx`, and a Codex Desktop or CLI version supporting `UserPromptSubmit` and `SubagentStart` hooks. JevCompass targets macOS and Linux; Linux has local runtime validation, while macOS runtime validation is pending. You can start without an OpenRouter key, additional skills, or MCP servers.
-
-From a checkout you can access:
-
-```bash
 pipx install .
 jevcompass recommend --category review --domain python
+```
+
+The recommendation is environment-dependent: it can show local advice, an unranked shortlist, or no recommendation. The manual command uses explicit category/domain metadata and never takes a task prompt.
+
+To enable automatic advice, first inspect what would change, then install:
+
+```bash
 jevcompass install --dry-run
 jevcompass install
 jevcompass doctor
 ```
 
-Or install the [private v0.1.10 wheel](https://github.com/acidkill/JevCompass/releases/tag/v0.1.10) after downloading and verifying it:
+**What changes:** `jevcompass install` backs up an existing Codex `hooks.json` and registers two advisory hooks. Review and trust the registrations in Codex's `/hooks` screen, then start a fresh session. The default config is under `~/.codex`; set `CODEX_HOME` to use a different Codex home. A successful `doctor` check confirms local registration, not that Codex loaded or delivered advice.
+
+## 60-second demo
+
+After the quick start, ask about setting up a Python project:
 
 ```bash
-pipx install ./jevcompass-0.1.10-py3-none-any.whl
-jevcompass install
-jevcompass doctor
+jevcompass recommend --category project-setup --domain python
 ```
 
-`install` backs up the active `hooks.json` before changing it, merges exactly two JevCompass hook registrations, and preserves unrelated hooks such as smem. It removes only recognized legacy Jev `PreToolUse` gates. The default config path is `~/.codex/hooks.json`; `CODEX_HOME` changes it. Repeating `install` is safe. No Node runtime is required.
-
-**Finish setup in Codex:** open `/hooks`, review and trust the new `UserPromptSubmit` and `SubagentStart` entries, then start a fresh session. A registration shown by `doctor` does not prove that the host loaded or trusted it. Run `jevcompass doctor --json` for structured diagnostics. For a new wheel installed through pipx, reinstall the wheel, reinject optional extras if used, check `doctor`, and review hook trust again. A verified replacement on the maintainer's Linux pipx profile required uninstalling before reinstalling; `pipx install --force` did not work against that uv-backed environment.
-
-Once a PyPI release has been independently verified, the registry installation command will be `pipx install jevcompass`. Do not assume the pending Trusted Publisher makes this command available today.
-
-## What you get
-
-| Entry point | When it helps | What happens |
-| --- | --- | --- |
-| `UserPromptSubmit` | Substantive tasks in ordinary Codex sessions | Classifies a category locally; emits brief optional advice when the reviewed catalog has useful candidates. Short requests can be skipped. It does not infer the Plan UI mode. |
-| `SubagentStart` | Built-in `explorer` and `worker` roles | Suggests role-level candidates only when the signal is useful; generic and custom roles are skipped. The event has no subagent task text. |
-| `jevcompass recommend` | Short or ambiguous tasks, or manual use | Takes an explicit category, domain, and optional role; never accepts the raw prompt. |
-| `jevcompass doctor` | Setup and troubleshooting | Reports registration, local catalog capacity, model/key status and the latest redacted invocation status separately for each hook. |
-
-The hook adds **context, not control**. It never blocks shell, Git, Helm, or network commands, grants permissions, installs skills, or replaces required project instructions and tests. A locally configured MCP entry does not prove the tool is connected in the active session. Codex must confirm each recommendation is usable and read the selected `SKILL.md`.
-
-Illustrative format only (candidate availability varies by profile):
+For example, on a Linux checkout with `OPENROUTER_API_KEY` unset, the CLI returned this local shortlist (excerpt):
 
 ```text
-JevCompass advice ID: 0123abcd
-Local unranked fallback; Jev did not select these candidates. Optional tools and skills for this task; validate against the task and actual availability:
+Local unranked fallback; Jev did not select these candidates.
 - tool `exec_command`: Codex built-in exec_command for bounded local shell commands
-- local command `git`: Inspect repository changes and history (run through `exec_command`; confirm it is available in this session)
+- local command `git`: Inspect repository changes and history
 - skill `create-plan`: Create an implementation plan grounded in repository context
+- skill `python-packaging`: Build and distribute a Python package
 ```
 
-Without a key or a reliable Jev result, a small local shortlist can still appear; it is labeled **unranked**. One specific candidate is suggested locally. A sole generic `exec_command` candidate is suppressed as low signal. Silence is a valid result, especially in a clean Codex profile. `git` and `pytest` are commands through `exec_command`, not separate model-facing tools. Some advice includes extra locally composed reminders about skill use, required checks, and plan execution roles.
+Your shortlist depends on the tools and skills actually installed. An unranked fallback is not a Jev choice. `jevcompass install --dry-run` previews the two hook registrations without writing them; after installation, trust them in Codex `/hooks` and start a fresh session. With an OpenRouter key, an eligible task can ask Jev to rank safe metadata and may incur provider charges. [Evidence and current limits](#what-has-been-verified) distinguish hook delivery from measured benefit.
 
-## Optional Jev ranking
+## How it works
 
-Set `OPENROUTER_API_KEY` in the hook process environment to allow remote Decisions requests. The default model is `typesafe/jev-1.13`; set `JEVCOMPASS_MODEL` to override it with a compatible Decisions model. GUI-launched Desktop sessions may not inherit a terminal environment. The optional secure-store extra supports native macOS Keychain and Linux Secret Service/KWallet:
+- **Prompt hook:** `UserPromptSubmit` classifies an eligible prompt locally, then checks reviewed candidates discovered on the machine.
+- **Subagent hook:** `SubagentStart` can suggest role-level candidates for Codex's built-in `explorer` and `worker` roles. That event does not include the subagent's task text.
+- **Manual mode:** `jevcompass recommend --category CATEGORY --domain DOMAIN [--role ROLE]` requests advice using explicit metadata. Use `jevcompass recommend --help` for accepted values.
+- **Uncertainty:** Local fallback advice is labeled unranked. If there is no useful candidate, JevCompass can stay silent. A configured MCP server is not assumed to be callable in the active session.
+- **Control:** Advice does not run tools or skills, change permissions, block commands, or replace project instructions and required checks.
 
-```bash
-pipx inject jevcompass 'keyring>=25'
-jevcompass auth set
-jevcompass auth status
-```
+For setup diagnostics, run `jevcompass doctor`; use `jevcompass doctor --json` for structured output. The optional `--test-jev` flag sends one synthetic, billed request.
 
-For a checkout, `pipx install '.[secure-store]'` installs the extra together with JevCompass. `auth set` reads a hidden interactive input rather than taking a key on the command line. The environment takes precedence over the keyring. A locked, unavailable, unsupported, or slow keyring falls back to local advice. Native keyring access can ask for OS authorization; configure it interactively before relying on it in an unattended hook. On macOS, Keychain may authorize the pipx Python executable; review its access controls. `auth status` and `doctor` redact the credential. For keyring troubleshooting, run `env -u OPENROUTER_API_KEY jevcompass auth status` to check the store without the terminal environment masking it.
+## Privacy
 
-`doctor` checks public model metadata without a paid decision. `jevcompass doctor --test-jev` explicitly sends one synthetic, billed request. Network errors, model uncertainty, and timeout cause the hook to omit remote ranking rather than block the user.
+Prompt classification and candidate discovery happen locally. When optional Jev ranking is used, JevCompass sends an allowlisted category, domain, role, criteria, and generic descriptions of reviewed candidates to OpenRouter's Decisions API. It does **not** send the raw prompt, source code, diffs, repository paths, memory contents, or private skill descriptions in that request. OpenRouter receives the API key in the HTTPS authorization header.
 
-## Try explicit advice
+Local metrics contain event/category/outcome/timing and a short advice ID; they do not record the prompt, model response, paths, or memory content. Local cache entries contain selection metadata. As with any external service, review OpenRouter's terms and data handling before enabling remote ranking.
 
-```bash
-jevcompass recommend --category project-setup --domain software
-jevcompass recommend --category debugging --domain python --role primary
-jevcompass recommend --category documentation --domain codex
-```
+Remote ranking is optional. Without a key or a reliable Jev response, JevCompass can use a small local shortlist when useful; otherwise it can stay silent. Network errors and timeouts do not block the Codex task.
 
-Categories in the current source checkout: `infrastructure`, `debugging`, `testing`, `research`, `api-design`, `documentation`, `package-docs`, `coding`, `codebase`, `history`, `review`, `source-review`, `planning`, `operations`, `project-setup`. Domains: `general`, `software`, `python`, `web`, `shell`, `kubernetes`, `codex`. Roles: `primary`, `planner`, `explorer`, `worker`. Use `--help` for the current CLI contract. `package-docs` is for Python package installation documentation; `codex` domain is for substantive Codex documentation or troubleshooting. The command accepts no prompt, paths, or code. **Release boundary:** `history` was added to the source after v0.1.10 was built, so it is available from the current checkout but not from the v0.1.10 wheel. Other commands and categories must match the CLI you installed.
+## Compatibility
 
-## Privacy and diagnostics
+- Python 3.11+
+- Linux: local runtime and CLI checks have been performed.
+- macOS: targeted, but runtime behavior has not been verified.
+- Windows: not a verified target.
+- Codex Desktop and CLI: the project registers `UserPromptSubmit` and `SubagentStart` hooks, but host delivery is version-, trust-, and session-dependent. Fresh Desktop prompt delivery and subagent delivery remain unverified.
 
-Task classification and catalog discovery happen locally. A Decisions request contains an allowlisted category, domain, role, criteria, and generic descriptions of a small set of reviewed candidates. It does **not** include the prompt, source code, diffs, repository paths, memory contents, local integration names, or private skill descriptions. OpenRouter receives the API key in the HTTPS authorization header when a remote request occurs. Review its service terms and data handling for your use case. A configured MCP entry is not automatically recommended merely because it appears in `config.toml`.
+JevCompass does not infer Codex Plan UI mode. Check `/hooks` and start a fresh session after installation or a Codex upgrade.
 
-The local cache and metrics live under `~/.cache/jevcompass` and `~/.local/state/jevcompass`. Cache entries contain allowlisted selection metadata; metrics record safe event/category/outcome/timing details and a short advice ID. Simple skipped prompts need not create a metric. `doctor` reports the most recent safe status separately for each hook found in the bounded metric tail; `not observed in metric tail` is inconclusive, while `low-signal-skip` means the adapter ran and intentionally withheld advice. The displayed log age belongs to the file's most recent write, not to each hook event. A metric proves the adapter ran, **not** that the agent saw advice. From a source checkout, `python scripts/probe_hook_delivery.py --event prompt` or `--event subagent` runs an isolated synthetic CLI canary with a temporary profile and workspace. Its summary exposes status and event ordering only. A probe with no observed hook, child, or spawn event is inconclusive; it does not diagnose production hook delivery. To confirm real delivery, ask the agent at the beginning of a fresh session whether a JevCompass advice ID appeared before its first tool and correlate it with the local metric. `JEV_ADVISOR_DIAGNOSTIC=1` temporarily adds sanitized event-mode diagnostics. Never paste private prompts or credentials into issue reports.
+## What has been verified
 
-### If you see no advice
+Evidence is deliberately limited to the environments tested:
 
-1. Run `jevcompass doctor` and `jevcompass install --dry-run`; inspect the active Codex config source.
-2. Check `/hooks` for each registration, active state, and trust review. Reopen a fresh Codex session after changing the definition.
-3. Try `jevcompass recommend --category project-setup --domain software`. This tests manual selection but does **not** prove host hook delivery.
-4. A short request, unknown category, generic subagent role, missing reviewed candidates, or a sole shell candidate can correctly yield no recommendation. A missing key yields local guidance when useful.
-5. For remote ranking, check `jevcompass auth status`, model metadata in `doctor`, and use `doctor --test-jev` only when a billed synthetic request is acceptable.
+- One isolated Codex CLI 0.155.1 smoke run on Linux received local-fallback prompt advice before its first tool. This was a single delivery check, not an effectiveness study.
+- The initial four blinded synthetic CLI pairs tied on task quality. Later focused pairs had mixed results, including one baseline win and one treatment win; no repeatable speed or quality improvement has been demonstrated.
+- One native Desktop `explorer` child reported an advice ID before its first tool in a correlated smoke test. Other subagent probes were inconclusive, and fresh Desktop prompt delivery has not been confirmed.
+- macOS runtime behavior and broad usefulness remain unverified.
 
-Report failures with the Codex host/version, OS, Python version, category, redacted doctor output and safe metric status. Keep secrets, raw prompts, private paths, and proprietary logs out of reports.
+These checks do not establish that recommendations improve outcomes. If you test JevCompass, please share a reproducible example of advice that helped—or a case where silence was the right result.
 
-## Current evidence and limits
+## Contribute
 
-Local Linux unit, packaging, and isolated pipx checks are recorded for private releases in `TASKS.md`; the current private GitHub release is v0.1.10. Four matched synthetic CLI task pairs (P01, P03, P05, P07) tied in blind quality ratings; this does not establish a speed or quality improvement. Doctor's per-hook metrics show adapter invocation status, not agent-visible advice. The isolated prompt/subagent diagnostic probes test synthetic canaries; recent subagent probe runs did not observe a child or delivery, so they do not establish SubagentStart delivery or failure. Fresh Desktop **prompt** delivery, macOS runtime behavior, broad usefulness, and active-session MCP availability remain unverified. The stronger 20-pair study is planned in [ROADMAP.md](ROADMAP.md); detailed observations live in [PILOT.md](PILOT.md).
+Issues and pull requests are welcome. Helpful contributions include reproducible compatibility reports, careful documentation fixes, and synthetic tests that preserve the privacy boundary. Please do not post credentials, raw prompts, private code, or unredacted logs.
 
-The GitHub repository is private and has no open-source license. The reported PyPI Trusted Publisher is pending; no production registry artifact has been verified. GitHub CI run [36087868425](https://github.com/acidkill/JevCompass/actions/runs/36087868425) failed before runner steps; each job has an empty step list, with GitHub's payment-or-spending-limit annotation. The account-side cause is unverified. The package is available today only to collaborators with repository or wheel access. [Release and adoption tasks](TASKS.md) distinguish completed work from open checks.
+## Project links
 
-## Development
-
-```bash
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install -e .
-PYTHONPATH=src python -m unittest discover -s tests -v
-python -m build
-python tools/check_distribution.py
-```
-
-The unit suite covers hook output, classification, minimization, uncertainty, cache, catalog availability and installer merge. Synthetic tests do not prove host delivery or benefit. See [CONTRIBUTING.md](CONTRIBUTING.md) for local development and safe reports.
-
-## Soon available:
-
-- Wider Desktop and CLI validation with blinded usefulness and speed measurements.
-- Task-specific test ordering, error triage, and priority advice if matched trials show benefit.
-- Registry installation after the independent publication and runner checks. See [ROADMAP.md](ROADMAP.md).
+- [Open an issue](https://github.com/acidkill/JevCompass/issues)
+- [Propose a change](https://github.com/acidkill/JevCompass/pulls)
+- [Browse the source](https://github.com/acidkill/JevCompass)
