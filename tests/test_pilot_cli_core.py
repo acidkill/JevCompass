@@ -706,6 +706,19 @@ class PilotCliCoreTests(unittest.TestCase):
         self.assertEqual((lines, times, failure), ([], [], "timeout"))
         self.assertIsNotNone(process.poll())
 
+    def test_event_collector_can_retain_bounded_partial_events_on_timeout(self):
+        process = subprocess.Popen(
+            [sys.executable, "-c", "import sys,time; print('{\"type\":\"turn.started\"}', flush=True); time.sleep(2)"],
+            stdout=subprocess.PIPE,
+        )
+        lines, times, failure = runner._collect_events(
+            process, started=time.monotonic(), timeout=1, preserve_on_failure=True,
+        )
+        self.assertEqual(failure, "timeout")
+        self.assertEqual(lines, ['{"type":"turn.started"}'])
+        self.assertEqual(len(times), 1)
+        self.assertIsNotNone(process.poll())
+
     def test_opt_in_quality_artifacts_capture_only_bounded_blind_fixture_outputs(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
