@@ -1,5 +1,7 @@
 # VCR-06D Synthetic Matched-Pair Case Bank
 
+**Status:** design and classifier preflight only. No Codex arms or live-pilot scores have been produced. See [PILOT.md](PILOT.md) for actual delivery observations and [ROADMAP.md](ROADMAP.md) for acceptance thresholds.
+
 ## Purpose and boundary
 
 This bank prepares 20 core matched tasks plus three supplemental Desktop routine pairs for the JevCompass acceptance pilot. It is a test design artifact, not execution evidence. Every arm must use a fresh, identical temporary fixture containing synthetic code only. Do not open a user repository or include prompts, source, paths, memory, credentials, or customer data from a real project.

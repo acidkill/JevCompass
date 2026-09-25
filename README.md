@@ -2,11 +2,32 @@
 
 **Choose the right Codex tools and skills for the task, with local discovery and optional Jev ranking.**
 
-JevCompass adds concise, non-blocking advice to Codex Desktop and CLI. It checks a reviewed catalog against your local Codex configuration, installed skills, and available commands. When several useful choices remain, it can ask Jev through OpenRouter to rank their generic descriptions. JevCompass does not send raw prompts or project files to OpenRouter.
+JevCompass checks a reviewed catalog against the tools and skills available in your Codex setup, then offers concise, optional advice when it has a specific suggestion. It is built for developers who want a useful starting point without making routine commands wait on an advisor.
+
+**New here?** Start with [installation](#get-started-invited-collaborators), try the [manual recommendation](#try-explicit-advice), then follow [setup troubleshooting](#if-you-see-no-advice). Contributors: see [CONTRIBUTING.md](CONTRIBUTING.md). For current proof and open limits, read [pilot status](PILOT.md) and [release tasks](TASKS.md).
+
+- Checks local tools and skills, and stays quiet when only a generic shell suggestion remains.
+- Optional Jev ranking receives coarse, reviewed candidate metadata; it does not receive raw prompts or project files.
+- Advice never blocks commands, grants permissions, installs skills, or replaces required project checks.
+
+```mermaid
+flowchart LR
+  A[Task begins] --> B[Local category and availability check]
+  B --> C{Specific candidate?}
+  C -- yes --> D[Optional advice; Jev ranking if configured]
+  C -- no --> E[Stay quiet]
+  D --> F[Codex remains in control]
+```
+
+A real example: an isolated, read-only CLI review using v0.1.8 delivered advice ID `a14d8368` with `exec_command` and `git` before the first tool. That single synthetic smoke verifies delivery in that setup; it does not show that the advice improved the task. See the dated [pilot evidence](PILOT.md#installed-v018-fresh-cli-delivery-smoke-2026-09-24).
+
+**Evidence so far:** four blinded synthetic CLI pairs tied on quality. The wider acceptance study has not passed; Desktop prompt delivery, macOS runtime, and broad benefit remain unverified.
+
+At hook time, JevCompass classifies the task and checks the catalog locally. If several useful candidates remain, it can ask Jev through OpenRouter to rank their generic descriptions; it does not send raw prompts or project files.
 
 > The GitHub repository and its current release assets are private. Installation from the checkout or a release wheel requires access. Public PyPI installation is not available until a separately verified release.
 
-## Get started
+## Get started (invited collaborators)
 
 **Invited users:** accept the GitHub repository invitation while signed into the invited account, then clone and enter the project:
 
@@ -23,6 +44,7 @@ From a checkout you can access:
 
 ```bash
 pipx install .
+jevcompass recommend --category review --domain python
 jevcompass install --dry-run
 jevcompass install
 jevcompass doctor
@@ -53,7 +75,7 @@ Once a PyPI release has been independently verified, the registry installation c
 
 The hook adds **context, not control**. It never blocks shell, Git, Helm, or network commands, grants permissions, installs skills, or replaces required project instructions and tests. A locally configured MCP entry does not prove the tool is connected in the active session. Codex must confirm each recommendation is usable and read the selected `SKILL.md`.
 
-Example advice from a repository setup task in a profile with the `create-plan` skill (the ID is illustrative):
+Illustrative format only (candidate availability varies by profile):
 
 ```text
 JevCompass advice ID: 0123abcd
@@ -87,7 +109,7 @@ jevcompass recommend --category debugging --domain python --role primary
 jevcompass recommend --category documentation --domain codex
 ```
 
-Categories: `infrastructure`, `debugging`, `testing`, `research`, `api-design`, `documentation`, `package-docs`, `coding`, `codebase`, `history`, `review`, `source-review`, `planning`, `operations`, `project-setup`. Domains: `general`, `software`, `python`, `web`, `shell`, `kubernetes`, `codex`. Roles: `primary`, `planner`, `explorer`, `worker`. Use `--help` for the current CLI contract. `package-docs` is for Python package installation documentation; `codex` domain is for substantive Codex documentation or troubleshooting. The command accepts no prompt, paths, or code.
+Categories in the current source checkout: `infrastructure`, `debugging`, `testing`, `research`, `api-design`, `documentation`, `package-docs`, `coding`, `codebase`, `history`, `review`, `source-review`, `planning`, `operations`, `project-setup`. Domains: `general`, `software`, `python`, `web`, `shell`, `kubernetes`, `codex`. Roles: `primary`, `planner`, `explorer`, `worker`. Use `--help` for the current CLI contract. `package-docs` is for Python package installation documentation; `codex` domain is for substantive Codex documentation or troubleshooting. The command accepts no prompt, paths, or code. **Release boundary:** `history` was added to the source after v0.1.10 was built, so it is available from the current checkout but not from the v0.1.10 wheel. Other commands and categories must match the CLI you installed.
 
 ## Privacy and diagnostics
 

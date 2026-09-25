@@ -2,6 +2,14 @@
 
 JevCompass is currently developed in a private repository. Invited collaborators can file issues or propose changes there; this document does not grant an open-source license. For security-sensitive reports, use a private channel with the maintainer and do not paste credentials or private logs into a public issue.
 
+## First contribution
+
+1. Read the [README](README.md) for the product, current install path, privacy boundary, and limitations.
+2. Check [open work and release evidence](TASKS.md) and the [acceptance pilot](PILOT.md) before proposing a new claim or behavior.
+3. Use the local checkout and test commands below. Keep examples synthetic; do not include a real prompt, codebase, paths, memory, or credentials in a report.
+
+The repository is private and no open-source license is granted by this guide. Access is limited to invited collaborators.
+
 ## Set up a local checkout
 
 Python 3.11 or newer is required. Node and an OpenRouter key are not needed for the local test suite.
@@ -23,6 +31,10 @@ python tools/check_distribution.py
 
 For a host check, use an isolated Codex profile (`CODEX_HOME`), run `jevcompass install --dry-run` before `jevcompass install`, then review `/hooks` and start a fresh session. Never overwrite another user's hooks to run a test. `doctor --test-jev` sends a synthetic billed request; regular unit tests and `doctor` do not require one. Keep backend tests synthetic unless the test explicitly calls for an authorized live request.
 
+## Pull request gate
+
+Work on a focused branch and open a pull request. The single `ubuntu-slim` CI job runs the complete unit suite and package-content check on Python 3.11. Merge only when every required CI check is green; local tests alone do not satisfy this gate. Python 3.12–3.14 and macOS checks are release validation, not a six-runner matrix on every change. If GitHub stops a job before its first step, keep the PR unmerged and report that account-side runner status separately from a test failure.
+
 ## Propose changes
 
 - Describe the user task and what recommendation should improve. Include a case where the advisor should stay silent.
@@ -31,4 +43,4 @@ For a host check, use an isolated Codex profile (`CODEX_HOME`), run `jevcompass 
 - Add focused tests for changed hook, catalog, installer, or HTTP behavior. Check the package archive when adding bundled files.
 - Distinguish a unit-test pass from live host delivery and measured task benefit. For new advice categories, compare equivalent tasks and record negative results too.
 
-When filing a bug, include Codex host/version, OS, Python version, JevCompass version, the relevant category/domain, redacted `jevcompass doctor --json` output, and whether advice appeared before first tool use. Never attach raw hook payloads, secret-bearing environment values, private diffs, or customer data. See [ROADMAP.md](ROADMAP.md) for the outstanding host and efficacy checks.
+When filing a bug, include Codex host/version, OS, Python version, JevCompass version, the relevant category/domain, redacted `jevcompass doctor --json` output, and whether advice appeared before first tool use. The repository's forms are available to invited collaborators; for current claims and open validation, see [PILOT.md](PILOT.md) and [TASKS.md](TASKS.md). Never attach raw hook payloads, secret-bearing environment values, private diffs, or customer data. See [ROADMAP.md](ROADMAP.md) for the outstanding host and efficacy checks.
