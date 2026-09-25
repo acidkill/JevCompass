@@ -260,6 +260,33 @@ def _c03_action_telemetry(
             )),
         })
     observed_reads: dict[str, float] = {}
+    unmatched_forms: dict[str, int] = {}
+
+    def command_shape(command: str) -> str:
+        """Return only a fixed command family, never executable text or operands."""
+        try:
+            argv = shlex.split(command)
+            if argv and Path(argv[0]).name in {"bash", "sh"} and len(argv) == 3 and argv[1] == "-lc":
+                argv = shlex.split(argv[2])
+        except ValueError:
+            return "other"
+        if not argv:
+            return "other"
+        names = {Path(token).name for token in argv if token in {"rg", "grep", "cat", "head", "tail", "sed", "nl", "python", "python3", "python3.11"}}
+        if any(token in argv for token in ("&&", ";", "|")):
+            return "compound"
+        if names & {"rg", "grep"}:
+            return "search"
+        if names & {"cat", "head", "tail", "sed", "nl"}:
+            return "read"
+        if names & {"python", "python3", "python3.11"}:
+            return "python"
+        return "other"
+
+    def note_unmatched(command: str) -> None:
+        if case_id == "C04":
+            form = command_shape(command)
+            unmatched_forms[form] = min(16, unmatched_forms.get(form, 0) + 1)
 
     def file_operands(command: str, *, allow_wrapper: bool = True) -> list[str] | None:
         def tokenize(value: str) -> list[str] | None:
@@ -371,8 +398,11 @@ def _c03_action_telemetry(
             if len(conjunctions) != 1:
                 return None
             split_at = conjunctions[0]
-            left = direct_operands(argv[:split_at])
+            left_tokens = argv[:split_at]
             right = direct_operands(argv[split_at + 1:])
+            if left_tokens in (["cd", "."], ["cd", str(fixture)]) and right:
+                return right
+            left = direct_operands(left_tokens)
             if not left or not right:
                 return None
             return [*left, *right]
@@ -403,12 +433,14 @@ def _c03_action_telemetry(
             continue
         operands = file_operands(command)
         if not operands:
+            note_unmatched(command)
             continue
         candidates = {os.path.normcase(os.path.abspath(fixture / operand)) for operand in operands}
         matched: list[str] = []
         matched.extend(name for name in target_names if candidates & targets[name])
         matched.extend(skill for skill in candidate_ids if candidates & candidate_targets[skill])
         if not matched:
+            note_unmatched(command)
             continue
         if order >= len(event_times):
             continue
@@ -431,6 +463,11 @@ def _c03_action_telemetry(
         result["review_target_reads"] = [
             {"id": name, "elapsed_ms": observed_reads[name]}
             for name in target_names if name in observed_reads
+        ]
+        result["unmatched_command_forms"] = [
+            {"form": form, "count": unmatched_forms[form]}
+            for form in ("search", "read", "python", "compound", "other")
+            if form in unmatched_forms
         ]
     return result
 

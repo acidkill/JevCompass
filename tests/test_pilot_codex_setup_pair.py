@@ -364,7 +364,55 @@ class CodexSetupPairTests(unittest.TestCase):
                 {"id": "tests/test_retry.py", "elapsed_ms": 300.0},
             ])
             self.assertNotIn(str(root), json.dumps(telemetry))
-            self.assertNotIn("command", json.dumps(telemetry))
+            self.assertNotIn("cat ", json.dumps(telemetry))
+            self.assertEqual(telemetry["unmatched_command_forms"], [{"form": "compound", "count": 1}])
+
+    def test_c04_exact_fixture_cd_then_read_is_counted_but_other_directory_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixture = root / "fixture"
+            commands = [
+                f"bash -lc 'cd {fixture} && sed -n 1,20p retry.py'",
+                f"bash -lc 'cd {root / 'other'} && cat retry.py'",
+            ]
+            events = [json.dumps({"type": "item.completed", "item": {
+                "type": "command_execution", "command": command, "exit_code": 0,
+            }}) for command in commands]
+            telemetry = runner._c03_action_telemetry(
+                events, event_times=[2.1, 2.2], start_monotonic=2.0,
+                fixture=fixture, home=root / "home", case_id="C04",
+            )
+            self.assertEqual(telemetry["review_target_reads"],
+                             [{"id": "retry.py", "elapsed_ms": 100.0}])
+            self.assertEqual(telemetry["unmatched_command_forms"],
+                             [{"form": "compound", "count": 1}])
+
+    def test_c04_unmatched_command_diagnostic_never_emits_command_or_path(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixture = root / "fixture"
+            events = [json.dumps({"type": "item.completed", "item": {
+                "type": "command_execution", "command": command, "exit_code": exit_code,
+            }}) for command, exit_code in [
+                (f"rg -n 'except' {fixture / 'retry.py'}", 0),
+                (f"bash -lc 'git status && sed -n 1,20p retry.py'", 0),
+                (f"python3 -c 'print(1)'", 0),
+                (f"rg -n 'secret' {fixture / 'retry.py'}", 1),
+            ]]
+            telemetry = runner._c03_action_telemetry(
+                events, event_times=[2.1, 2.2, 2.3, 2.4],
+                start_monotonic=2.0, fixture=fixture, home=root / "home", case_id="C04",
+            )
+            self.assertEqual(telemetry["unmatched_command_forms"], [
+                {"form": "search", "count": 1},
+                {"form": "python", "count": 1},
+                {"form": "compound", "count": 1},
+            ])
+            serialized = json.dumps(telemetry)
+            self.assertNotIn(str(root), serialized)
+            self.assertNotIn("except", serialized)
+            self.assertNotIn("secret", serialized)
+            self.assertNotIn("rg -n", serialized)
 
     def test_c02_preflight_is_same_prompt_in_both_arms_and_not_core_case(self):
         with tempfile.TemporaryDirectory() as temporary:
