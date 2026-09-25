@@ -709,6 +709,159 @@ class PilotCliCoreTests(unittest.TestCase):
             self.assertNotIn("PYTHONPATH", kwargs["env"])
             self.assertFalse((root / "python" / "sitecustomize.py").exists())
 
+    def test_bundled_skill_install_never_inherits_key_or_checkout_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            contents = {
+                name: f"private skill body for {name}".encode()
+                for name in runner.BUNDLED_SKILL_NAMES
+            }
+
+            def install(*args, **kwargs):
+                profile = Path(kwargs["env"]["CODEX_HOME"]) / "skills"
+                for name, content in contents.items():
+                    target = profile / name
+                    target.mkdir(parents=True)
+                    (target / "SKILL.md").write_bytes(content)
+                return mock.Mock(returncode=0)
+
+            with mock.patch.dict(os.environ, {"OPENROUTER_API_KEY": "synthetic-secret"}), \
+                 mock.patch.object(runner.subprocess, "run", side_effect=install) as launch:
+                installed = runner._install_bundled_skills(root, root / "installed-python")
+            self.assertEqual(installed, contents)
+            args, kwargs = launch.call_args
+            self.assertEqual(args[0], [str(root / "installed-python"), "-m", "jevcompass", "skills", "install"])
+            self.assertNotIn("OPENROUTER_API_KEY", kwargs["env"])
+            self.assertNotIn("PYTHONPATH", kwargs["env"])
+
+    def test_installed_pair_installs_identical_bundled_skills_before_any_model_arm(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            interpreter = root / "python"
+            interpreter.write_text("synthetic", encoding="utf-8")
+            (root / "auth.json").write_text("{}", encoding="utf-8")
+            contents = {
+                name: f"private skill body for {name}".encode()
+                for name in runner.BUNDLED_SKILL_NAMES
+            }
+            events = []
+
+            def install(home, installed_python):
+                events.append(("install", home.name))
+                self.assertEqual(installed_python, interpreter)
+                return dict(contents)
+
+            def model_arm(**kwargs):
+                events.append(("model", kwargs["treatment"]))
+                return {"status": "completed", "exit_code": 0}
+
+            with mock.patch.dict(os.environ, {"CODEX_HOME": str(root)}), \
+                 mock.patch.object(runner, "_check_installed_release"), \
+                 mock.patch.object(runner, "_install_bundled_skills", side_effect=install), \
+                 mock.patch.object(runner, "_run_arm", side_effect=model_arm):
+                result = runner.run_pilot(
+                    mode="run", model="synthetic-model", cases=("P03",),
+                    codex="/unused/codex", installed_python=interpreter,
+                    with_bundled_skills=True, rng=OrderedRandom(),
+                )
+            self.assertEqual([kind for kind, _ in events], ["install", "install", "model", "model"])
+            metadata = result["cases"]["P03"]["bundled_skills"]
+            self.assertTrue(metadata["installed"])
+            self.assertEqual(metadata["skill_count"], 2)
+            self.assertEqual(metadata["content_sha256"], {
+                name: hashlib.sha256(content).hexdigest()
+                for name, content in contents.items()
+            })
+            serialized = json.dumps(result)
+            for content in contents.values():
+                self.assertNotIn(content.decode(), serialized)
+
+    def test_bundled_skill_setup_failure_stops_before_any_model_arm(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            interpreter = root / "python"
+            interpreter.write_text("synthetic", encoding="utf-8")
+            (root / "auth.json").write_text("{}", encoding="utf-8")
+            with mock.patch.dict(os.environ, {"CODEX_HOME": str(root)}), \
+                 mock.patch.object(runner, "_check_installed_release"), \
+                 mock.patch.object(runner, "_install_bundled_skills", side_effect=RuntimeError("setup failed")), \
+                 mock.patch.object(runner, "_run_arm") as model_arm:
+                with self.assertRaisesRegex(RuntimeError, "setup failed"):
+                    runner.run_pilot(
+                        mode="run", model="synthetic-model", cases=("P03",),
+                        codex="/unused/codex", installed_python=interpreter,
+                        with_bundled_skills=True, rng=OrderedRandom(),
+                    )
+            model_arm.assert_not_called()
+
+    def test_bundled_skill_parity_mismatch_stops_before_any_model_arm(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            interpreter = root / "python"
+            interpreter.write_text("synthetic", encoding="utf-8")
+            (root / "auth.json").write_text("{}", encoding="utf-8")
+            baseline = {name: b"baseline skill content" for name in runner.BUNDLED_SKILL_NAMES}
+            treatment = {name: b"treatment skill content" for name in runner.BUNDLED_SKILL_NAMES}
+            with mock.patch.dict(os.environ, {"CODEX_HOME": str(root)}), \
+                 mock.patch.object(runner, "_check_installed_release"), \
+                 mock.patch.object(runner, "_install_bundled_skills", side_effect=[baseline, treatment]), \
+                 mock.patch.object(runner, "_run_arm") as model_arm:
+                with self.assertRaisesRegex(RuntimeError, "contents differ"):
+                    runner.run_pilot(
+                        mode="run", model="synthetic-model", cases=("P03",),
+                        codex="/unused/codex", installed_python=interpreter,
+                        with_bundled_skills=True, rng=OrderedRandom(),
+                    )
+            model_arm.assert_not_called()
+
+    def test_bundled_skill_dry_run_verifies_parity_without_model(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            interpreter = root / "python"
+            interpreter.write_text("synthetic", encoding="utf-8")
+            contents = {name: b"reviewed skill" for name in runner.BUNDLED_SKILL_NAMES}
+            with mock.patch.object(runner, "_check_installed_release"), \
+                 mock.patch.object(runner, "_install_bundled_skills", return_value=contents) as install, \
+                 mock.patch.object(runner, "_run_arm") as model_arm:
+                result = runner.run_pilot(
+                    mode="dry-run", model=None, cases=("P01",),
+                    installed_python=interpreter, with_bundled_skills=True,
+                )
+            self.assertEqual(install.call_count, 2)
+            model_arm.assert_not_called()
+            self.assertTrue(result["cases"]["P01"]["bundled_skills"]["installed"])
+            self.assertFalse(result["cases"]["P01"]["arms"]["baseline"]["model_called"])
+
+    def test_bundled_skills_require_installed_live_pair_and_release_check_precedes_setup(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            interpreter = root / "python"
+            interpreter.write_text("synthetic", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "installed-release run or dry run"):
+                runner.run_pilot(
+                    mode="mock", model="synthetic-model", cases=("P03",),
+                    with_bundled_skills=True,
+                )
+            with mock.patch.object(runner, "_check_installed_release", side_effect=RuntimeError("version mismatch")), \
+                 mock.patch.object(runner, "_install_bundled_skills") as install, \
+                 mock.patch.object(runner, "_run_arm") as model_arm:
+                with self.assertRaisesRegex(RuntimeError, "version mismatch"):
+                    runner.run_pilot(
+                        mode="run", model="synthetic-model", cases=("P03",),
+                        codex="/unused/codex", installed_python=interpreter,
+                        with_bundled_skills=True,
+                    )
+            install.assert_not_called()
+            model_arm.assert_not_called()
+
+    def test_cli_exposes_opt_in_bundled_skill_flag(self):
+        with mock.patch.object(runner, "run_pilot", return_value={"status": "completed"}) as run:
+            self.assertEqual(runner.main([
+                "--model", "synthetic-model", "--installed-python", "/tmp/installed-python",
+                "--with-bundled-skills",
+            ]), 0)
+        self.assertTrue(run.call_args.kwargs["with_bundled_skills"])
+
     def test_installed_pair_forwards_key_equally_only_with_explicit_opt_in(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
