@@ -54,6 +54,30 @@ class AdvisorTests(unittest.TestCase):
         self.assertIn("run through `exec_command`; confirm it is available in this session", context)
         self.assertNotIn("tool `pytest`", context)
 
+    def test_skill_advice_exposes_scope_before_optional_read(self):
+        item = {**ITEMS[2], "availability": "available"}
+        output = advisor._context("UserPromptSubmit", [item["id"]], [item], "12345678", category="review")
+        context = output["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("skill `create-plan`: Plan complex work (use when: multi-step plans; skip when: trivia)", context)
+        self.assertIn("Inspect task scope first. Read a chosen skill only when its use condition fits", context)
+        self.assertLessEqual(len(context), advisor.MAX_CONTEXT_CHARS)
+
+        oversized = {**item, "use_when": "x" * 161}
+        output = advisor._context("UserPromptSubmit", [item["id"]], [oversized], "12345678")
+        self.assertNotIn("use when:", output["hookSpecificOutput"]["additionalContext"])
+
+    def test_skill_scope_criteria_never_silence_bounded_advice(self):
+        skills = [
+            {**ITEMS[2], "id": f"skill-{index}", "capability": "Relevant guidance " + "x" * 65,
+             "use_when": "u" * 140, "avoid_when": "a" * 140, "availability": "available"}
+            for index in range(3)
+        ]
+        output = advisor._context("UserPromptSubmit", [item["id"] for item in skills], skills, "12345678")
+        context = output["hookSpecificOutput"]["additionalContext"]
+        self.assertLessEqual(len(context), advisor.MAX_CONTEXT_CHARS)
+        self.assertIn("skill `skill-2`", context)
+        self.assertNotIn("use when:", context)
+
     def test_substantive_task_is_advised_across_permission_modes(self):
         with mock.patch.object(advisor, "DecisionsClient") as client:
             client.return_value.decide.return_value = answers()
