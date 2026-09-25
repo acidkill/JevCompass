@@ -93,7 +93,7 @@ JevCompass does not infer Codex Plan UI mode. Check `/hooks` and start a fresh s
 
 Evidence is deliberately limited to the environments tested:
 
-- One isolated Codex CLI 0.155.1 smoke run on Linux received local-fallback prompt advice before its first tool. This was a single delivery check, not an effectiveness study.
+- A fresh isolated Codex CLI 0.155.1 smoke using the published v0.1.12 wheel received `openai-docs` advice before its first tool, with a matching local hook ID. Other attempts had mixed agent echo; this verifies one delivery, not broad coverage or effectiveness.
 - The initial four blinded synthetic CLI pairs tied on task quality. Later focused pairs had mixed results, including one baseline win and one treatment win; no repeatable speed or quality improvement has been demonstrated.
 - One native Desktop `explorer` child reported an advice ID before its first tool in a correlated smoke test. Other subagent probes were inconclusive, and fresh Desktop prompt delivery has not been confirmed.
 - macOS runtime behavior and broad usefulness remain unverified.
