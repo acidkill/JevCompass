@@ -2,6 +2,10 @@
 
 ## Status
 
+### Current Desktop explorer abstention (2026-09-25)
+
+A fresh native Desktop `explorer` child was asked to identify the SubagentStart classification and context functions in the product code. The child said its original initial context had **no JevCompass advice ID**. A contemporaneous local metric recorded `SubagentStart` / `codebase` / `low-signal-skip` / 55.96 ms / trace `3d3a4f44`. This confirms the adapter was invoked and intentionally did not emit advice for the available singleton candidate. It does **not** test delivery of emitted `additionalContext` or establish usefulness. The CLI canary below also remains unconfirmed.
+
 ### Isolated CLI SubagentStart canary (2026-09-25)
 
 A test-only `SubagentStart` hook in a temporary `CODEX_HOME` asked a synthetic `explorer` child to echo a random marker before any tool. `python3 scripts/probe_hook_delivery.py --event subagent --model gpt-6-luna --timeout 90` ran in a read-only synthetic workspace without an OpenRouter key. The Codex CLI 0.155.1 process exited 0, but the hook receipt was absent (`hook_invoked=false`) and no identifiable child events appeared in the parent JSON stream (`child_observed=false`). Two runs had this result. This is **unconfirmed** delivery: it does not establish whether a child was spawned, whether the host loaded the hook, or whether advice reached a child. The probe preserves the existing prompt probe as the default `--event prompt`; no production hook was changed. Offline tests check event matching, first-message ordering, and redacted summary behavior.
