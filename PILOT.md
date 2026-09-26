@@ -2,6 +2,10 @@
 
 ## Status
 
+### VCR-256-I local boundary rule (2026-09-27)
+
+Two opposite-order pairs produced the same direct-contract choice with no demonstrated remote benefit. The source now resolves only explicit boundary changes with one direct candidate, exclusively indirect alternatives and entirely unknown runtime locally. Known runtime tradeoffs and unknown coverage remain eligible for remote advice. Mandatory checks are unchanged. Offline tests establish avoided API calls, not improved agent completion time; optimized-path comparison remains pending.
+
 ### VCR-256-H reversed-order boundary repeat (2026-09-27)
 
 Seed 258 reversed execution order (treatment first); unchanged fixture hash `2e99733f8c280983bbf96c2ceace2da1384f46ed6a83da6df59f00ee2816def9`, same model/settings and unknown runtime metadata. Treatment: 43,755.87 ms, 89,736 input / 78,336 cached / 569 output tokens. Baseline: 21,225.69 ms, 73,759 input / 66,304 cached / 557 output tokens. Both again chose contract, preserved immutable files and passed focused, required and independent unit/contract/full checks. Remote ranking: 486.03 ms, 453 input / 34 output tokens, USD 0.000019026. Treatment was 22,530.18 ms slower; the total difference is not attributable solely to ranking. Across two opposite-order pairs, treatment mean 32,437.65 ms versus baseline 22,177.93 ms, with unchanged selections; no repeatable benefit demonstrated. Blind quality, Codex billing and useful-action timing remain unscored. Private receipts: `/tmp/jev-boundary-vcr256-20260927-02`. Recommendation: skip remote ranking for this already resolved public-mapping case; use direct contract coverage and retain full validation. Do not extrapolate this result to every mixed test choice.

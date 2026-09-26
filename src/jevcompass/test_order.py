@@ -223,6 +223,22 @@ def rank_tests(
         return TestOrderResult((winner,) + tuple(item for item in fallback if item is not winner),
                                mandatory, NO_REMOTE_CHOICE)
 
+    # With an explicit boundary change and no runtime evidence, prioritize the
+    # sole direct check over purely indirect regression checks locally.
+    boundary_direct = [
+        item for item in local_candidates if item.coverage is Coverage.DIRECT
+    ]
+    if (ChangeSignal.BOUNDARY_MAPPING_CHANGED.value in normalized_signals
+            and len(boundary_direct) == 1
+            and all(item.runtime is RuntimeBucket.UNKNOWN for item in local_candidates)
+            and all(item is boundary_direct[0] or item.coverage is Coverage.INDIRECT
+                    for item in local_candidates)):
+        winner = boundary_direct[0]
+        return TestOrderResult(
+            (winner,) + tuple(item for item in fallback if item is not winner),
+            mandatory, NO_REMOTE_CHOICE,
+        )
+
     signatures = {
         (candidate.kind, candidate.coverage, candidate.runtime)
         for candidate in local_candidates
