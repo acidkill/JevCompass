@@ -314,7 +314,7 @@ def main(argv: list[str] | None = None) -> int:
     recommend.add_argument("--role", choices=ROLES, default="primary")
     triage_parser = sub.add_parser("triage", help="Rank diagnostic steps from allowlisted failure metadata")
     triage_parser.add_argument("--exit-code", required=True, type=int, help="Observed failing test process exit code")
-    from .triage import FailureKind, HypothesisId, ImportObservation
+    from .triage import AssertionObservation, FailureKind, HypothesisId, ImportObservation
     triage_parser.add_argument("--kind", action="append", required=True,
                                choices=tuple(item.value for item in FailureKind))
     triage_parser.add_argument("--hypothesis", action="append", required=True,
@@ -322,6 +322,9 @@ def main(argv: list[str] | None = None) -> int:
     triage_parser.add_argument("--import-observation", action="append",
                                choices=tuple(item.value for item in ImportObservation),
                                help="Allowlisted local import-spec observation; may be repeated")
+    triage_parser.add_argument("--assertion-observation", action="append",
+                               choices=tuple(item.value for item in AssertionObservation),
+                               help="Allowlisted local assertion-contract observation; may be repeated")
     triage_parser.add_argument("--json", action="store_true", help="Print machine-readable result")
     strategy_parser = sub.add_parser("strategy", help="Choose a coding strategy from allowlisted signals")
     strategy_sub = strategy_parser.add_subparsers(dest="strategy_action", required=True)
@@ -386,6 +389,9 @@ def main(argv: list[str] | None = None) -> int:
             args.exit_code,
             import_observations=tuple(
                 ImportObservation(item) for item in (args.import_observation or ())
+            ),
+            assertion_observations=tuple(
+                AssertionObservation(item) for item in (args.assertion_observation or ())
             ),
         )
         payload = {"observed_exit_status": result.observed_exit_status,

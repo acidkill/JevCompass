@@ -2,6 +2,10 @@
 
 ## Status
 
+### VCR-255-A contract-aware triage preparation (2026-09-27)
+
+The next triage extension separates an unresolved expected-behavior contract from ordinary expectation drift and code regression. A verified underspecified contract calls for an authoritative policy check locally, without asking Jev to guess the intended behavior. Weaker fixture-conflict evidence may leave several useful diagnostics; only those real alternatives qualify for remote selection. Observations remain fixed enum tokens and do not transmit source, test values or policy text. The API and CLI pass 26 focused and 384 full Python tests; graphify rebuilt. A local CLI smoke kept observed exit 1, test_failed true and executed false, returning only confirm_behavior_contract with no provider usage. This is implementation verification, not a matched efficacy result.
+
 ### VCR-254-D matched triage cost accounting (2026-09-27)
 
 The triage pair runner now retains numeric-only provider usage independently of advice validity. An uncertain paid decision must not disappear from accounting or become an accepted diagnostic recommendation. Missing receipts remain unknown, and provider cost is separate from the unscored Codex bill. Sixteen focused and 375 full Python tests pass; graphify rebuilt. This instrumentation does not add a paired efficacy result. Provider receipts are observations of CLI-reported API usage, not independently reconciled invoices. Aggregate cost stays unknown when any matched invocation lacks cost; no invocation in the captured scope is distinct from an invocation with unknown usage. Trials must still report completion, first useful failure, Codex token counters, blind quality and mandatory validation separately.
