@@ -2,6 +2,10 @@
 
 ## Status
 
+### VCR-255-C contract-pair instrumentation (2026-09-27)
+
+A matched CLI runner now supports the frozen unresolved-contract fixture; seven focused tests cover isolation, ordering, unrelated failures, altered policy data and combined evidence reads. Both arms must observe the actual assertion failure and complete required validation without an unsupported repair. Treatment may request the local contract-confirmation step only after reviewing evidence. Mechanical process gates do not establish diagnosis quality, evidence-review order or a useful policy-check timestamp; unavailable measures stay unscored. This is local-advice evaluation, not a remote Jev decision experiment. All 394 Python tests pass and graphify rebuilt. Live model arms have not run.
+
 ### VCR-255-B unresolved-contract fixture (2026-09-27)
 
 A fictional invoice-rounding fixture contrasts per-line rounding with sum-then-round while withholding any authoritative scope rule. The external frozen rubric requires reporting the real test failure, identifying both interpretations, checking policy authority and avoiding unsupported repairs. Focused and full validation remain mandatory; their failure is expected when a repair is correctly deferred. Three fixture contract tests pass; the full repository suite and graphify rebuild exit 0. The candidate prompt does not disclose the intended diagnosis, and the external rubric fixes failure-to-policy-check or justified-deferral as the primary timing metric. No model pair has run. This prepares a local-advice quality comparison and does not imply a real remote Jev choice or a productivity gain.
