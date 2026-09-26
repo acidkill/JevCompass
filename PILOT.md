@@ -2,6 +2,10 @@
 
 ## Status
 
+### VCR-256-F boundary runner (2026-09-27)
+
+`scripts/pilot_boundary_test_order_pair.py` reuses an independent isolated engine with the new task, serialization export, immutable-file checks and external unit/contract/full verification. A failing independent check invalidates the arm even if the agent reports success. Existing calculation-specific error markers cannot score this task: useful-error and successful-check timestamps remain null, explicitly unscored. Three offline guards pass; no live pair or efficacy claim yet.
+
 ### VCR-256-E boundary fixture frozen (2026-09-27)
 
 The new public JSON money-mapping task separates direct contract coverage from indirect calculation regression coverage. Three offline guards establish meaningful original failure and correct-repair success while preserving mandatory validation. Coarse runtime is still unknown. Assessor criteria live outside the candidate fixture in `tests/evaluation/boundary_test_order_expected.md`. No model selection or pair has occurred; no benefit claim.
