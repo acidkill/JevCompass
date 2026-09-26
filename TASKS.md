@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-254-C — provider usage receipts
+
+Typed Decisions API usage is available in triage JSON, including uncertain paid responses. Missing or malformed usage stays unknown; response IDs and provider text are excluded. All 371 Python tests pass and graphify rebuilt. A synthetic smoke reported 382 input / 53 output tokens and $0.000016044; this does not establish productivity or total Codex billing. Matched cost aggregation remains pending.
+
 | ID | Task | Status | Exit checks |
 |---|---|---|---|
 | VCR-01 | Establish this delivery checklist and push cadence | Complete | Checklist is tracked on `main` and its commit is on `origin/main`. |
