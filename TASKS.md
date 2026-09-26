@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-255-C — matched unresolved-contract CLI runner
+
+Complete locally: randomized isolated CLI 0.157.0 runner; exact seeded failure, expected failed full validation, entire fixture unchanged excluding bytecode, evidence-read markers before local triage, private blind artifacts and unscored semantic timing. Seven focused tests pass. All 394 Python tests pass and graphify rebuilt. Hosted CI pending; no live arms yet.
+
 ### VCR-255-B — frozen unresolved-contract fixture
 
 Complete locally: fictional decimal-rounding ambiguity and external frozen blind rubric, with required failed-test receipts and safe deferral as the evidence-backed disposition. Three fixture tests pass; full repository suite and graphify rebuild exit 0. Candidate prompt omits the expected diagnosis; no model pair has run. Hosted CI pending.
