@@ -37,6 +37,24 @@ class ChangedSurface(str, Enum):
     UNKNOWN = "unknown"
 
 
+class ChangeSignal(str, Enum):
+    PUBLIC_CONTRACT_CHANGED = "public_contract_changed"
+    BOUNDARY_MAPPING_CHANGED = "boundary_mapping_changed"
+    INTERNAL_LOGIC_CHANGED = "internal_logic_changed"
+
+
+class Coverage(str, Enum):
+    DIRECT = "direct"
+    INDIRECT = "indirect"
+    UNKNOWN = "unknown"
+
+
+class RuntimeBucket(str, Enum):
+    FAST = "fast"
+    SLOW = "slow"
+    UNKNOWN = "unknown"
+
+
 KIND_DESCRIPTORS: dict[TestKind, str] = {
     TestKind.UNIT: "unit test suite",
     TestKind.INTEGRATION: "integration test suite",
@@ -54,7 +72,7 @@ REMOTE_CHOICE = "remote-choice"
 
 @dataclass(frozen=True)
 class TestCandidate:
-    """A locally executable test choice; command and caller ID never go remote."""
+    """A local test choice; command, caller ID, and relevance never go remote."""
 
     __test__ = False
 
@@ -62,6 +80,8 @@ class TestCandidate:
     command: str
     candidate_id: str | None = None
     relevance: float = 0.0
+    coverage: Coverage | str = Coverage.UNKNOWN
+    runtime: RuntimeBucket | str = RuntimeBucket.UNKNOWN
 
 
 @dataclass(frozen=True)
@@ -87,7 +107,9 @@ class TestOrderResult:
         )
 
 
-def _enum_value(value: Any, enum_type: type[Enum], fallback: Enum) -> Enum:
+def _enum_value(value: Any, enum_type: type[Enum], fallback: Enum | None) -> Enum | None:
+    if isinstance(value, Enum):
+        value = value.value
     try:
         return enum_type(str(value).strip().lower())
     except (TypeError, ValueError):
@@ -98,11 +120,15 @@ def _candidate(item: TestCandidate | Mapping[str, Any]) -> TestCandidate:
     if isinstance(item, TestCandidate):
         kind = _enum_value(item.kind.value if isinstance(item.kind, TestKind) else item.kind,
                            TestKind, TestKind.OTHER)
+        coverage = _enum_value(item.coverage, Coverage, Coverage.UNKNOWN)
+        runtime = _enum_value(item.runtime, RuntimeBucket, RuntimeBucket.UNKNOWN)
         return TestCandidate(kind, str(item.command), item.candidate_id,
-                             _safe_relevance(item.relevance))
+                             _safe_relevance(item.relevance), coverage, runtime)
     if not isinstance(item, Mapping):
         raise TypeError("invalid-test-candidate")
     kind = _enum_value(item.get("kind"), TestKind, TestKind.OTHER)
+    coverage = _enum_value(item.get("coverage"), Coverage, Coverage.UNKNOWN)
+    runtime = _enum_value(item.get("runtime"), RuntimeBucket, RuntimeBucket.UNKNOWN)
     relevance = item.get("relevance", 0.0)
     candidate_id = item.get("id", item.get("candidate_id"))
     return TestCandidate(
@@ -110,6 +136,8 @@ def _candidate(item: TestCandidate | Mapping[str, Any]) -> TestCandidate:
         str(item.get("command", "")),
         None if candidate_id is None else str(candidate_id),
         _safe_relevance(relevance),
+        coverage,
+        runtime,
     )
 
 
@@ -141,43 +169,63 @@ def rank_tests(
     candidates: Sequence[TestCandidate | Mapping[str, Any]],
     required: Sequence[RequiredTest | Mapping[str, Any]],
     client: Any | None = None,
+    *,
+    signals: Sequence[ChangeSignal | str] = (),
 ) -> TestOrderResult:
-    """Rank optional tests while always retaining mandatory commands unchanged.
-
-    Remote advice is considered only when two or more distinct allowlisted test
-    kinds provide meaningful alternatives. Any malformed, uncertain, unavailable,
-    or incomplete answer falls back to the stable local relevance order.
-    """
-    normalized_surface = _enum_value(surface.value if isinstance(surface, ChangedSurface) else surface,
-                                     ChangedSurface, ChangedSurface.UNKNOWN)
+    """Rank with allowlisted metadata; retain required tests, and infer nothing from unknowns."""
+    normalized_surface = _enum_value(surface, ChangedSurface, ChangedSurface.UNKNOWN)
+    signal_items = () if isinstance(signals, (str, bytes)) or not isinstance(signals, Sequence) else signals
+    normalized_signals = tuple(sorted({
+        signal.value for item in signal_items
+        if (signal := _enum_value(item, ChangeSignal, None)) is not None
+    }))
     normalized_candidates = tuple(_candidate(item) for item in candidates)
     local_candidates = tuple(
         candidate if candidate.candidate_id is not None else TestCandidate(
-            candidate.kind, candidate.command, f"t{index}", candidate.relevance
+            candidate.kind, candidate.command, f"t{index}", candidate.relevance,
+            candidate.coverage, candidate.runtime,
         )
         for index, candidate in enumerate(normalized_candidates, start=1)
     )
     mandatory = tuple(_required(item) for item in required)
     fallback = _local_order(local_candidates)
+    if len(local_candidates) < 2:
+        return TestOrderResult(fallback, mandatory, NO_REMOTE_CHOICE)
 
-    # A single Python unit check and a public contract check have a clear
-    # local fast-feedback order when the unit is at least as relevant. The
-    # matched coding pilot saw three remote calls choose this same order,
-    # adding latency without changing the check or the mandatory suite.
+    # Keep the established Python unit-before-contract rule only for legacy
+    # inputs without informative coverage/runtime metadata.
     if (normalized_surface is ChangedSurface.PYTHON and len(local_candidates) == 2
-            and {item.kind for item in local_candidates} == {TestKind.UNIT, TestKind.CONTRACT}):
+            and not normalized_signals
+            and {item.kind for item in local_candidates} == {TestKind.UNIT, TestKind.CONTRACT}
+            and all(item.coverage is Coverage.UNKNOWN and item.runtime is RuntimeBucket.UNKNOWN
+                    for item in local_candidates)):
         unit = next(item for item in local_candidates if item.kind is TestKind.UNIT)
         contract = next(item for item in local_candidates if item.kind is TestKind.CONTRACT)
         if unit.relevance >= contract.relevance:
             return TestOrderResult((unit, contract), mandatory, NO_REMOTE_CHOICE)
 
-    # Same-kind commands are indistinguishable to the remote service; don't ask it
-    # to choose among alternatives represented by identical safe metadata.
-    candidate_kinds = {candidate.kind for candidate in local_candidates}
-    # Clear local relevance evidence should win without a paid, slower choice.
+    # Skip the remote choice only for the specifically evidenced direct+fast
+    # candidate against alternatives that are all indirect+slow.
+    dominant = [
+        candidate for candidate in local_candidates
+        if candidate.coverage is Coverage.DIRECT and candidate.runtime is RuntimeBucket.FAST
+        and all(
+            candidate is other or
+            (other.coverage is Coverage.INDIRECT and other.runtime is RuntimeBucket.SLOW)
+            for other in local_candidates
+        )
+    ]
+    if len(dominant) == 1:
+        winner = dominant[0]
+        return TestOrderResult((winner,) + tuple(item for item in fallback if item is not winner),
+                               mandatory, NO_REMOTE_CHOICE)
+
+    signatures = {
+        (candidate.kind, candidate.coverage, candidate.runtime)
+        for candidate in local_candidates
+    }
     scores = sorted((candidate.relevance for candidate in local_candidates), reverse=True)
-    if (len(local_candidates) < 2 or len(candidate_kinds) < 2
-            or scores[0] - scores[1] > 0.20):
+    if len(signatures) < 2 or scores[0] - scores[1] > 0.20:
         return TestOrderResult(fallback, mandatory, NO_REMOTE_CHOICE)
 
     opaque_ids = {f"t{index}": candidate for index, candidate in enumerate(local_candidates, start=1)}
@@ -185,18 +233,27 @@ def rank_tests(
         opaque_id: KIND_DESCRIPTORS[candidate.kind]
         for opaque_id, candidate in opaque_ids.items()
     }
-    # IDs are unique, while descriptors come only from the allowlisted enum.
     state = {
         "changed_surface": normalized_surface.value,
+        "signals": list(normalized_signals),
         "candidates": [
-            {"id": opaque_id, "kind": candidate.kind.value, "descriptor": KIND_DESCRIPTORS[candidate.kind]}
+            {
+                "id": opaque_id,
+                "kind": candidate.kind.value,
+                "descriptor": KIND_DESCRIPTORS[candidate.kind],
+                "coverage": candidate.coverage.value,
+                "runtime": candidate.runtime.value,
+            }
             for opaque_id, candidate in opaque_ids.items()
         ],
     }
     questions = {
         "first": {
             "type": "choice",
-            "instructions": "Choose the test kind that should run first after the change.",
+            "instructions": (
+                "Choose the first test candidate by balancing allowlisted change signals, "
+                "coverage, and runtime for early useful feedback. Required checks remain unchanged."
+            ),
             "criteria": criteria,
         }
     }
@@ -215,11 +272,11 @@ def rank_tests(
         if not isinstance(confidence, (int, float)):
             return TestOrderResult(fallback, mandatory, NO_REMOTE_CHOICE)
         confidence_value = float(confidence)
-        if not math.isfinite(confidence_value) or confidence_value < CONFIDENCE_THRESHOLD:
+        if (not math.isfinite(confidence_value) or confidence_value < CONFIDENCE_THRESHOLD
+                or confidence_value > 1.0):
             return TestOrderResult(fallback, mandatory, NO_REMOTE_CHOICE)
         selected = opaque_ids[selected_id]
         ordered = (selected,) + tuple(candidate for candidate in fallback if candidate is not selected)
         return TestOrderResult(ordered, mandatory, REMOTE_CHOICE)
     except Exception:
-        # Do not retain or surface transport exceptions: they can carry unsafe data.
         return TestOrderResult(fallback, mandatory, NO_REMOTE_CHOICE)

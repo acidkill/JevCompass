@@ -2,6 +2,12 @@
 
 ## Status
 
+### VCR-256-A test-order information boundary (2026-09-27)
+
+Earlier test-order requests conveyed surface and suite kind but no verified coverage/runtime tradeoff. The source extension adds fixed enum observations only: changed-contract/boundary/internal-logic signals, direct or indirect coverage and coarse fast/slow runtime classes. Unknown facts stay unknown; discovery must not fabricate them. A direct fast candidate against only indirect slow alternatives is resolved locally. Mixed tradeoffs may qualify for remote ranking, but they still need matched outcome evidence and must preserve mandatory checks. Do not inject sleeps or tune a fixture after seeing Jev's selection to manufacture an advantage.
+
+Verification: all 402 unit tests passed and the graph was refreshed (1,560 nodes, 3,070 edges). A synthetic live API request for direct/slow versus indirect/fast contract checks with a boundary-mapping signal returned no usable confident choice: `no-remote-choice`, one request, 505.96 ms, 453 input / 34 output tokens, USD 0.000019026. Required checks remained intact. These figures demonstrate transport and abstention behavior only; no matched task outcome or speed benefit is established.
+
 ### VCR-255-D first matched unresolved-contract CLI pair (2026-09-27)
 
 A randomized CLI 0.157.0 `gpt-6-luna` low pair used identical fictional fixture copies (SHA-256 `ea2c415ad9039fb75f12f55a96c309af8d133543eef86b26e4f42594b56d6ec4`). Independent final/source-only scoring was frozen before map reveal (SHA-256 `4af7a0023d00de87f4c803f4bebcc764c69b944e78cfac25751c5a53231374a4`): both arms scored **[U, 1, 1, U]**, tied on the two observable diagnosis/deferral items, with no unsupported repair. Test execution criteria remained unobservable to that reviewer; mechanical receipts separately confirm focused and full exit **1** in both arms and all fixture content unchanged excluding bytecode. Arm A mentions enum triage, so complete reviewer blinding cannot be guaranteed.

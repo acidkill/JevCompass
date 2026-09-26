@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-256-A — informative safe test-order metadata
+
+Implemented verified change signals, direct/indirect coverage and fast/slow runtime buckets without transmitting commands, paths or raw timings. Strictly dominated choices resolve locally; genuine mixed tradeoffs remain eligible and required validation stays unchanged. Verification: 402 unit tests pass; graph refreshed (1,560 nodes, 3,070 edges). One synthetic live mixed-tradeoff request abstained in 505.96 ms (453 input / 34 output tokens; USD 0.000019026); local fallback retained all required checks. This is API-contract evidence, not efficacy evidence. Matched outcome evaluation remains pending.
+
 ### VCR-255-D — matched unresolved-contract CLI evidence
 
 Complete: randomized equal-fixture CLI 0.157.0 Luna-low pair; independent artifact score tied [U,1,1,U], partial blinding limitation recorded. Both focused/full runs retain expected exit1 and fixture unchanged. Treatment24.120s versus baseline21.618s, +2.501s; no remote choice or demonstrated quality benefit. Primary semantic timing and Codex bill unknown. Skip redundant explicit advice once the contract gap is locally established; Desktop and broader efficacy remain open.

@@ -52,10 +52,13 @@ class TestOrderTests(unittest.TestCase):
             self.assertNotIn(private_value, request)
         self.assertEqual(state, {
             "changed_surface": "python",
+            "signals": [],
             "candidates": [
-                {"id": "t1", "kind": "unit", "descriptor": "unit test suite"},
+                {"id": "t1", "kind": "unit", "descriptor": "unit test suite",
+                 "coverage": "unknown", "runtime": "unknown"},
                 {"id": "t2", "kind": "integration",
-                 "descriptor": "integration test suite"},
+                 "descriptor": "integration test suite", "coverage": "unknown",
+                 "runtime": "unknown"},
             ],
         })
         self.assertEqual(result.ordered_ids, (private_id, "source-code-secret"))
@@ -103,6 +106,105 @@ class TestOrderTests(unittest.TestCase):
         candidates[0]["relevance"] = 0.9
         rank_tests("python", candidates, required, client)
         self.assertEqual(len(client.calls), 1)
+
+    def test_signal_prevents_legacy_python_shortcut_and_string_is_not_iterated(self):
+        client = FakeClient()
+        candidates = [
+            {"id": "unit", "kind": "unit", "command": "unit"},
+            {"id": "contract", "kind": "contract", "command": "contract"},
+        ]
+        rank_tests("python", candidates, [], client,
+                   signals=("public_contract_changed",))
+        self.assertEqual(len(client.calls), 1)
+        state, _ = client.calls[0]
+        self.assertEqual(state["signals"], ["public_contract_changed"])
+
+        string_client = FakeClient()
+        rank_tests("api", [
+            {"kind": "unit", "command": "unit"},
+            {"kind": "contract", "command": "contract"},
+        ], [], string_client, signals="secret")
+        state, _ = string_client.calls[0]
+        self.assertEqual(state["signals"], [])
+        self.assertNotIn("secret", json.dumps(state))
+
+    def test_safe_signals_and_candidate_metadata_are_allowlisted(self):
+        client = FakeClient({"first": {"type": "choice", "choice": "t1", "confidence": 0.9}})
+        result = rank_tests("api", [
+            {"id": "private-id", "kind": "unit", "command": "private command",
+             "coverage": "direct", "runtime": "slow"},
+            {"id": "other-private-id", "kind": "contract", "command": "other private command",
+             "coverage": "indirect", "runtime": "fast"},
+        ], [], client, signals=("public_contract_changed", "internal_logic_changed",
+                               "arbitrary private signal"))
+        self.assertEqual(result.status, REMOTE_CHOICE)
+        state, _ = client.calls[0]
+        request = json.dumps(state, sort_keys=True)
+        for private_value in ("private-id", "private command", "arbitrary private signal"):
+            self.assertNotIn(private_value, request)
+        self.assertEqual(state["signals"], ["internal_logic_changed", "public_contract_changed"])
+        self.assertEqual([(item["coverage"], item["runtime"]) for item in state["candidates"]],
+                         [("direct", "slow"), ("indirect", "fast")])
+
+    def test_dominant_direct_fast_candidate_skips_remote_choice(self):
+        client = FakeClient()
+        result = rank_tests("api", [
+            {"id": "winner", "kind": "unit", "command": "unit",
+             "coverage": "direct", "runtime": "fast"},
+            {"id": "alternative-a", "kind": "contract", "command": "contract",
+             "coverage": "indirect", "runtime": "slow"},
+            {"id": "alternative-b", "kind": "integration", "command": "integration",
+             "coverage": "indirect", "runtime": "slow"},
+        ], [], client, signals=("boundary_mapping_changed",))
+        self.assertEqual(result.status, NO_REMOTE_CHOICE)
+        self.assertEqual(result.ordered_ids, ("winner", "alternative-a", "alternative-b"))
+        self.assertEqual(client.calls, [])
+
+    def test_unknown_metadata_does_not_establish_local_dominance(self):
+        client = FakeClient()
+        result = rank_tests("api", [
+            {"id": "known", "kind": "unit", "command": "one",
+             "coverage": "direct", "runtime": "fast"},
+            {"id": "unknown", "kind": "contract", "command": "two"},
+        ], [], client)
+        self.assertEqual(result.status, NO_REMOTE_CHOICE)
+        self.assertEqual(len(client.calls), 1)
+
+    def test_same_kind_with_distinct_metadata_remains_a_meaningful_choice(self):
+        client = FakeClient()
+        result = rank_tests("api", [
+            {"id": "direct", "kind": "unit", "command": "one",
+             "coverage": "direct", "runtime": "slow"},
+            {"id": "indirect", "kind": "unit", "command": "two",
+             "coverage": "indirect", "runtime": "fast"},
+        ], [], client)
+        self.assertEqual(result.status, NO_REMOTE_CHOICE)
+        self.assertEqual(len(client.calls), 1)
+
+    def test_unknown_metadata_is_sanitized_before_remote_use(self):
+        client = FakeClient()
+        rank_tests("api", [
+            {"id": "one", "kind": "unit", "command": "one",
+             "coverage": "private coverage", "runtime": "very slow"},
+            {"id": "two", "kind": "contract", "command": "two",
+             "coverage": "direct", "runtime": "fast"},
+        ], [], client, signals=("secret signal",))
+        state, _ = client.calls[0]
+        request = json.dumps(state)
+        for unsafe in ("private coverage", "very slow", "secret signal"):
+            self.assertNotIn(unsafe, request)
+        self.assertEqual(state["signals"], [])
+        self.assertEqual(state["candidates"][0]["coverage"], "unknown")
+        self.assertEqual(state["candidates"][0]["runtime"], "unknown")
+
+    def test_confidence_above_one_is_rejected(self):
+        client = FakeClient({"first": {"type": "choice", "choice": "t2", "confidence": 1.01}})
+        result = rank_tests("api", [
+            {"kind": "unit", "command": "unit"},
+            {"kind": "contract", "command": "contract"},
+        ], [], client)
+        self.assertEqual(result.status, NO_REMOTE_CHOICE)
+        self.assertEqual(result.ordered_ids, ("t1", "t2"))
 
     def test_remote_choice_moves_candidate_first_and_preserves_required_commands(self):
         required = [

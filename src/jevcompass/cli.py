@@ -235,8 +235,11 @@ def doctor(*, test_jev: bool = False) -> dict[str, Any]:
 def _display_test_order(result: Any, as_json: bool) -> int:
     payload = {
         "status": result.status,
-        "ordered": [{"id": item.candidate_id, "kind": item.kind.value,
-                     "command": item.command} for item in result.ordered_candidates],
+        "ordered": [{
+            "id": item.candidate_id, "kind": item.kind.value,
+            "coverage": item.coverage.value, "runtime": item.runtime.value,
+            "command": item.command,
+        } for item in result.ordered_candidates],
         "required": [{"id": item.required_id, "command": item.command}
                      for item in result.required],
         "executed": False,
@@ -286,7 +289,8 @@ def _rank_tests_cli(source: str, as_json: bool) -> int:
         if len(raw) > 65_536:
             raise ValueError("input-too-large")
         data = json.loads(raw)
-        if not isinstance(data, dict) or set(data) != {"surface", "candidates", "required"}:
+        if (not isinstance(data, dict) or not {"surface", "candidates", "required"} <= set(data)
+                or set(data) - {"surface", "candidates", "required", "signals"}):
             raise ValueError("invalid-shape")
         candidates, required = data["candidates"], data["required"]
         if (not isinstance(candidates, list) or not 1 <= len(candidates) <= 8
@@ -296,7 +300,7 @@ def _rank_tests_cli(source: str, as_json: bool) -> int:
             if (not isinstance(item, dict) or not isinstance(item.get("command"), str)
                     or not 1 <= len(item["command"]) <= 512):
                 raise ValueError("invalid-command")
-        result = rank_tests(data["surface"], candidates, required)
+        result = rank_tests(data["surface"], candidates, required, signals=data.get("signals", ()))
     except (OSError, ValueError, TypeError):
         print("Invalid local test metadata; no command was executed.", file=sys.stderr)
         return 2
