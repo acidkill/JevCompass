@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-256-I — local boundary coverage choice
+
+Implemented a narrow local rule after two same-selection pairs: explicit boundary-mapping signal, exactly one direct candidate, all others indirect, all runtime unknown. Prefer the direct check without API; retain required validation. Actual runtime evidence, unknown coverage or absent signal preserve remote eligibility. Tests verify zero calls and these exclusions. No task-completion speed claim; live repeat of the optimized path remains pending.
+
 ### VCR-256-H — reversed-order boundary repeat
 
 Completed second opposite-order CLI pair with unchanged fixture. Both again selected contract and passed all checks. Treatment43.756s versus baseline21.226s; API486.03ms and USD0.000019026. Two-pair mean treatment32.438s versus baseline22.178s does not establish remote benefit or a causal slowdown. For this locally resolved mapping case, prefer direct contract coverage without an extra ranking call. Instrument useful-action timing and evaluate genuinely unresolved choices next; Desktop evidence remains pending.
