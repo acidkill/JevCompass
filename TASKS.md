@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-256-E — frozen public-boundary comparison fixture
+
+Added `boundary_test_order`: extend JSON with an explicit integer money representation, preserving calculation and validation. Unit coverage is indirect and contract coverage direct; runtime remains unknown until measured. Three guards prove original unit pass/contract fail, correct serialization full pass and required metadata retention. All 412 tests pass; graph refreshed (1,626 nodes, 3,185 edges). Runner adaptation, runtime measurement and paired execution remain pending; no efficacy claim.
+
 ### VCR-256-D — matched test-order accounting
 
 Added numeric-only usage aggregation across exact ranking invocations, deduplicating started/completed event IDs. Missing or invalid receipts keep totals unknown; incomplete costs remain null. Three targeted tests cover multiple calls, unknown cost, malformed counters, duplicate JSON and duplicate events. All 409 tests pass; graph refreshed (1,588 nodes, 3,130 edges). No live pair or efficacy claim; frozen boundary fixture remains next.

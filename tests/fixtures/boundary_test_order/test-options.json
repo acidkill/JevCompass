@@ -1,0 +1,28 @@
+{
+  "surface": "api",
+  "signals": [
+    "boundary_mapping_changed"
+  ],
+  "candidates": [
+    {
+      "id": "unit",
+      "kind": "unit",
+      "command": "python -m unittest discover -s tests -p 'test_unit*.py' -v",
+      "coverage": "indirect",
+      "runtime": "unknown"
+    },
+    {
+      "id": "contract",
+      "kind": "contract",
+      "command": "python -m unittest discover -s tests -p 'test_contract*.py' -v",
+      "coverage": "direct",
+      "runtime": "unknown"
+    }
+  ],
+  "required": [
+    {
+      "id": "full",
+      "command": "python -m unittest discover -s tests -v"
+    }
+  ]
+}
