@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import random
@@ -111,15 +112,9 @@ def _test_kind(item: dict[str, Any]) -> str | None:
 
 def _rank_invocation(item: dict[str, Any]) -> bool:
     argv = _command_argv(item)
-    if not argv:
-        return False
-    return (
-        "jevcompass" in argv
-        and any(argv[index:index + 3] == ["tests", "rank", "--input"]
-                for index in range(len(argv)))
-        and "test-options.json" in argv
-        and "--json" in argv
-    )
+    return bool(argv and argv[0] in {"python", "python3", sys.executable}
+                and argv[1:] == ["-m", "jevcompass", "tests", "rank", "--input",
+                                  "test-options.json", "--json"])
 
 
 def _strict_json(text: str) -> Any:
@@ -163,6 +158,47 @@ def _validated_choice(payload: str | None) -> dict[str, Any]:
     return parse_choice_receipt(value, choice_type="test_order", candidate_ids=CHOICE_IDS)
 
 
+def _rank_usage(payloads: list[tuple[float, str]], invocation_count: int) -> dict[str, Any]:
+    """Aggregate numeric receipts only when every observed call is accounted for."""
+    values = []
+    for _, payload in payloads:
+        try:
+            def pairs(items):
+                result = {}
+                for key, value in items:
+                    if key in result:
+                        raise ValueError("duplicate-key")
+                    result[key] = value
+                return result
+            data = json.loads(payload, object_pairs_hook=pairs)
+            usage = data.get("usage") if isinstance(data, dict) else None
+            if not isinstance(usage, dict):
+                continue
+            counts = [usage.get("input_tokens"), usage.get("output_tokens")]
+            if any(isinstance(n, bool) or not isinstance(n, int) or not 0 <= n <= 10**12
+                   for n in counts):
+                continue
+            cost = usage.get("cost_usd")
+            if cost is not None and (
+                isinstance(cost, bool) or not isinstance(cost, (int, float))
+                or not math.isfinite(cost) or not 0 <= cost <= 10**12
+            ):
+                continue
+            values.append((counts[0], counts[1], cost))
+        except (ValueError, TypeError):
+            continue
+    complete = invocation_count > 0 and len(values) == invocation_count
+    return {
+        "status": "not_invoked" if invocation_count == 0 else
+                  "complete" if complete else "incomplete",
+        "invocation_count": invocation_count,
+        "input_tokens": sum(v[0] for v in values) if complete else None,
+        "output_tokens": sum(v[1] for v in values) if complete else None,
+        "jev_provider_cost_usd": sum(v[2] for v in values)
+        if complete and all(v[2] is not None for v in values) else None,
+    }
+
+
 def _event_receipts(
     lines: Iterable[str], event_times: list[float], started: float,
 ) -> dict[str, Any]:
@@ -171,6 +207,8 @@ def _event_receipts(
     first_observed_focused_failure_ms: float | None = None
     first_useful_error_ms: float | None = None
     pending_ranks: dict[str, float] = {}
+    rank_started_ids: set[str] = set()
+    rank_completed_ids: set[str] = set()
     rank_payloads: list[tuple[float, str]] = []
     rank_exit_code: int | None = None
     rank_output_status = "not_invoked"
@@ -196,7 +234,8 @@ def _event_receipts(
                                      if value != kind}
                 pending_tests[event_id] = kind
                 command_counts[kind] += 1
-            if _rank_invocation(item):
+            if _rank_invocation(item) and event_id not in rank_started_ids:
+                rank_started_ids.add(event_id)
                 start_time = event_times[index] if index < len(event_times) else time.monotonic()
                 pending_ranks[event_id] = start_time
         elif event_type == "item.completed" and event_id:
@@ -218,7 +257,8 @@ def _event_receipts(
                         if (first_useful_error_ms is None and isinstance(output, str)
                                 and re.search(r"(?:FAIL|ERROR):\s*" + expected_case + r"\b", output)):
                             first_useful_error_ms = elapsed_ms
-            if event_id in pending_ranks:
+            if event_id in pending_ranks and event_id not in rank_completed_ids:
+                rank_completed_ids.add(event_id)
                 rank_started = pending_ranks.pop(event_id)
                 raw_exit = item.get("exit_code")
                 rank_exit_code = raw_exit if isinstance(raw_exit, int) and not isinstance(raw_exit, bool) else None
@@ -248,6 +288,7 @@ def _event_receipts(
                           if entry["kind"] == "required"), None)
     return {
         "choice": choice,
+        "rank_usage": _rank_usage(rank_payloads, len(rank_started_ids)),
         "choice_latency_ms": round(rank_payloads[-1][0], 2) if rank_payloads else None,
         "rank_exit_code": rank_exit_code,
         "rank_output_status": rank_output_status,
