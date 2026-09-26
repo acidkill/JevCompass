@@ -2,6 +2,10 @@
 
 ## Status
 
+### VCR-256-G first live boundary pair (2026-09-27)
+
+Seed 256, gpt-6-luna/low, equal isolated profiles and fixture hash `2e99733f8c280983bbf96c2ceace2da1384f46ed6a83da6df59f00ee2816def9`. Both arms chose the contract check, ran the required suite successfully and passed independent unit/contract/full validation; immutable files were preserved. Baseline: 23,130.16 ms, 88,485 input / 80,384 cached / 676 output tokens. Treatment: 21,119.42 ms, 89,934 input / 82,432 cached / 590 output tokens. Treatment ranking returned remote-choice contract/unit in 523.19 ms, 453 provider input / 34 output tokens, USD 0.000019026. Treatment was 2,010.74 ms faster in this single ordered pair, but selection matched baseline and causality/repeatability are unproven. Codex billing and task-specific useful-error/success-check timing remain unknown; independent blind quality assessment is not available. Runtime metadata remained unknown in both arms. Private receipts: `/tmp/jev-boundary-vcr256-20260927-01`. This is a successful functional pair, not acceptance evidence of benefit.
+
 ### VCR-256-F boundary runner (2026-09-27)
 
 `scripts/pilot_boundary_test_order_pair.py` reuses an independent isolated engine with the new task, serialization export, immutable-file checks and external unit/contract/full verification. A failing independent check invalidates the arm even if the agent reports success. Existing calculation-specific error markers cannot score this task: useful-error and successful-check timestamps remain null, explicitly unscored. Three offline guards pass; no live pair or efficacy claim yet.
