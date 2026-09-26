@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import random
@@ -172,6 +173,42 @@ def _validated_triage(payload: Any, original_exit: int) -> dict[str, Any]:
     return parsed
 
 
+def _validated_decision_usage(payload: Any) -> dict[str, int | float | None] | None:
+    """Return only the CLI's validated, non-content usage fields."""
+    if not isinstance(payload, str) or len(payload.encode("utf-8")) > MAX_TRIAGE_OUTPUT_BYTES:
+        return None
+    try:
+        value = _strict_json(payload)
+    except (ValueError, TypeError, json.JSONDecodeError):
+        return None
+    if not isinstance(value, dict):
+        return None
+    usage = value.get("decision_usage")
+    if not isinstance(usage, dict):
+        return None
+    input_tokens = usage.get("input_tokens")
+    output_tokens = usage.get("output_tokens")
+    cost_usd = usage.get("cost_usd")
+    if (
+        isinstance(input_tokens, bool) or not isinstance(input_tokens, int)
+        or not 0 <= input_tokens <= 10**12
+        or isinstance(output_tokens, bool) or not isinstance(output_tokens, int)
+        or not 0 <= output_tokens <= 10**12
+    ):
+        return None
+    if cost_usd is not None and (
+        isinstance(cost_usd, bool) or not isinstance(cost_usd, (int, float))
+        or cost_usd < 0 or cost_usd > 10**12
+        or not math.isfinite(float(cost_usd))
+    ):
+        return None
+    return {
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "jev_provider_cost_usd": float(cost_usd) if cost_usd is not None else None,
+    }
+
+
 def _event_receipts(
     lines: Iterable[str], event_times: list[float], started: float,
 ) -> dict[str, Any]:
@@ -194,6 +231,9 @@ def _event_receipts(
     triage_invocation_observed = False
     triage_invalid_invocation_observed = False
     triage_after_discriminator = False
+    triage_usage_started: set[str] = set()
+    triage_usage_completed: set[str] = set()
+    triage_usage_values: list[dict[str, int | float | None]] = []
     focused_count = 0
     full_count = 0
 
@@ -226,6 +266,8 @@ def _event_receipts(
             if argv and "jevcompass" in argv:
                 triage_invocation_observed = True
                 exact_command = _is_triage(item, first_focused_exit)
+                if exact_command:
+                    triage_usage_started.add(event_id)
                 accepted = (
                     exact_command
                     and first_focused_exit == 1
@@ -289,6 +331,11 @@ def _event_receipts(
                 output = item.get("aggregated_output")
                 if not isinstance(output, str):
                     output = item.get("output")
+                if exact_command and event_id not in triage_usage_completed:
+                    triage_usage_completed.add(event_id)
+                    usage = _validated_decision_usage(output)
+                    if usage is not None:
+                        triage_usage_values.append(usage)
                 if accepted and exact_command and triage_exit == 0:
                     triage_choice = _validated_triage(output, first_focused_exit or 0)
                     triage_output_status = (
@@ -300,7 +347,34 @@ def _event_receipts(
                 elif exact_command:
                     triage_output_status = "invalid_output"
 
+    usage_count = len(triage_usage_started)
+    usage_complete = (
+        usage_count > 0
+        and len(triage_usage_completed) == usage_count
+        and len(triage_usage_values) == usage_count
+    )
+    usage_cost_complete = usage_complete and all(
+        item["jev_provider_cost_usd"] is not None for item in triage_usage_values
+    )
+    triage_usage = {
+        "scope": "exact_expected_triage_cli_invocations",
+        "status": (
+            "not_invoked" if usage_count == 0 and not triage_invocation_observed
+            else "unmatched_invocation" if usage_count == 0
+            else "complete" if usage_complete else "incomplete"
+        ),
+        "invocation_count": usage_count,
+        "input_tokens": sum(item["input_tokens"] for item in triage_usage_values)
+        if usage_complete else None,
+        "output_tokens": sum(item["output_tokens"] for item in triage_usage_values)
+        if usage_complete else None,
+        "jev_provider_cost_usd": sum(
+            item["jev_provider_cost_usd"] for item in triage_usage_values
+        ) if usage_cost_complete else None,
+        "codex_billing_estimate": None,
+    }
     return {
+        "triage_usage": triage_usage,
         "initial_focused_invocation_observed": first_focused_index is not None,
         "initial_focused_exit_code": first_focused_exit,
         "initial_useful_error_match": useful_error_match,
@@ -378,6 +452,15 @@ def _empty_arm(failure: str) -> dict[str, Any]:
         "token_usage_status": "unscored",
         "token_usage": None,
         "billing_estimate": None,
+        "triage_usage": {
+            "scope": "exact_expected_triage_cli_invocations",
+            "status": "not_invoked",
+            "invocation_count": 0,
+            "input_tokens": None,
+            "output_tokens": None,
+            "jev_provider_cost_usd": None,
+            "codex_billing_estimate": None,
+        },
         "initial_focused_invocation_observed": False,
         "initial_focused_exit_code": None,
         "initial_useful_error_match": False,

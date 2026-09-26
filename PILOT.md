@@ -2,6 +2,10 @@
 
 ## Status
 
+### VCR-254-D matched triage cost accounting (2026-09-27)
+
+The triage pair runner now retains numeric-only provider usage independently of advice validity. An uncertain paid decision must not disappear from accounting or become an accepted diagnostic recommendation. Missing receipts remain unknown, and provider cost is separate from the unscored Codex bill. Sixteen focused and 375 full Python tests pass; graphify rebuilt. This instrumentation does not add a paired efficacy result. Provider receipts are observations of CLI-reported API usage, not independently reconciled invoices. Aggregate cost stays unknown when any matched invocation lacks cost; no invocation in the captured scope is distinct from an invocation with unknown usage. Trials must still report completion, first useful failure, Codex token counters, blind quality and mandatory validation separately.
+
 ### VCR-254-C provider-reported decision usage (2026-09-27)
 
 The Decisions client now exposes validated numeric input/output token counters and optional USD cost without retaining response IDs or provider text. Triage JSON preserves this receipt even when a paid response produces an uncertain choice; missing or malformed usage remains unknown. A safe synthetic assertion smoke returned `no-remote-choice` with 382 input tokens, 53 output tokens and provider-reported cost **$0.000016044** in 0.586 s. This is one API receipt, not an efficacy result or the total Codex bill. The full 371-test Python suite passed and graphify rebuilt. Matched pilot aggregation of these costs remains pending.

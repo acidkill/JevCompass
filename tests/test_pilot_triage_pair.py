@@ -59,6 +59,7 @@ def arm_events(*, treatment: bool, triage_payload: str | None = None):
             "status": "no-remote-choice",
             "steps": [{"id": "import_path_changed"}],
             "executed": False,
+            "decision_usage": {"input_tokens": 23, "output_tokens": 7, "cost_usd": 0.0042},
         })
         events.extend([
             command_event("item.started", "triage", command),
@@ -156,6 +157,21 @@ class TriagePairTests(unittest.TestCase):
                 isinstance(arm["first_successful_discriminator_ms"], (int, float))
                 for arm in receipt["arms"].values()
             ))
+            treatment_arm = next(
+                arm for arm in receipt["arms"].values()
+                if arm["triage_cli_invocation_observed"]
+            )
+            self.assertEqual(treatment_arm["triage_usage"], {
+                "scope": "exact_expected_triage_cli_invocations",
+                "status": "complete", "invocation_count": 1,
+                "input_tokens": 23, "output_tokens": 7,
+                "jev_provider_cost_usd": 0.0042,
+                "codex_billing_estimate": None,
+            })
+            self.assertTrue(all(
+                arm["triage_usage"]["codex_billing_estimate"] is None
+                for arm in receipt["arms"].values()
+            ))
             self.assertTrue(any(
                 arm["triage"]["status"] == "no-remote-choice"
                 and arm["triage"]["candidate_ids"] == ["import_path_changed"]
@@ -222,6 +238,105 @@ class TriagePairTests(unittest.TestCase):
             receipt = runner._event_receipts(events, times, times[0])
             self.assertEqual(receipt["triage_output_status"], "invalid_output")
             self.assertEqual(receipt["triage"], {"status": "unscored", "candidate_ids": []})
+
+    def test_usage_survives_uncertain_choice_without_passing_gate(self):
+        payload = json.dumps({
+            "observed_exit_status": 1, "test_failed": True,
+            "status": "remote-choice", "steps": [], "executed": False,
+            "decision_usage": {
+                "input_tokens": 41, "output_tokens": 13, "cost_usd": 0.0125,
+                "private_provider_detail": "PRIVATE_USAGE_DETAIL",
+            },
+            "private_raw_field": "PRIVATE_RAW_FIELD",
+        })
+        events, times, _ = arm_events(treatment=True, triage_payload=payload)
+        receipt = runner._event_receipts(events, times, times[0])
+        self.assertEqual(receipt["triage"]["status"], "unscored")
+        self.assertEqual(receipt["triage_output_status"], "invalid_output")
+        self.assertEqual(receipt["triage_usage"], {
+            "scope": "exact_expected_triage_cli_invocations",
+            "status": "complete", "invocation_count": 1,
+            "input_tokens": 41, "output_tokens": 13,
+            "jev_provider_cost_usd": 0.0125,
+            "codex_billing_estimate": None,
+        })
+        arm = {"cli_status": "completed", **receipt}
+        self.assertFalse(runner._arm_passed(
+            arm, treatment=True, artifact_changed=True,
+        ))
+        serialized = json.dumps(receipt)
+        self.assertNotIn("PRIVATE_USAGE_DETAIL", serialized)
+        self.assertNotIn("PRIVATE_RAW_FIELD", serialized)
+
+    def test_invalid_or_incomplete_usage_stays_unknown(self):
+        invalid_payload = json.dumps({
+            "status": "no-remote-choice", "decision_usage": {
+                "input_tokens": True, "output_tokens": 2, "cost_usd": float("nan"),
+            },
+        })
+        events, times, _ = arm_events(treatment=True, triage_payload=invalid_payload)
+        receipt = runner._event_receipts(events, times, times[0])
+        self.assertEqual(receipt["triage_usage"]["status"], "incomplete")
+        self.assertIsNone(receipt["triage_usage"]["input_tokens"])
+        self.assertIsNone(receipt["triage_usage"]["jev_provider_cost_usd"])
+
+        started = [
+            command_event("item.started", "focus", runner.FOCUSED_COMMAND),
+            command_event("item.completed", "focus", runner.FOCUSED_COMMAND, exit_code=1),
+            command_event("item.started", "triage", " ".join(runner._triage_command(1))),
+        ]
+        base = time.monotonic()
+        partial = runner._event_receipts(
+            started, [base + i / 100 for i in range(len(started))], base,
+        )
+        self.assertEqual(partial["triage_usage"]["status"], "incomplete")
+        self.assertEqual(partial["triage_usage"]["invocation_count"], 1)
+        self.assertIsNone(partial["triage_usage"]["jev_provider_cost_usd"])
+
+    def test_duplicate_events_do_not_double_count_and_null_cost_stays_unknown(self):
+        payload = json.dumps({
+            "status": "no-remote-choice", "decision_usage": {
+                "input_tokens": 5, "output_tokens": 2, "cost_usd": None,
+            },
+        })
+        events, times, _ = arm_events(treatment=True, triage_payload=payload)
+        triage_start = next(line for line in events if '"id": "triage"' in line and '"type": "item.started"' in line)
+        triage_done = next(line for line in events if '"id": "triage"' in line and '"type": "item.completed"' in line)
+        start_index = events.index(triage_start)
+        end_index = events.index(triage_done)
+        events.insert(start_index + 1, triage_start)
+        times.insert(start_index + 1, times[start_index])
+        events.extend([triage_start, triage_done])
+        times.extend([times[-1] + 0.001, times[-1] + 0.002])
+        receipt = runner._event_receipts(events, times, times[0])
+        self.assertEqual(receipt["triage_usage"]["invocation_count"], 1)
+        self.assertEqual(receipt["triage_usage"]["input_tokens"], 5)
+        self.assertEqual(receipt["triage_usage"]["output_tokens"], 2)
+        self.assertIsNone(receipt["triage_usage"]["jev_provider_cost_usd"])
+
+    def test_multiple_calls_sum_cost_and_extreme_values_are_rejected(self):
+        events, times, _ = arm_events(treatment=True)
+        command = " ".join(runner._triage_command(1))
+        payload = json.dumps({"decision_usage": {
+            "input_tokens": 10, "output_tokens": 3, "cost_usd": 0.001,
+        }})
+        events.extend([
+            command_event("item.started", "triage-two", command),
+            command_event("item.completed", "triage-two", command,
+                          exit_code=0, aggregated_output=payload),
+        ])
+        times.extend([times[-1] + 0.01, times[-1] + 0.02])
+        receipt = runner._event_receipts(events, times, times[0])
+        usage = receipt["triage_usage"]
+        self.assertEqual(usage["invocation_count"], 2)
+        self.assertEqual(usage["input_tokens"], 33)
+        self.assertAlmostEqual(usage["jev_provider_cost_usd"], 0.0052)
+        for cost in (10**400, float("inf"), -1, True):
+            with self.subTest(cost=str(cost)[:20]):
+                self.assertIsNone(runner._validated_decision_usage(json.dumps({
+                    "decision_usage": {"input_tokens": 1, "output_tokens": 2,
+                                       "cost_usd": cost},
+                })))
 
     def test_triage_before_initial_failure_is_not_accepted(self):
         events = [

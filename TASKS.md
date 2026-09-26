@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-254-D — matched triage cost accounting
+
+Complete locally: numeric-only usage aggregation for exact expected triage invocations, uncertain-choice accounting, independent unknown cost/token handling and duplicate-event protection. Sixteen focused / 375 full Python tests pass; graphify rebuilt. No new efficacy pair; hosted CI pending.
+
 ### VCR-254-C — provider usage receipts
 
 Typed Decisions API usage is available in triage JSON, including uncertain paid responses. Missing or malformed usage stays unknown; response IDs and provider text are excluded. All 371 Python tests pass and graphify rebuilt. A synthetic smoke reported 382 input / 53 output tokens and $0.000016044; this does not establish productivity or total Codex billing. Matched cost aggregation remains pending.
