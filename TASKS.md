@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-256-J — optimized local-path live pair
+
+Completed a keyless pair on the unchanged boundary fixture: local contract/unit order, required and independent checks pass, immutable files preserved. Baseline16.551s versus treatment24.670s; extra advisor CLI still adds work without changing the test choice. No speed benefit. API counters remain unknown in receipt, not zero; code tests establish no request. Next: avoid explicit advisor commands for agent-resolved cases and repair task-specific useful-action timing.
+
 ### VCR-256-I — local boundary coverage choice
 
 Implemented a narrow local rule after two same-selection pairs: explicit boundary-mapping signal, exactly one direct candidate, all others indirect, all runtime unknown. Prefer the direct check without API; retain required validation. Actual runtime evidence, unknown coverage or absent signal preserve remote eligibility. Tests verify zero calls and these exclusions. No task-completion speed claim; live repeat of the optimized path remains pending.
