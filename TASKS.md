@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-256-B — mixed test-order eligibility audit
+
+Completed the existing-fixture audit and froze the next experiment protocol in `tests/evaluation/mixed_test_order_protocol.md`. Both existing focused suites directly catch the same defect; ten local runs measured unit median 49.198 ms versus contract 133.804 ms, all exit 1. Do not mislabel coverage to force Jev use. Next: numeric API usage receipts, a frozen boundary-mapping fixture and matched runner; no efficacy claim.
+
 ### VCR-256-A — informative safe test-order metadata
 
 Implemented verified change signals, direct/indirect coverage and fast/slow runtime buckets without transmitting commands, paths or raw timings. Strictly dominated choices resolve locally; genuine mixed tradeoffs remain eligible and required validation stays unchanged. Verification: 402 unit tests pass; graph refreshed (1,560 nodes, 3,070 edges). One synthetic live mixed-tradeoff request abstained in 505.96 ms (453 input / 34 output tokens; USD 0.000019026); local fallback retained all required checks. This is API-contract evidence, not efficacy evidence. Matched outcome evaluation remains pending.
