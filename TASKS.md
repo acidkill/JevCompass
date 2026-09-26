@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-256-F — boundary pair runner
+
+Added an independent configured instance of the existing isolated runner for the frozen JSON mapping task. Both arms share metadata and required suite; serialization artifacts are exported. Immutable fixture files are hashed and all focused/full suites independently rerun; false agent success fails the gate. Task-specific useful-error and first successful-check timing remain unscored pending instrumentation. Three targeted guards and all 415 tests pass; graph refreshed (1,641 nodes, 3,211 edges). Live run remains pending.
+
 ### VCR-256-E — frozen public-boundary comparison fixture
 
 Added `boundary_test_order`: extend JSON with an explicit integer money representation, preserving calculation and validation. Unit coverage is indirect and contract coverage direct; runtime remains unknown until measured. Three guards prove original unit pass/contract fail, correct serialization full pass and required metadata retention. All 412 tests pass; graph refreshed (1,626 nodes, 3,185 edges). Runner adaptation, runtime measurement and paired execution remain pending; no efficacy claim.
