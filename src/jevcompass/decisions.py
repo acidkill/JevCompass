@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import math
 import os
+from dataclasses import dataclass
+from numbers import Real
 from typing import Any, Callable, Literal
 
 from .credentials import resolve_api_key
@@ -15,6 +18,46 @@ MODEL = "typesafe/jev-1.13"
 ENDPOINT = "https://openrouter.ai/api/alpha/decisions"
 MODELS_ENDPOINT = "https://openrouter.ai/api/v1/models?output_modalities=decisions&q=jev"
 MAX_RESPONSE_BYTES = 128_000
+
+
+@dataclass(frozen=True)
+class DecisionUsage:
+    """Validated usage metadata returned by the Decisions API."""
+
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float | None = None
+
+
+@dataclass(frozen=True)
+class DecisionResponse:
+    """Answers and optional validated usage metadata."""
+
+    answers: dict[str, Any]
+    usage: DecisionUsage | None
+
+
+def _validated_usage(value: Any) -> DecisionUsage | None:
+    if not isinstance(value, dict):
+        return None
+    input_tokens = value.get("input_tokens")
+    output_tokens = value.get("output_tokens")
+    if (not isinstance(input_tokens, int) or isinstance(input_tokens, bool) or input_tokens < 0 or
+            not isinstance(output_tokens, int) or isinstance(output_tokens, bool) or output_tokens < 0):
+        return None
+    cost = value.get("cost")
+    if cost is None:
+        cost_usd = None
+    elif not isinstance(cost, Real) or isinstance(cost, bool) or cost < 0:
+        return None
+    else:
+        try:
+            cost_usd = float(cost)
+        except (OverflowError, ValueError):
+            return None
+        if not math.isfinite(cost_usd):
+            return None
+    return DecisionUsage(input_tokens=input_tokens, output_tokens=output_tokens, cost_usd=cost_usd)
 
 
 class DecisionsError(Exception):
@@ -49,6 +92,12 @@ class DecisionsClient:
         self.transport = transport
 
     def decide(self, state: dict[str, Any], questions: dict[str, dict[str, Any]]) -> dict[str, Any]:
+        """Return answers only, preserving the original public API."""
+        return self.decide_with_usage(state, questions).answers
+
+    def decide_with_usage(self, state: dict[str, Any],
+                          questions: dict[str, dict[str, Any]]) -> DecisionResponse:
+        """Return answers with validated optional usage; bad usage never invalidates answers."""
         if not self.api_key or not self.model:
             raise DecisionsError("not-configured")
         if not questions:
@@ -66,7 +115,7 @@ class DecisionsClient:
             raise DecisionsError("invalid-json") from None
         if not isinstance(data, dict) or not isinstance(data.get("answers"), dict):
             raise DecisionsError("invalid-answers")
-        return data["answers"]
+        return DecisionResponse(answers=data["answers"], usage=_validated_usage(data.get("usage")))
 
 
 def model_status(model: str | None = None, *, timeout: float = 2.0,

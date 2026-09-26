@@ -11,13 +11,14 @@ from enum import Enum
 import math
 from typing import Any, Mapping, Sequence
 
-from .decisions import DecisionsClient
+from .decisions import DecisionsClient, DecisionResponse, DecisionUsage
 
 
 NO_REMOTE_CHOICE = "no-remote-choice"
 REMOTE_CHOICE = "remote-choice"
 DECISION_TIMEOUT = 1.0
 CONFIDENCE_THRESHOLD = 0.70
+_USAGE_CLIENT_TYPE = DecisionsClient
 
 
 class FailureKind(str, Enum):
@@ -81,6 +82,7 @@ class TriageResult:
     observed_exit_status: int
     steps: tuple[DiagnosticStep, ...]
     status: str
+    decision_usage: DecisionUsage | None = None
 
     @property
     def test_failed(self) -> bool:
@@ -294,18 +296,26 @@ def triage_failure(
 
     try:
         decision_client = client if client is not None else DecisionsClient(timeout=DECISION_TIMEOUT)
-        answers = decision_client.decide(state, questions)
+        usage = None
+        if isinstance(decision_client, _USAGE_CLIENT_TYPE):
+            response = decision_client.decide_with_usage(state, questions)
+            if not isinstance(response, DecisionResponse):
+                return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE)
+            answers, usage = response.answers, response.usage
+        else:
+            # Existing injected clients can implement the historical answers-only API.
+            answers = decision_client.decide(state, questions)
         if not isinstance(answers, Mapping) or set(answers) != {"diagnostic"}:
-            return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE)
+            return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE, usage)
         answer = answers.get("diagnostic")
         if not isinstance(answer, Mapping) or answer.get("type") != "choice":
-            return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE)
+            return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE, usage)
         selected_id = answer.get("choice")
         if selected_id not in ids or not _valid_confidence(answer.get("confidence")):
-            return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE)
+            return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE, usage)
         selected = CATALOG[HypothesisId(selected_id)].step
         ordered = (selected,) + tuple(step for step in fallback if step.id != selected.id)
-        return TriageResult(observed_exit_status, ordered[:2], REMOTE_CHOICE)
+        return TriageResult(observed_exit_status, ordered[:2], REMOTE_CHOICE, usage)
     except Exception:
         # Do not retain or surface transport exceptions; they can contain unsafe data.
         return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE)

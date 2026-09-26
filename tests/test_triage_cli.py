@@ -7,6 +7,7 @@ import unittest
 from unittest import mock
 
 from jevcompass.cli import main
+from jevcompass.decisions import DecisionsClient
 
 
 class TriageCliTests(unittest.TestCase):
@@ -26,6 +27,26 @@ class TriageCliTests(unittest.TestCase):
         self.assertEqual(result["status"], "remote-choice")
         self.assertEqual(result["steps"][0]["id"], "import_path_changed")
         self.assertFalse(result["executed"])
+
+    def test_json_reports_provider_usage_without_response_identifiers(self):
+        payload = json.dumps({
+            "answers": {"diagnostic": {"type": "choice", "choice": "import_path_changed",
+                                        "confidence": 0.9}},
+            "usage": {"input_tokens": 100, "output_tokens": 12, "cost": 0.00002},
+            "id": "PRIVATE_GENERATION_ID", "provider": "PRIVATE_PROVIDER",
+        }).encode()
+        real = DecisionsClient(api_key="synthetic", transport=lambda *args: payload)
+        output = io.StringIO()
+        with mock.patch("jevcompass.triage.DecisionsClient", return_value=real), \
+             contextlib.redirect_stdout(output):
+            main(["triage", "--exit-code", "1", "--kind", "import",
+                  "--hypothesis", "import_module_missing", "--hypothesis", "import_path_changed", "--json"])
+        result = json.loads(output.getvalue())
+        self.assertEqual(result["decision_usage"], {
+            "input_tokens": 100, "output_tokens": 12, "cost_usd": 0.00002,
+        })
+        self.assertEqual(result["observed_exit_status"], 1)
+        self.assertNotIn("PRIVATE_", output.getvalue())
 
     def test_successful_test_never_calls_backend(self):
         output = io.StringIO()
@@ -50,6 +71,7 @@ class TriageCliTests(unittest.TestCase):
         result = json.loads(output.getvalue())
         self.assertEqual(exit_code, 0)
         self.assertFalse(result["executed"])
+        self.assertIsNone(result["decision_usage"])
         self.assertEqual(result["status"], "no-remote-choice")
         self.assertEqual(result["observed_exit_status"], 1)
         self.assertEqual([step["id"] for step in result["steps"]], ["import_path_changed"])
