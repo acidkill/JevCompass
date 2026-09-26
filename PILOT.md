@@ -2,6 +2,14 @@
 
 ## Status
 
+### VCR-255-D first matched unresolved-contract CLI pair (2026-09-27)
+
+A randomized CLI 0.157.0 `gpt-6-luna` low pair used identical fictional fixture copies (SHA-256 `ea2c415ad9039fb75f12f55a96c309af8d133543eef86b26e4f42594b56d6ec4`). Independent final/source-only scoring was frozen before map reveal (SHA-256 `4af7a0023d00de87f4c803f4bebcc764c69b944e78cfac25751c5a53231374a4`): both arms scored **[U, 1, 1, U]**, tied on the two observable diagnosis/deferral items, with no unsupported repair. Test execution criteria remained unobservable to that reviewer; mechanical receipts separately confirm focused and full exit **1** in both arms and all fixture content unchanged excluding bytecode. Arm A mentions enum triage, so complete reviewer blinding cannot be guaranteed.
+
+After reveal A was treatment, B baseline. Treatment completed in **24.120 s**, first exact useful failure **6.677 s**, 89,240 input / 81,408 cached / 639 output tokens. Baseline completed in **21.618 s**, first useful failure **5.708 s**, 89,129 input / 78,336 cached / 635 output. Treatment was **2.501 s slower** in this single pair. Its validated local `confirm_behavior_contract` advice followed observed evidence-read markers, kept the original failing exit and made no remote Jev choice. The prompt's extra workflow guidance is part of the intervention; this does not isolate the CLI advice text's causal effect. Primary failure-to-policy-check timing and Codex billing remain unscored. Correct deferral preserves failed tests rather than claiming successful validation.
+
+This pair shows no quality or speed advantage from an additional explicit advisor command after the local contract gap is already known. Skip that extra call and perform the authoritative-policy check directly in this situation. Desktop comparison and repeatable benefit remain open. Private evidence: `/tmp/jev-contract-triage-vcr255-20260927-01/`; raw events were not retained.
+
 ### VCR-255-C contract-pair instrumentation (2026-09-27)
 
 A matched CLI runner now supports the frozen unresolved-contract fixture; seven focused tests cover isolation, ordering, unrelated failures, altered policy data and combined evidence reads. Both arms must observe the actual assertion failure and complete required validation without an unsupported repair. Treatment may request the local contract-confirmation step only after reviewing evidence. Mechanical process gates do not establish diagnosis quality, evidence-review order or a useful policy-check timestamp; unavailable measures stay unscored. This is local-advice evaluation, not a remote Jev decision experiment. All 394 Python tests pass and graphify rebuilt. Live model arms have not run.

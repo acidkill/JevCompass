@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-255-D — matched unresolved-contract CLI evidence
+
+Complete: randomized equal-fixture CLI 0.157.0 Luna-low pair; independent artifact score tied [U,1,1,U], partial blinding limitation recorded. Both focused/full runs retain expected exit1 and fixture unchanged. Treatment24.120s versus baseline21.618s, +2.501s; no remote choice or demonstrated quality benefit. Primary semantic timing and Codex bill unknown. Skip redundant explicit advice once the contract gap is locally established; Desktop and broader efficacy remain open.
+
 ### VCR-255-C — matched unresolved-contract CLI runner
 
 Complete locally: randomized isolated CLI 0.157.0 runner; exact seeded failure, expected failed full validation, entire fixture unchanged excluding bytecode, evidence-read markers before local triage, private blind artifacts and unscored semantic timing. Seven focused tests pass. All 394 Python tests pass and graphify rebuilt. Hosted CI pending; no live arms yet.
