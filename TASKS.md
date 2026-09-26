@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-255-B — frozen unresolved-contract fixture
+
+Complete locally: fictional decimal-rounding ambiguity and external frozen blind rubric, with required failed-test receipts and safe deferral as the evidence-backed disposition. Three fixture tests pass; full repository suite and graphify rebuild exit 0. Candidate prompt omits the expected diagnosis; no model pair has run. Hosted CI pending.
+
 ### VCR-255-A — contract-aware assertion triage
 
 Complete locally: allowlisted assertion evidence and authoritative-contract diagnostic; underspecification chooses local policy confirmation, contradictions or missing candidate abstain, weaker conflict can retain alternatives. 26 focused / 384 full Python tests pass, graphify rebuilt; CLI smoke preserves exit 1 and returns only confirm_behavior_contract with no remote usage. Hosted CI pending; matched efficacy remains unverified.
