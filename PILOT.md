@@ -2,6 +2,10 @@
 
 ## Status
 
+### VCR-256-D test-order runner accounting (2026-09-27)
+
+Matched test-order receipts now aggregate validated tokens/cost across exact ranking calls, counting duplicate lifecycle events once. Missing receipts make totals unknown, and unknown cost is never zero. This accounting change is offline-verified; it is not a new paired outcome. The boundary-mapping fixture and its paired execution remain pending.
+
 ### VCR-256-C accounting boundary (2026-09-27)
 
 Test-order result and CLI now retain validated provider input/output tokens and optional USD cost even when the answer is unusable. Unknown cost is null, not zero; local skips make no request and expose no usage. Four new offline tests cover choice, abstention, invalid usage, unknown cost, local skip and numeric CLI receipts. This enables accounting but does not demonstrate efficacy. Runner aggregation and the frozen boundary-mapping pair are still pending.

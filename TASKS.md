@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-256-D — matched test-order accounting
+
+Added numeric-only usage aggregation across exact ranking invocations, deduplicating started/completed event IDs. Missing or invalid receipts keep totals unknown; incomplete costs remain null. Three targeted tests cover multiple calls, unknown cost, malformed counters, duplicate JSON and duplicate events. All 409 tests pass; graph refreshed (1,588 nodes, 3,130 edges). No live pair or efficacy claim; frozen boundary fixture remains next.
+
 ### VCR-256-C — test-order provider usage receipts
 
 Implemented optional typed API usage in test-order results and numeric-only CLI JSON. Valid tokens and optional cost survive low-confidence or unknown choices; missing cost stays null. Local skips retain null usage and never call the provider. Legacy injected answers-only clients remain compatible. Four targeted offline tests and all 406 suite tests pass; graph refreshed to 1,576 nodes and 3,107 edges. Matched runner aggregation remains the next task; no benefit claim.
