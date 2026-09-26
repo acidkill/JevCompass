@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-256-G — first live boundary pair
+
+Completed one equal-fixture CLI pair: both selected contract, all independent/required checks passed and immutable files were preserved. Baseline23.130s versus treatment21.119s; remote ranking523.19ms and USD0.000019026. No causal benefit claim: same selection, one ordered pair, blind quality and useful-action timing incomplete. Full numbers in PILOT.md. Next: balanced repeat and task-specific timing, then Desktop evidence.
+
 ### VCR-256-F — boundary pair runner
 
 Added an independent configured instance of the existing isolated runner for the frozen JSON mapping task. Both arms share metadata and required suite; serialization artifacts are exported. Immutable fixture files are hashed and all focused/full suites independently rerun; false agent success fails the gate. Task-specific useful-error and first successful-check timing remain unscored pending instrumentation. Three targeted guards and all 415 tests pass; graph refreshed (1,641 nodes, 3,211 edges). Live run remains pending.
