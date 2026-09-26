@@ -39,6 +39,7 @@ class HypothesisId(str, Enum):
 
     ASSERTION_EXPECTATION_DRIFT = "assertion_expectation_drift"
     ASSERTION_BEHAVIOR_REGRESSION = "assertion_behavior_regression"
+    CONFIRM_BEHAVIOR_CONTRACT = "confirm_behavior_contract"
     COLLECTION_SYNTAX = "collection_syntax"
     COLLECTION_IMPORT_SIDE_EFFECT = "collection_import_side_effect"
     DEPENDENCY_MISSING = "dependency_missing"
@@ -53,6 +54,14 @@ class HypothesisId(str, Enum):
     PERMISSION_SANDBOX_RESTRICTION = "permission_sandbox_restriction"
     TIMEOUT_CONTENTION = "timeout_contention"
     TIMEOUT_NONTERMINATING = "timeout_nonterminating"
+
+
+class AssertionObservation(str, Enum):
+    """Allowlisted assertion-contract observations from local review."""
+
+    CONTRACT_UNDERSPECIFIED = "contract_underspecified"
+    CONTRACT_CONFIRMED = "contract_confirmed"
+    LEGACY_FIXTURE_CONFLICT = "legacy_fixture_conflict"
 
 
 class ImportObservation(str, Enum):
@@ -112,6 +121,10 @@ CATALOG: Mapping[HypothesisId, _CatalogEntry] = {
                "application behavior changed unexpectedly",
                "Trace the behavior change",
                "Compare the affected behavior with the last known passing test contract."),
+        _entry(FailureKind.ASSERTION, HypothesisId.CONFIRM_BEHAVIOR_CONTRACT,
+               "the authoritative behavior contract is unclear",
+               "Confirm the behavior contract",
+               "Establish the authoritative behavior semantics before repairing the assertion; defer any edit unsupported by that contract."),
         _entry(FailureKind.COLLECTION, HypothesisId.COLLECTION_SYNTAX,
                "test source may not parse",
                "Inspect test syntax",
@@ -195,6 +208,18 @@ def _normalize_import_observations(
     return tuple(dict.fromkeys(observations))
 
 
+def _normalize_assertion_observations(
+    observations: Sequence[AssertionObservation] | None,
+) -> tuple[AssertionObservation, ...]:
+    if observations is None:
+        return ()
+    if (isinstance(observations, (str, bytes))
+            or not isinstance(observations, Sequence)
+            or any(not isinstance(item, AssertionObservation) for item in observations)):
+        raise TypeError("assertion-observations-must-be-enums")
+    return tuple(dict.fromkeys(observations))
+
+
 def _contradictory_import_observations(
     observations: Sequence[ImportObservation],
 ) -> bool:
@@ -232,14 +257,17 @@ def triage_failure(
     client: Any | None = None,
     *,
     import_observations: Sequence[ImportObservation] | None = None,
+    assertion_observations: Sequence[AssertionObservation] | None = None,
 ) -> TriageResult:
     """Return up to two diagnostic steps from allowlisted failure metadata.
 
     Import observations are fixed enum tokens from a local, read-only check.
     A consistent package-present / target-absent / replacement-present result
-    rules out the missing-package hypothesis locally and skips Jev. Conflicting
-    observations abstain without a remote call. Raw names, paths, output,
-    prompts, commands, and free-form descriptions are never accepted.
+    rules out the missing-package hypothesis locally and skips Jev. For assertion
+    failures, an underspecified contract permits only a supplied local contract
+    confirmation step; contradictory contract observations abstain. A legacy
+    fixture conflict may be ranked remotely using only its enum token. Raw names,
+    paths, output, prompts, commands, and free-form descriptions are never accepted.
     """
     if isinstance(observed_exit_status, bool) or not isinstance(observed_exit_status, int):
         raise TypeError("observed-exit-status-must-be-int")
@@ -252,6 +280,7 @@ def triage_failure(
             or any(not isinstance(hypothesis, HypothesisId) for hypothesis in hypotheses)):
         raise TypeError("hypotheses-must-be-enums")
     observations = _normalize_import_observations(import_observations)
+    assertion_facts = _normalize_assertion_observations(assertion_observations)
     if observed_exit_status == 0:
         return _empty_result(observed_exit_status)
 
@@ -260,9 +289,25 @@ def triage_failure(
     if import_evidence_applies and _contradictory_import_observations(observations):
         return TriageResult(observed_exit_status, (), NO_REMOTE_CHOICE)
 
+    assertion_evidence_applies = (
+        FailureKind.ASSERTION in allowed_kinds and bool(assertion_facts)
+    )
+    assertion_fact_set = set(assertion_facts)
+    if (assertion_evidence_applies
+            and AssertionObservation.CONTRACT_UNDERSPECIFIED in assertion_fact_set
+            and AssertionObservation.CONTRACT_CONFIRMED in assertion_fact_set):
+        return TriageResult(observed_exit_status, (), NO_REMOTE_CHOICE)
+
     locally_confirmed_path = (
         import_evidence_applies and _import_path_is_locally_confirmed(observations)
     )
+    if (assertion_evidence_applies
+            and AssertionObservation.CONTRACT_UNDERSPECIFIED in assertion_fact_set):
+        if HypothesisId.CONFIRM_BEHAVIOR_CONTRACT not in hypotheses:
+            return TriageResult(observed_exit_status, (), NO_REMOTE_CHOICE)
+        contract_entry = CATALOG[HypothesisId.CONFIRM_BEHAVIOR_CONTRACT]
+        return TriageResult(observed_exit_status, (contract_entry.step,), NO_REMOTE_CHOICE)
+
     plausible: list[_CatalogEntry] = []
     seen: set[HypothesisId] = set()
     for hypothesis in hypotheses:
@@ -271,6 +316,10 @@ def triage_failure(
             continue
         seen.add(hypothesis)
         if locally_confirmed_path and hypothesis is HypothesisId.IMPORT_MODULE_MISSING:
+            continue
+        if (assertion_evidence_applies
+                and AssertionObservation.CONTRACT_CONFIRMED in assertion_fact_set
+                and hypothesis is HypothesisId.CONFIRM_BEHAVIOR_CONTRACT):
             continue
         plausible.append(entry)
 
@@ -286,6 +335,8 @@ def triage_failure(
     }
     if import_evidence_applies:
         state["import_observations"] = [item.value for item in observations]
+    if assertion_evidence_applies:
+        state["assertion_observations"] = [item.value for item in assertion_facts]
     questions = {
         "diagnostic": {
             "type": "choice",

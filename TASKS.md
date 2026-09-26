@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-255-A — contract-aware assertion triage
+
+Complete locally: allowlisted assertion evidence and authoritative-contract diagnostic; underspecification chooses local policy confirmation, contradictions or missing candidate abstain, weaker conflict can retain alternatives. 26 focused / 384 full Python tests pass, graphify rebuilt; CLI smoke preserves exit 1 and returns only confirm_behavior_contract with no remote usage. Hosted CI pending; matched efficacy remains unverified.
+
 ### VCR-254-D — matched triage cost accounting
 
 Complete locally: numeric-only usage aggregation for exact expected triage invocations, uncertain-choice accounting, independent unknown cost/token handling and duplicate-event protection. Sixteen focused / 375 full Python tests pass; graphify rebuilt. No new efficacy pair; hosted CI pending.

@@ -92,6 +92,55 @@ class TriageCliTests(unittest.TestCase):
         self.assertIn("invalid choice", output.getvalue())
         client.assert_not_called()
 
+    def test_underspecified_contract_returns_local_step_without_provider_call(self):
+        output = io.StringIO()
+        with mock.patch("jevcompass.triage.DecisionsClient") as client, contextlib.redirect_stdout(output):
+            status = main([
+                "triage", "--exit-code", "1", "--kind", "assertion",
+                "--hypothesis", "assertion_expectation_drift",
+                "--hypothesis", "assertion_behavior_regression",
+                "--hypothesis", "confirm_behavior_contract",
+                "--assertion-observation", "contract_underspecified", "--json",
+            ])
+        result = json.loads(output.getvalue())
+        self.assertEqual(status, 0)
+        self.assertEqual(result["status"], "no-remote-choice")
+        self.assertEqual([step["id"] for step in result["steps"]],
+                         ["confirm_behavior_contract"])
+        client.assert_not_called()
+
+    def test_fixture_conflict_remote_request_contains_only_allowlisted_observation(self):
+        output = io.StringIO()
+        with mock.patch("jevcompass.triage.DecisionsClient") as client, contextlib.redirect_stdout(output):
+            client.return_value.decide.return_value = {
+                "diagnostic": {"type": "choice", "choice": "assertion_expectation_drift",
+                               "confidence": 0.9}
+            }
+            main([
+                "triage", "--exit-code", "1", "--kind", "assertion",
+                "--hypothesis", "assertion_expectation_drift",
+                "--hypothesis", "assertion_behavior_regression",
+                "--assertion-observation", "legacy_fixture_conflict", "--json",
+            ])
+        state = client.return_value.decide.call_args.args[0]
+        self.assertEqual(state["assertion_observations"], ["legacy_fixture_conflict"])
+        self.assertEqual(set(state), {"test_outcome", "failure_kinds", "hypotheses",
+                                      "assertion_observations"})
+
+    def test_invalid_assertion_observation_is_rejected(self):
+        stderr = io.StringIO()
+        with (mock.patch("jevcompass.triage.DecisionsClient") as client,
+              contextlib.redirect_stderr(stderr),
+              self.assertRaises(SystemExit) as caught):
+            main([
+                "triage", "--exit-code", "1", "--kind", "assertion",
+                "--hypothesis", "assertion_expectation_drift",
+                "--assertion-observation", "/private/client/repo", "--json",
+            ])
+        self.assertEqual(caught.exception.code, 2)
+        self.assertIn("invalid choice", stderr.getvalue())
+        client.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

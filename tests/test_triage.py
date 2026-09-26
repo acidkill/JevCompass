@@ -13,6 +13,7 @@ from jevcompass.triage import (
     REMOTE_CHOICE,
     FailureKind,
     HypothesisId,
+    AssertionObservation,
     ImportObservation,
     triage_failure,
 )
@@ -267,6 +268,105 @@ class TriageTests(unittest.TestCase):
         with patch("jevcompass.triage.DecisionsClient", return_value=client) as factory:
             triage_failure((KIND,), HYPOTHESES, 1)
         factory.assert_called_once_with(timeout=DECISION_TIMEOUT)
+
+    def test_underspecified_contract_requires_and_returns_local_confirmation_step(self):
+        client = FakeClient()
+        observations = (AssertionObservation.CONTRACT_UNDERSPECIFIED,)
+        with_candidate = triage_failure(
+            (FailureKind.ASSERTION,),
+            (HypothesisId.ASSERTION_EXPECTATION_DRIFT,
+             HypothesisId.ASSERTION_BEHAVIOR_REGRESSION,
+             HypothesisId.CONFIRM_BEHAVIOR_CONTRACT),
+            1, client, assertion_observations=observations,
+        )
+        without_candidate = triage_failure(
+            (FailureKind.ASSERTION,),
+            (HypothesisId.ASSERTION_EXPECTATION_DRIFT,
+             HypothesisId.ASSERTION_BEHAVIOR_REGRESSION),
+            1, client, assertion_observations=observations,
+        )
+        self.assertEqual(with_candidate.status, NO_REMOTE_CHOICE)
+        self.assertEqual([step.id for step in with_candidate.steps],
+                         [HypothesisId.CONFIRM_BEHAVIOR_CONTRACT])
+        self.assertIn("Establish the authoritative behavior semantics",
+                      with_candidate.steps[0].instruction)
+        self.assertIn("defer any edit unsupported", with_candidate.steps[0].instruction)
+        self.assertEqual(without_candidate.steps, ())
+        self.assertEqual(client.calls, [])
+
+    def test_contradictory_assertion_contract_observations_abstain(self):
+        client = FakeClient()
+        result = triage_failure(
+            (FailureKind.ASSERTION,),
+            (HypothesisId.ASSERTION_EXPECTATION_DRIFT,
+             HypothesisId.ASSERTION_BEHAVIOR_REGRESSION),
+            1, client,
+            assertion_observations=(
+                AssertionObservation.CONTRACT_CONFIRMED,
+                AssertionObservation.CONTRACT_UNDERSPECIFIED,
+            ),
+        )
+        self.assertEqual(result.steps, ())
+        self.assertEqual(result.status, NO_REMOTE_CHOICE)
+        self.assertEqual(client.calls, [])
+
+    def test_legacy_fixture_conflict_can_send_only_safe_enum_state(self):
+        hypotheses = (HypothesisId.ASSERTION_EXPECTATION_DRIFT,
+                      HypothesisId.ASSERTION_BEHAVIOR_REGRESSION)
+        client = FakeClient({"diagnostic": {"type": "choice",
+                           "choice": hypotheses[0].value, "confidence": 0.9}})
+        result = triage_failure(
+            (FailureKind.ASSERTION,), hypotheses, 1, client,
+            assertion_observations=(AssertionObservation.LEGACY_FIXTURE_CONFLICT,),
+        )
+        self.assertEqual(result.status, REMOTE_CHOICE)
+        self.assertEqual(client.calls[0][0]["assertion_observations"],
+                         ["legacy_fixture_conflict"])
+        self.assertEqual(set(client.calls[0][0]), {
+            "test_outcome", "failure_kinds", "hypotheses", "assertion_observations",
+        })
+        self.assertNotIn("legacy_fixture", repr(client.calls[0][1]))
+
+    def test_confirmed_contract_excludes_contract_confirmation_candidate(self):
+        hypotheses = (HypothesisId.ASSERTION_EXPECTATION_DRIFT,
+                      HypothesisId.ASSERTION_BEHAVIOR_REGRESSION,
+                      HypothesisId.CONFIRM_BEHAVIOR_CONTRACT)
+        client = FakeClient({"diagnostic": {"type": "choice",
+                           "choice": hypotheses[0].value, "confidence": 0.9}})
+        result = triage_failure(
+            (FailureKind.ASSERTION,), hypotheses, 1, client,
+            assertion_observations=(AssertionObservation.CONTRACT_CONFIRMED,),
+        )
+        self.assertEqual(result.status, REMOTE_CHOICE)
+        self.assertEqual(client.calls[0][0]["hypotheses"], [
+            HypothesisId.ASSERTION_EXPECTATION_DRIFT.value,
+            HypothesisId.ASSERTION_BEHAVIOR_REGRESSION.value,
+        ])
+
+    def test_assertion_observations_are_not_sent_for_non_assertion_failures(self):
+        hypotheses = (HypothesisId.TIMEOUT_CONTENTION,
+                      HypothesisId.TIMEOUT_NONTERMINATING)
+        client = FakeClient({"diagnostic": {"type": "choice",
+                           "choice": hypotheses[0].value, "confidence": 0.9}})
+        result = triage_failure(
+            (FailureKind.TIMEOUT,), hypotheses, 1, client,
+            assertion_observations=(AssertionObservation.LEGACY_FIXTURE_CONFLICT,),
+        )
+        self.assertEqual(result.status, REMOTE_CHOICE)
+        self.assertNotIn("assertion_observations", client.calls[0][0])
+
+    def test_assertion_observations_require_enum_tokens(self):
+        for observations in (("contract_underspecified",),
+                             ("/private/client/repo",), "legacy_fixture_conflict"):
+            client = FakeClient()
+            with self.subTest(observations=observations), self.assertRaises(TypeError):
+                triage_failure(
+                    (FailureKind.ASSERTION,),
+                    (HypothesisId.ASSERTION_EXPECTATION_DRIFT,
+                     HypothesisId.ASSERTION_BEHAVIOR_REGRESSION),
+                    1, client, assertion_observations=observations,
+                )
+            self.assertEqual(client.calls, [])
 
 
 if __name__ == "__main__":
