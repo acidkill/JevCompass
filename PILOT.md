@@ -2,6 +2,10 @@
 
 ## Status
 
+### VCR-254-C provider-reported decision usage (2026-09-27)
+
+The Decisions client now exposes validated numeric input/output token counters and optional USD cost without retaining response IDs or provider text. Triage JSON preserves this receipt even when a paid response produces an uncertain choice; missing or malformed usage remains unknown. A safe synthetic assertion smoke returned `no-remote-choice` with 382 input tokens, 53 output tokens and provider-reported cost **$0.000016044** in 0.586 s. This is one API receipt, not an efficacy result or the total Codex bill. The full 371-test Python suite passed and graphify rebuilt. Matched pilot aggregation of these costs remains pending.
+
 **Acceptance: not yet passed.** The initial four synthetic CLI pairs (P01, P03, P05, P07) tied on blind task quality; later focused P05 pairs produced one baseline win and one treatment win. The 20-case study has not passed; an installed-0.1.19 P01 pair had missing required-test receipts and a post-unblind quality correction; a subsequent repeat produced a predeclared anonymous quality tie and a recognized successful unittest only in treatment. A CLI prompt canary reached the first response before its first tool. Native Desktop `explorer` and published-0.1.18 `worker` children reported correlated advice before their first code tool in separate smokes; other subagent probes were inconclusive or correctly abstained. No repeatable productivity or quality gain is established.
 
 Use [PILOT_CASES.md](PILOT_CASES.md) for the planned synthetic case bank, [ROADMAP.md](ROADMAP.md) for the thresholds and remaining gates, and [TASKS.md](TASKS.md) for release receipts. Entries below are dated development evidence, including older private-release observations; later records do not erase earlier results. Paths to local experiment artifacts are historical maintainer records and are not downloadable project assets.

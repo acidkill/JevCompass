@@ -10,6 +10,8 @@ from unittest import mock
 
 from jevcompass import advisor
 from jevcompass.decisions import (
+    DecisionResponse,
+    DecisionUsage,
     DecisionsClient,
     DecisionsError,
     ENDPOINT,
@@ -118,6 +120,39 @@ class DecisionsClientTests(unittest.TestCase):
         self.assertEqual(model_status("test/model", fetch=fetch_with(b'{"data":"invalid"}')), "unavailable")
         self.assertTrue(model_available("test/model", fetch=fetch_with(listed)))
         self.assertFalse(model_available("test/model", fetch=unavailable))
+
+    def test_decide_with_usage_returns_typed_validated_usage_and_legacy_api_stays_answers_only(self):
+        payload = b'{"answers":{"tool":{"type":"choice","choice":"serena"}},"usage":{"input_tokens":12,"output_tokens":3,"cost":0.004}}'
+        client = DecisionsClient(api_key="test-key", transport=lambda *_: payload)
+
+        response = client.decide_with_usage(STATE, QUESTIONS)
+
+        self.assertIsInstance(response, DecisionResponse)
+        self.assertEqual(response.answers["tool"]["choice"], "serena")
+        self.assertEqual(response.usage, DecisionUsage(12, 3, 0.004))
+        self.assertEqual(client.decide(STATE, QUESTIONS), response.answers)
+
+    def test_missing_or_invalid_usage_does_not_break_valid_answers(self):
+        answers = {"tool": {"type": "choice", "choice": "serena"}}
+        payloads = (
+            b'{"answers":{"tool":{"type":"choice","choice":"serena"}}}',
+            b'{"answers":{"tool":{"type":"choice","choice":"serena"}},"usage":null}',
+            b'{"answers":{"tool":{"type":"choice","choice":"serena"}},"usage":{"input_tokens":true,"output_tokens":1}}',
+            b'{"answers":{"tool":{"type":"choice","choice":"serena"}},"usage":{"input_tokens":-1,"output_tokens":1}}',
+            b'{"answers":{"tool":{"type":"choice","choice":"serena"}},"usage":{"input_tokens":1,"output_tokens":1,"cost":true}}',
+            b'{"answers":{"tool":{"type":"choice","choice":"serena"}},"usage":{"input_tokens":1,"output_tokens":1,"cost":-0.1}}',
+            b'{"answers":{"tool":{"type":"choice","choice":"serena"}},"usage":{"input_tokens":1,"output_tokens":1,"cost":1e999}}',
+        )
+        for payload in payloads:
+            with self.subTest(payload=payload):
+                response = DecisionsClient(api_key="test-key", transport=lambda *_: payload).decide_with_usage(STATE, QUESTIONS)
+                self.assertEqual(response.answers, answers)
+                self.assertIsNone(response.usage)
+
+    def test_valid_token_counts_allow_optional_absent_cost(self):
+        payload = b'{"answers":{},"usage":{"input_tokens":0,"output_tokens":2}}'
+        response = DecisionsClient(api_key="test-key", transport=lambda *_: payload).decide_with_usage(STATE, QUESTIONS)
+        self.assertEqual(response.usage, DecisionUsage(0, 2, None))
 
 
 ITEMS = [

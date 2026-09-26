@@ -39,6 +39,22 @@ class FakeClient:
 
 
 class TriageTests(unittest.TestCase):
+    def test_provider_usage_survives_accepted_and_uncertain_choice(self):
+        for confidence, expected in ((0.9, REMOTE_CHOICE), (0.1, NO_REMOTE_CHOICE)):
+            payload = json.dumps({
+                "answers": {"diagnostic": {"type": "choice", "choice": "import_path_changed",
+                                            "confidence": confidence}},
+                "usage": {"input_tokens": 100, "output_tokens": 12, "cost": 0.00002},
+                "id": "PRIVATE_GENERATION_ID",
+            }).encode()
+            client = DecisionsClient(api_key="synthetic", transport=lambda *args: payload)
+            result = triage_failure((KIND,), HYPOTHESES, 1, client)
+            self.assertEqual(result.status, expected)
+            self.assertEqual(result.decision_usage.input_tokens, 100)
+            self.assertEqual(result.decision_usage.output_tokens, 12)
+            self.assertEqual(result.decision_usage.cost_usd, 0.00002)
+            self.assertNotIn("PRIVATE_GENERATION_ID", repr(result))
+
     def test_success_empty_failure_and_single_plausible_hypothesis_skip_remote(self):
         for kinds, hypotheses, status in (
             ((KIND,), HYPOTHESES, 0),

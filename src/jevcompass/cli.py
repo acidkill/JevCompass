@@ -392,7 +392,11 @@ def main(argv: list[str] | None = None) -> int:
                    "test_failed": result.test_failed, "status": result.status,
                    "steps": [{"id": step.id.value, "title": step.title,
                               "instruction": step.instruction} for step in result.steps],
-                   "executed": False}
+                   "executed": False,
+                   "decision_usage": ({"input_tokens": result.decision_usage.input_tokens,
+                                       "output_tokens": result.decision_usage.output_tokens,
+                                       "cost_usd": result.decision_usage.cost_usd}
+                                      if result.decision_usage is not None else None)}
         if args.json:
             print(json.dumps(payload))
         else:
