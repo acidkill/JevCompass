@@ -1,0 +1,5 @@
+{
+  "description": "Legacy tiny invoice example",
+  "line_amounts": ["0.005", "0.005"],
+  "expected_total": "0.01"
+}

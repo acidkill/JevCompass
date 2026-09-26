@@ -2,6 +2,10 @@
 
 ## Status
 
+### VCR-255-B unresolved-contract fixture (2026-09-27)
+
+A fictional invoice-rounding fixture contrasts per-line rounding with sum-then-round while withholding any authoritative scope rule. The external frozen rubric requires reporting the real test failure, identifying both interpretations, checking policy authority and avoiding unsupported repairs. Focused and full validation remain mandatory; their failure is expected when a repair is correctly deferred. Three fixture contract tests pass; the full repository suite and graphify rebuild exit 0. The candidate prompt does not disclose the intended diagnosis, and the external rubric fixes failure-to-policy-check or justified-deferral as the primary timing metric. No model pair has run. This prepares a local-advice quality comparison and does not imply a real remote Jev choice or a productivity gain.
+
 ### VCR-255-A contract-aware triage preparation (2026-09-27)
 
 The next triage extension separates an unresolved expected-behavior contract from ordinary expectation drift and code regression. A verified underspecified contract calls for an authoritative policy check locally, without asking Jev to guess the intended behavior. Weaker fixture-conflict evidence may leave several useful diagnostics; only those real alternatives qualify for remote selection. Observations remain fixed enum tokens and do not transmit source, test values or policy text. The API and CLI pass 26 focused and 384 full Python tests; graphify rebuilt. A local CLI smoke kept observed exit 1, test_failed true and executed false, returning only confirm_behavior_contract with no provider usage. This is implementation verification, not a matched efficacy result.
