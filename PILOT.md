@@ -2,6 +2,10 @@
 
 ## Status
 
+### VCR-256-B existing-case eligibility audit (2026-09-27)
+
+The existing calculation fixture does not provide a genuine coverage/runtime tradeoff: both focused suites directly catch the same partial-kilogram defect. Ten local subprocess runs each gave unit median 49.198 ms and contract median 133.804 ms, all exit 1. These are host-specific test runtimes, not agent completion measurements. The frozen next-case protocol is `tests/evaluation/mixed_test_order_protocol.md`; usage receipts and a boundary-mapping fixture remain prerequisites. No new paired outcome or benefit is claimed.
+
 ### VCR-256-A test-order information boundary (2026-09-27)
 
 Earlier test-order requests conveyed surface and suite kind but no verified coverage/runtime tradeoff. The source extension adds fixed enum observations only: changed-contract/boundary/internal-logic signals, direct or indirect coverage and coarse fast/slow runtime classes. Unknown facts stay unknown; discovery must not fabricate them. A direct fast candidate against only indirect slow alternatives is resolved locally. Mixed tradeoffs may qualify for remote ranking, but they still need matched outcome evidence and must preserve mandatory checks. Do not inject sleeps or tune a fixture after seeing Jev's selection to manufacture an advantage.
