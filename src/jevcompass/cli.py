@@ -243,6 +243,11 @@ def _display_test_order(result: Any, as_json: bool) -> int:
         "required": [{"id": item.required_id, "command": item.command}
                      for item in result.required],
         "executed": False,
+        "usage": None if result.usage is None else {
+            "input_tokens": result.usage.input_tokens,
+            "output_tokens": result.usage.output_tokens,
+            "cost_usd": result.usage.cost_usd,
+        },
     }
     if as_json:
         print(json.dumps(payload, ensure_ascii=False))

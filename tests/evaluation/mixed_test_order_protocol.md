@@ -24,4 +24,4 @@ This leaves a legitimate direct/slower versus indirect/faster tradeoff. A baseli
 
 ## Prerequisites still open
 
-The current test-order result discards Decisions API usage, although the shared client already supports `decide_with_usage`. Wire numeric-only receipts into test-order CLI and matched runner before the live pair. The current runner is specific to the partial-kilogram calculation and must be adapted to the new boundary case with targeted tests. Native Desktop comparison remains separate from CLI evidence.
+The test-order result and CLI now retain validated Decisions API usage, including abstentions. Wire numeric-only receipts into the matched runner before the live pair; missing usage and cost must remain unknown. The current runner is specific to the partial-kilogram calculation and must be adapted to the new boundary case with targeted tests. Native Desktop comparison remains separate from CLI evidence.

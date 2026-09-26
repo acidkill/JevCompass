@@ -2,6 +2,10 @@
 
 ## Status
 
+### VCR-256-C accounting boundary (2026-09-27)
+
+Test-order result and CLI now retain validated provider input/output tokens and optional USD cost even when the answer is unusable. Unknown cost is null, not zero; local skips make no request and expose no usage. Four new offline tests cover choice, abstention, invalid usage, unknown cost, local skip and numeric CLI receipts. This enables accounting but does not demonstrate efficacy. Runner aggregation and the frozen boundary-mapping pair are still pending.
+
 ### VCR-256-B existing-case eligibility audit (2026-09-27)
 
 The existing calculation fixture does not provide a genuine coverage/runtime tradeoff: both focused suites directly catch the same partial-kilogram defect. Ten local subprocess runs each gave unit median 49.198 ms and contract median 133.804 ms, all exit 1. These are host-specific test runtimes, not agent completion measurements. The frozen next-case protocol is `tests/evaluation/mixed_test_order_protocol.md`; usage receipts and a boundary-mapping fixture remain prerequisites. No new paired outcome or benefit is claimed.

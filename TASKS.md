@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-256-C — test-order provider usage receipts
+
+Implemented optional typed API usage in test-order results and numeric-only CLI JSON. Valid tokens and optional cost survive low-confidence or unknown choices; missing cost stays null. Local skips retain null usage and never call the provider. Legacy injected answers-only clients remain compatible. Four targeted offline tests and all 406 suite tests pass; graph refreshed to 1,576 nodes and 3,107 edges. Matched runner aggregation remains the next task; no benefit claim.
+
 ### VCR-256-B — mixed test-order eligibility audit
 
 Completed the existing-fixture audit and froze the next experiment protocol in `tests/evaluation/mixed_test_order_protocol.md`. Both existing focused suites directly catch the same defect; ten local runs measured unit median 49.198 ms versus contract 133.804 ms, all exit 1. Do not mislabel coverage to force Jev use. Next: numeric API usage receipts, a frozen boundary-mapping fixture and matched runner; no efficacy claim.
