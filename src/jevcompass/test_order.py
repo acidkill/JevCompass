@@ -11,7 +11,9 @@ from enum import Enum
 import math
 from typing import Any, Literal, Mapping, Sequence
 
-from .decisions import DecisionsClient
+from .decisions import DecisionResponse, DecisionUsage, DecisionsClient
+
+_USAGE_CLIENT_TYPE = DecisionsClient
 
 
 class TestKind(str, Enum):
@@ -97,6 +99,7 @@ class TestOrderResult:
     ordered_candidates: tuple[TestCandidate, ...]
     required: tuple[RequiredTest, ...]
     status: Literal["remote-choice", "no-remote-choice"]
+    usage: DecisionUsage | None = None
 
     @property
     def ordered_ids(self) -> tuple[str, ...]:
@@ -259,24 +262,32 @@ def rank_tests(
     }
 
     try:
-        answers = (client if client is not None else DecisionsClient()).decide(state, questions)
+        decision_client = client if client is not None else DecisionsClient()
+        usage = None
+        if isinstance(decision_client, _USAGE_CLIENT_TYPE):
+            response = decision_client.decide_with_usage(state, questions)
+            if not isinstance(response, DecisionResponse):
+                return TestOrderResult(fallback, mandatory, NO_REMOTE_CHOICE)
+            answers, usage = response.answers, response.usage
+        else:
+            answers = decision_client.decide(state, questions)
         if not isinstance(answers, Mapping) or set(answers) != set(questions):
-            return TestOrderResult(fallback, mandatory, NO_REMOTE_CHOICE)
+            return TestOrderResult(fallback, mandatory, NO_REMOTE_CHOICE, usage)
         answer = answers.get("first")
         if not isinstance(answer, Mapping) or answer.get("type") != "choice":
-            return TestOrderResult(fallback, mandatory, NO_REMOTE_CHOICE)
+            return TestOrderResult(fallback, mandatory, NO_REMOTE_CHOICE, usage)
         selected_id = answer.get("choice")
         confidence = answer.get("confidence")
         if selected_id not in opaque_ids or isinstance(confidence, bool):
-            return TestOrderResult(fallback, mandatory, NO_REMOTE_CHOICE)
+            return TestOrderResult(fallback, mandatory, NO_REMOTE_CHOICE, usage)
         if not isinstance(confidence, (int, float)):
-            return TestOrderResult(fallback, mandatory, NO_REMOTE_CHOICE)
+            return TestOrderResult(fallback, mandatory, NO_REMOTE_CHOICE, usage)
         confidence_value = float(confidence)
         if (not math.isfinite(confidence_value) or confidence_value < CONFIDENCE_THRESHOLD
                 or confidence_value > 1.0):
-            return TestOrderResult(fallback, mandatory, NO_REMOTE_CHOICE)
+            return TestOrderResult(fallback, mandatory, NO_REMOTE_CHOICE, usage)
         selected = opaque_ids[selected_id]
         ordered = (selected,) + tuple(candidate for candidate in fallback if candidate is not selected)
-        return TestOrderResult(ordered, mandatory, REMOTE_CHOICE)
+        return TestOrderResult(ordered, mandatory, REMOTE_CHOICE, usage)
     except Exception:
         return TestOrderResult(fallback, mandatory, NO_REMOTE_CHOICE)
