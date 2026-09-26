@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-256-H — reversed-order boundary repeat
+
+Completed second opposite-order CLI pair with unchanged fixture. Both again selected contract and passed all checks. Treatment43.756s versus baseline21.226s; API486.03ms and USD0.000019026. Two-pair mean treatment32.438s versus baseline22.178s does not establish remote benefit or a causal slowdown. For this locally resolved mapping case, prefer direct contract coverage without an extra ranking call. Instrument useful-action timing and evaluate genuinely unresolved choices next; Desktop evidence remains pending.
+
 ### VCR-256-G — first live boundary pair
 
 Completed one equal-fixture CLI pair: both selected contract, all independent/required checks passed and immutable files were preserved. Baseline23.130s versus treatment21.119s; remote ranking523.19ms and USD0.000019026. No causal benefit claim: same selection, one ordered pair, blind quality and useful-action timing incomplete. Full numbers in PILOT.md. Next: balanced repeat and task-specific timing, then Desktop evidence.
