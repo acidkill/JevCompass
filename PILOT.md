@@ -2,6 +2,10 @@
 
 ## Status
 
+### VCR-256-J local-path pair (2026-09-27)
+
+Keyless seed256 pair on unchanged boundary fixture: baseline16,551.38ms,58,409 input/52,224 cached/446 output; treatment24,669.52ms,104,463 input/95,488 cached/683 output. Both chose contract and passed required plus independent unit/contract/full checks; immutable files preserved. Treatment ranking returned no-remote-choice contract/unit. Receipt reports 0ms rank latency, which is an event-resolution artifact rather than a measured zero-duration command; API usage is incomplete/null, not proven zero from host events. Offline code tests establish the local skip. One extra CLI step did not demonstrate benefit; treatment was8,118.14ms slower. Do not issue an extra advisor command when the agent has already resolved the direct-coverage choice. Billing, blind quality and useful-action timing remain unscored. Receipts `/tmp/jev-boundary-local-20260927-01`.
+
 ### VCR-256-I local boundary rule (2026-09-27)
 
 Two opposite-order pairs produced the same direct-contract choice with no demonstrated remote benefit. The source now resolves only explicit boundary changes with one direct candidate, exclusively indirect alternatives and entirely unknown runtime locally. Known runtime tradeoffs and unknown coverage remain eligible for remote advice. Mandatory checks are unchanged. Offline tests establish avoided API calls, not improved agent completion time; optimized-path comparison remains pending.
