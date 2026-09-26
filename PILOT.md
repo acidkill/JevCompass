@@ -2,6 +2,10 @@
 
 ## Status
 
+### VCR-256-E boundary fixture frozen (2026-09-27)
+
+The new public JSON money-mapping task separates direct contract coverage from indirect calculation regression coverage. Three offline guards establish meaningful original failure and correct-repair success while preserving mandatory validation. Coarse runtime is still unknown. Assessor criteria live outside the candidate fixture in `tests/evaluation/boundary_test_order_expected.md`. No model selection or pair has occurred; no benefit claim.
+
 ### VCR-256-D test-order runner accounting (2026-09-27)
 
 Matched test-order receipts now aggregate validated tokens/cost across exact ranking calls, counting duplicate lifecycle events once. Missing receipts make totals unknown, and unknown cost is never zero. This accounting change is offline-verified; it is not a new paired outcome. The boundary-mapping fixture and its paired execution remain pending.
