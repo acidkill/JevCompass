@@ -63,9 +63,28 @@ USEFUL_FAILURE_MARKERS = (
     "ERROR: test_preloaded_item_is_available_without_waiting",
     "TimeoutError: inbox-not-ready",
 )
-PRETASK_ACK = (
-    "PRETASK_ACK: I will verify the suggested wait-condition check against "
-    "the shared fixture evidence before editing."
+ACKNOWLEDGEMENT_PREFIX = (
+    "PRETASK_ACK: I will first run the focused test before editing; arm token="
+)
+BASELINE_ACK_TOKEN = "none"
+TREATMENT_ACK_TOKEN = "timeout_nonterminating"
+
+
+def _acknowledgement_text(token: str) -> str:
+    return f"{ACKNOWLEDGEMENT_PREFIX}{token}."
+
+
+INITIAL_WORKFLOW_INSTRUCTION = (
+    "\n\nRequired sequence (identical for both arms): before editing "
+    f"inbox.py, run the focused frozen command `{FOCUSED_COMMAND}` as a "
+    "separate initial diagnostic command and inspect its result. Do not edit before the "
+    "initial focused reproduction. If it reproduces the failure, then "
+    "make a minimal inbox.py repair, rerun the focused test, and only "
+    f"after that focused check passes run the required full suite `{REQUIRED_COMMAND}`. "
+    "If the initial focused test passes, report that fact and do not "
+    "claim a repair; continue with the remaining required checks."
+    "\n\nBefore any tool call, your first response must begin with this "
+    "exact acknowledgement: "
 )
 SAFE_IDENTIFIER = re.compile(r"[A-Za-z0-9_.-]{1,64}")
 TEST_COUNT_RE = re.compile(r"\bRan\s+(\d+)\s+tests?\s+in\s+[0-9.]+s\b")
@@ -253,7 +272,7 @@ def _matches_useful_failure(output: Any) -> bool:
 
 
 def _event_receipts(
-    lines: Iterable[str], event_times: list[float], started: float, *, treatment: bool,
+    lines: Iterable[str], event_times: list[float], started: float, *, acknowledgement_token: str,
 ) -> dict[str, Any]:
     pending: dict[str, str] = {}
     focused: list[dict[str, Any]] = []
@@ -333,14 +352,13 @@ def _event_receipts(
             for item in full
         )
     )
-    initial_ack = None
-    if treatment:
-        initial_ack = bool(
-            first_agent_message is not None
-            and first_tool_index is not None
-            and first_agent_message[0] < first_tool_index
-            and PRETASK_ACK in first_agent_message[1]
-        )
+    expected_ack = _acknowledgement_text(acknowledgement_token)
+    initial_ack = bool(
+        first_agent_message is not None
+        and first_tool_index is not None
+        and first_agent_message[0] < first_tool_index
+        and first_agent_message[1].startswith(expected_ack)
+    )
     codex_usage = parse_codex_json_events(
         lines,
         started_at=started,
@@ -370,7 +388,7 @@ def _event_receipts(
     }
 
 
-def _empty_arm(failure: str) -> dict[str, Any]:
+def _empty_arm(failure: str, acknowledgement_token: str) -> dict[str, Any]:
     return {
         "cli_status": "failed",
         "failure": failure,
@@ -386,7 +404,8 @@ def _empty_arm(failure: str) -> dict[str, Any]:
         "full_suite_exit": None,
         "full_suite_invocation_observed": False,
         "full_suite_pass_after_focused_pass": False,
-        "initial_ack_before_tools": None,
+        "acknowledgement_token": acknowledgement_token,
+        "initial_ack_before_tools": False,
         "event_sequence_valid": False,
         "event_count": None,
         "token_usage_status": "unscored",
@@ -404,7 +423,7 @@ def _run_arm(
     fixture: Path,
     home: Path,
     timeout: int,
-    treatment: bool,
+    acknowledgement_token: str,
 ) -> dict[str, Any]:
     (home / ".codex").mkdir(mode=0o700, parents=True, exist_ok=True)
     env = core._isolated_environment(
@@ -428,15 +447,18 @@ def _run_arm(
             process, started=started, timeout=timeout, preserve_on_failure=True,
         )
     except OSError:
-        return _empty_arm("codex_unavailable")
+        return _empty_arm("codex_unavailable", acknowledgement_token)
     completion_ms = round((time.monotonic() - started) * 1000, 2)
-    observed = _event_receipts(lines, times, started, treatment=treatment)
+    observed = _event_receipts(
+        lines, times, started, acknowledgement_token=acknowledgement_token,
+    )
     cli_ok = failure is None and process.returncode == 0
     return {
         "cli_status": "completed" if cli_ok else "failed",
         "failure": failure if failure is not None else (None if cli_ok else "cli_exit_nonzero"),
         "cli_exit_code": process.returncode if failure is None else None,
         "agent_completion_ms": completion_ms,
+        "acknowledgement_token": acknowledgement_token,
         **observed,
     }
 
@@ -646,22 +668,28 @@ def run_pair(
             "not a conclusion from the triage API. Verify it against the local "
             "contract, source, and tests before editing."
         )
-        base_prompt = (fixture_source / README_FILE).read_text(encoding="utf-8") + shared_evidence
-        treatment_prompt = (
-            base_prompt
-            + "\n\nA local triage next-check, prepared from the shared verified "
+        shared_workflow = INITIAL_WORKFLOW_INSTRUCTION
+        shared_base = (
+            (fixture_source / README_FILE).read_text(encoding="utf-8")
+            + shared_evidence
+            + shared_workflow
+        )
+        baseline_ack = _acknowledgement_text(BASELINE_ACK_TOKEN)
+        treatment_ack = _acknowledgement_text(TREATMENT_ACK_TOKEN)
+        base_prompt = shared_base + baseline_ack
+        treatment_guidance = (
+            "\n\nA local triage next-check, prepared from the shared verified "
             "evidence (suggestion only, not a confirmed cause or success): "
             + next_check
-            + "\nVerify the suggestion against the same local files before "
-            "editing. Your first response must begin with this exact acknowledgement "
-            "before any tool call: "
-            + PRETASK_ACK
         )
-        prompts_equal_except_guidance = (
-            treatment_prompt.removeprefix(base_prompt).startswith(
-                "\n\nA local triage next-check"
-            )
-            and base_prompt in treatment_prompt
+        treatment_prompt = shared_base + treatment_ack + treatment_guidance
+        prompts_same_contract = (
+            base_prompt == shared_base + baseline_ack
+            and treatment_prompt == shared_base + treatment_ack + treatment_guidance
+            and shared_evidence in base_prompt
+            and shared_evidence in treatment_prompt
+            and shared_workflow in base_prompt
+            and shared_workflow in treatment_prompt
         )
         auth_snapshot = private_root / "auth-snapshot.json"
         try:
@@ -719,7 +747,9 @@ def run_pair(
                 fixture=fixtures[true_arm],
                 home=homes[true_arm],
                 timeout=timeout,
-                treatment=true_arm == "treatment",
+                acknowledgement_token=(
+                    TREATMENT_ACK_TOKEN if true_arm == "treatment" else BASELINE_ACK_TOKEN
+                ),
             )
             arm["fixture_sha256_before"] = initial_full_hashes[true_arm]
             arm["source_sha256_before"] = initial_source_hashes[true_arm]
@@ -765,6 +795,7 @@ def run_pair(
                 and arm.get("full_suite_invocation_observed") is True
                 and arm.get("full_suite_pass_after_focused_pass") is True
                 and arm.get("event_sequence_valid") is True
+                and arm.get("initial_ack_before_tools") is True
                 and immutable_preserved.get(label) is True
                 and arm.get("source_sha256_before") is not None
                 and source_hashes_after.get(label) != arm.get("source_sha256_before")
@@ -772,13 +803,16 @@ def run_pair(
             )
             for label, arm in arms.items()
         }
+        baseline_label = labels["baseline"]
         treatment_label = labels["treatment"]
+        baseline_ack = arms.get(baseline_label, {}).get("initial_ack_before_tools") is True
         treatment_ack = arms.get(treatment_label, {}).get("initial_ack_before_tools") is True
         protocol_complete = (
             len(arms) == 2
             and all(arm_gates.values())
+            and baseline_ack
             and treatment_ack
-            and prompts_equal_except_guidance
+            and prompts_same_contract
         )
         for label, arm in arms.items():
             arm["immutable_files_preserved"] = immutable_preserved.get(label, False)
@@ -812,10 +846,13 @@ def run_pair(
             "preparation_ms": preparation_ms,
             "pair_total_elapsed_ms": round((time.monotonic() - run_started) * 1000, 2),
             "prompt_hashes": {
-                "shared_base_sha256": _sha256(base_prompt.encode("utf-8")),
+                "shared_base_sha256": _sha256(shared_base.encode("utf-8")),
                 "treatment_sha256": _sha256(treatment_prompt.encode("utf-8")),
-                "same_shared_evidence": base_prompt in treatment_prompt,
-                "only_preset_next_check_added": prompts_equal_except_guidance,
+                "same_shared_evidence": shared_evidence in base_prompt and shared_evidence in treatment_prompt,
+                "same_required_workflow": shared_workflow in base_prompt and shared_workflow in treatment_prompt,
+                "arm_specific_ack_and_treatment_next_check": prompts_same_contract,
+                "baseline_ack_token": BASELINE_ACK_TOKEN,
+                "treatment_ack_token": TREATMENT_ACK_TOKEN,
             },
             "preflight": {
                 key: value for key, value in evidence.items()
@@ -831,6 +868,7 @@ def run_pair(
             "immutable_files_preserved": immutable_preserved,
             "arm_gates": arm_gates,
             "treatment_ack_before_tools": treatment_ack,
+            "baseline_ack_before_tools": baseline_ack,
             "independent_frozen_validation": independent,
             "arms": arms,
         }

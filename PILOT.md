@@ -1,3 +1,7 @@
+## VCR271-A — Protocol correction before a fresh triage comparison
+
+The condition-timeout runner now explicitly requires initial focused reproduction before editing for both arms. Equal acknowledgement instructions use fixed baseline `none` and treatment `timeout_nonterminating` tokens; both must precede the first tool. Existing reproduction, focused/full validation, immutable-fixture, and independent-validation gates remain intact. Eleven targeted tests pass. This is a protocol correction, not efficacy evidence; the historical VCR270 incomplete result is unchanged. A new live pair is pending delivery checks.
+
 # JevCompass acceptance pilot
 
 ## Status

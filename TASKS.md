@@ -1,3 +1,8 @@
+## VCR271-A — Equal triage reproduction protocol
+
+- Implemented explicit initial focused reproduction before editing in both arms, followed by repair, focused rerun, and required full validation. Both arms acknowledge the same workflow before their first tool, with fixed arm tokens.
+- Targeted verification: 11 tests passed, including missing/late acknowledgements and unchanged incomplete gates. Frozen fixture hashes remain unchanged. Full delivery checks and a fresh live comparison are pending; VCR270 remains incomplete.
+
 # JevCompass task and release evidence
 
 ## Current state (2026-09-25)
