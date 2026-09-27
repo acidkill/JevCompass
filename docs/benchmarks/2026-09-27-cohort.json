@@ -1,0 +1,1173 @@
+{
+  "aggregate": {
+    "fixed_schedule_rows": 26,
+    "interpretation_limits": [
+      "quality failures are excluded from timing aggregates",
+      "timing is stratified by profile and treatment exposure",
+      "remote request, local fallback, and no-call are distinct",
+      "adoption and efficacy are not inferred",
+      "unknown provider cost is not zero"
+    ],
+    "last_cohort_status": "stopped",
+    "ledger_agent_tokens_used": 3014931,
+    "ledger_runtime_seconds_charged": 1800.0025106520043,
+    "manifest_sha256": "4b4cc7e0d3d2a62665752eec28025da7ef19aee26ab8720ab1d359b7e5d7a1cd",
+    "missing_receipt_pair_ids": [],
+    "profiles": {
+      "feasibility": {
+        "ambiguous_failure_triage": {
+          "advice_exposure_counts": {
+            "baseline": {
+              "no_call": 2
+            },
+            "treatment": {
+              "local_abstention_fallback": 1,
+              "no_call": 1
+            }
+          },
+          "coordinator_gate_counts": {
+            "passed": 2
+          },
+          "eligible_speed": {
+            "by_treatment_exposure": {
+              "local_abstention_fallback": {
+                "baseline_completion_ms": 23551.0,
+                "pairs": 1,
+                "treatment_completion_ms": 35296.62,
+                "treatment_minus_baseline_completion_ms": 11745.620000000003
+              },
+              "no_call": {
+                "baseline_completion_ms": 32411.48,
+                "pairs": 1,
+                "treatment_completion_ms": 28463.26,
+                "treatment_minus_baseline_completion_ms": -3948.220000000001
+              }
+            }
+          },
+          "mandatory_validation_counts": {
+            "pass": 4
+          },
+          "pair_status_counts": {
+            "completed": 2
+          },
+          "scheduled": 2,
+          "task_correctness_counts": {
+            "pass": 4
+          }
+        },
+        "post_change_test_order": {
+          "advice_exposure_counts": {
+            "baseline": {
+              "no_call": 1
+            },
+            "treatment": {
+              "remote_request_no_choice": 1
+            }
+          },
+          "coordinator_gate_counts": {
+            "failed_or_unknown": 1
+          },
+          "eligible_speed": {
+            "by_treatment_exposure": {}
+          },
+          "mandatory_validation_counts": {
+            "failed": 2
+          },
+          "pair_status_counts": {
+            "failed": 1,
+            "not_run_case_stopped": 1
+          },
+          "scheduled": 2,
+          "task_correctness_counts": {
+            "fail": 2
+          }
+        },
+        "pretask_strategy": {
+          "advice_exposure_counts": {
+            "baseline": {
+              "no_call": 2
+            },
+            "treatment": {
+              "remote_choice": 2
+            }
+          },
+          "coordinator_gate_counts": {
+            "passed": 2
+          },
+          "eligible_speed": {
+            "by_treatment_exposure": {
+              "remote_choice": {
+                "baseline_completion_ms": 49582.44,
+                "pairs": 2,
+                "treatment_completion_ms": 52950.94,
+                "treatment_minus_baseline_completion_ms": 3368.4999999999964
+              }
+            }
+          },
+          "mandatory_validation_counts": {
+            "pass": 4
+          },
+          "pair_status_counts": {
+            "completed": 2
+          },
+          "scheduled": 2,
+          "task_correctness_counts": {
+            "pass": 4
+          }
+        }
+      },
+      "main": {
+        "ambiguous_failure_triage": {
+          "advice_exposure_counts": {
+            "baseline": {
+              "no_call": 5
+            },
+            "treatment": {
+              "no_call": 5
+            }
+          },
+          "coordinator_gate_counts": {
+            "passed": 5
+          },
+          "eligible_speed": {
+            "by_treatment_exposure": {
+              "no_call": {
+                "baseline_completion_ms": 148072.61,
+                "pairs": 5,
+                "treatment_completion_ms": 154582.45,
+                "treatment_minus_baseline_completion_ms": 6509.840000000004
+              }
+            }
+          },
+          "mandatory_validation_counts": {
+            "pass": 10
+          },
+          "pair_status_counts": {
+            "completed": 5,
+            "not_run_after_cohort_stop": 1
+          },
+          "scheduled": 6,
+          "task_correctness_counts": {
+            "pass": 10
+          }
+        },
+        "post_change_test_order": {
+          "advice_exposure_counts": {
+            "baseline": {},
+            "treatment": {}
+          },
+          "coordinator_gate_counts": {},
+          "eligible_speed": {
+            "by_treatment_exposure": {}
+          },
+          "mandatory_validation_counts": {},
+          "pair_status_counts": {
+            "not_run_after_cohort_stop": 2,
+            "not_run_case_stopped": 5
+          },
+          "scheduled": 7,
+          "task_correctness_counts": {}
+        },
+        "pretask_strategy": {
+          "advice_exposure_counts": {
+            "baseline": {
+              "no_call": 5
+            },
+            "treatment": {
+              "remote_choice": 5
+            }
+          },
+          "coordinator_gate_counts": {
+            "passed": 5
+          },
+          "eligible_speed": {
+            "by_treatment_exposure": {
+              "remote_choice": {
+                "baseline_completion_ms": 132960.25,
+                "pairs": 5,
+                "treatment_completion_ms": 110902.34,
+                "treatment_minus_baseline_completion_ms": -22057.91
+              }
+            }
+          },
+          "mandatory_validation_counts": {
+            "pass": 10
+          },
+          "pair_status_counts": {
+            "completed": 5,
+            "not_run_after_cohort_stop": 1,
+            "token_usage_unknown_stop": 1
+          },
+          "scheduled": 7,
+          "task_correctness_counts": {
+            "pass": 10
+          }
+        }
+      }
+    },
+    "resolved_rows": 26,
+    "rows": [
+      {
+        "arms": {
+          "baseline": {
+            "advice_exposure": "no_call",
+            "agent_input_tokens": 88682.0,
+            "agent_output_tokens": 481.0,
+            "agent_usage_status": "available",
+            "completion_ms": 19139.22,
+            "first_successful_relevant_check_ms": 14729.94,
+            "first_useful_error_ms": null,
+            "mandatory_validation": "pass",
+            "provider_usage": {
+              "input_tokens": null,
+              "invocation_count": 0,
+              "output_tokens": null,
+              "provider_cost_status": "not_invoked",
+              "provider_cost_usd": null,
+              "usage_status": "not_invoked"
+            },
+            "task_correctness": "pass"
+          },
+          "treatment": {
+            "advice_exposure": "remote_choice",
+            "agent_input_tokens": 90857.0,
+            "agent_output_tokens": 548.0,
+            "agent_usage_status": "available",
+            "completion_ms": 22968.1,
+            "first_successful_relevant_check_ms": 16518.51,
+            "first_useful_error_ms": null,
+            "mandatory_validation": "pass",
+            "provider_usage": {
+              "input_tokens": 368,
+              "invocation_count": 1,
+              "output_tokens": 44,
+              "provider_cost_status": "reported_amount",
+              "provider_cost_usd": 1.5456e-05,
+              "usage_status": "complete"
+            },
+            "task_correctness": "pass"
+          }
+        },
+        "cohort": "feasibility",
+        "coordinator_quality_validation": "passed",
+        "first_arm": "baseline",
+        "pair": "P-F1",
+        "pair_status": "completed",
+        "profile": "pretask_strategy",
+        "quality_gates_passed": true,
+        "receipt_status": "completed",
+        "runner_status": "completed"
+      },
+      {
+        "arms": {
+          "baseline": {
+            "advice_exposure": "no_call",
+            "agent_input_tokens": 89246.0,
+            "agent_output_tokens": 688.0,
+            "agent_usage_status": "available",
+            "completion_ms": 30443.22,
+            "first_successful_relevant_check_ms": 21379.41,
+            "first_useful_error_ms": null,
+            "mandatory_validation": "pass",
+            "provider_usage": {
+              "input_tokens": null,
+              "invocation_count": 0,
+              "output_tokens": null,
+              "provider_cost_status": "not_invoked",
+              "provider_cost_usd": null,
+              "usage_status": "not_invoked"
+            },
+            "task_correctness": "pass"
+          },
+          "treatment": {
+            "advice_exposure": "remote_choice",
+            "agent_input_tokens": 108724.0,
+            "agent_output_tokens": 607.0,
+            "agent_usage_status": "available",
+            "completion_ms": 29982.84,
+            "first_successful_relevant_check_ms": 24034.82,
+            "first_useful_error_ms": null,
+            "mandatory_validation": "pass",
+            "provider_usage": {
+              "input_tokens": 368,
+              "invocation_count": 1,
+              "output_tokens": 44,
+              "provider_cost_status": "reported_amount",
+              "provider_cost_usd": 1.5456e-05,
+              "usage_status": "complete"
+            },
+            "task_correctness": "pass"
+          }
+        },
+        "cohort": "feasibility",
+        "coordinator_quality_validation": "passed",
+        "first_arm": "treatment",
+        "pair": "P-F2",
+        "pair_status": "completed",
+        "profile": "pretask_strategy",
+        "quality_gates_passed": true,
+        "receipt_status": "completed",
+        "runner_status": "completed"
+      },
+      {
+        "arms": {
+          "baseline": {
+            "advice_exposure": "no_call",
+            "agent_input_tokens": 45783.0,
+            "agent_output_tokens": 479.0,
+            "agent_usage_status": "available",
+            "completion_ms": 15188.31,
+            "first_successful_relevant_check_ms": null,
+            "first_useful_error_ms": null,
+            "mandatory_validation": "failed",
+            "provider_usage": {
+              "input_tokens": null,
+              "invocation_count": 0,
+              "output_tokens": null,
+              "provider_cost_status": "not_invoked",
+              "provider_cost_usd": null,
+              "usage_status": "not_invoked"
+            },
+            "task_correctness": "fail"
+          },
+          "treatment": {
+            "advice_exposure": "remote_request_no_choice",
+            "agent_input_tokens": 79623.0,
+            "agent_output_tokens": 769.0,
+            "agent_usage_status": "available",
+            "completion_ms": 25130.46,
+            "first_successful_relevant_check_ms": null,
+            "first_useful_error_ms": null,
+            "mandatory_validation": "failed",
+            "provider_usage": {
+              "input_tokens": 501,
+              "invocation_count": 1,
+              "output_tokens": 34,
+              "provider_cost_status": "reported_amount",
+              "provider_cost_usd": 2.1042e-05,
+              "usage_status": "complete"
+            },
+            "task_correctness": "fail"
+          }
+        },
+        "cohort": "feasibility",
+        "coordinator_quality_validation": "failed_or_unknown",
+        "first_arm": "baseline",
+        "pair": "T-F1",
+        "pair_status": "failed",
+        "profile": "post_change_test_order",
+        "quality_gates_passed": false,
+        "receipt_status": "failed",
+        "runner_status": "failed",
+        "speed_aggregation": "excluded_quality_gate_or_task_correctness"
+      },
+      {
+        "arms": {},
+        "cohort": "feasibility",
+        "first_arm": "treatment",
+        "pair": "T-F2",
+        "pair_status": "not_run_case_stopped",
+        "profile": "post_change_test_order",
+        "quality_gates_passed": null,
+        "receipt_status": "not_available",
+        "runner_status": null
+      },
+      {
+        "arms": {
+          "baseline": {
+            "advice_exposure": "no_call",
+            "agent_input_tokens": 132392.0,
+            "agent_output_tokens": 887.0,
+            "agent_usage_status": "available",
+            "completion_ms": 32411.48,
+            "first_successful_relevant_check_ms": null,
+            "first_useful_error_ms": 6633.72,
+            "mandatory_validation": "pass",
+            "provider_usage": {
+              "input_tokens": null,
+              "invocation_count": 0,
+              "output_tokens": null,
+              "provider_cost_status": "not_invoked",
+              "provider_cost_usd": null,
+              "usage_status": "not_invoked"
+            },
+            "task_correctness": "pass"
+          },
+          "treatment": {
+            "advice_exposure": "no_call",
+            "agent_input_tokens": 118654.0,
+            "agent_output_tokens": 792.0,
+            "agent_usage_status": "available",
+            "completion_ms": 28463.26,
+            "first_successful_relevant_check_ms": null,
+            "first_useful_error_ms": 7044.73,
+            "mandatory_validation": "pass",
+            "provider_usage": {
+              "input_tokens": null,
+              "invocation_count": 0,
+              "output_tokens": null,
+              "provider_cost_status": "not_invoked",
+              "provider_cost_usd": null,
+              "usage_status": "not_invoked"
+            },
+            "task_correctness": "pass"
+          }
+        },
+        "cohort": "feasibility",
+        "coordinator_quality_validation": "passed",
+        "first_arm": "baseline",
+        "pair": "A-F1",
+        "pair_status": "completed",
+        "profile": "ambiguous_failure_triage",
+        "quality_gates_passed": true,
+        "receipt_status": "completed",
+        "runner_status": "completed"
+      },
+      {
+        "arms": {
+          "baseline": {
+            "advice_exposure": "no_call",
+            "agent_input_tokens": 98714.0,
+            "agent_output_tokens": 751.0,
+            "agent_usage_status": "available",
+            "completion_ms": 23551.0,
+            "first_successful_relevant_check_ms": null,
+            "first_useful_error_ms": 6467.51,
+            "mandatory_validation": "pass",
+            "provider_usage": {
+              "input_tokens": null,
+              "invocation_count": 0,
+              "output_tokens": null,
+              "provider_cost_status": "not_invoked",
+              "provider_cost_usd": null,
+              "usage_status": "not_invoked"
+            },
+            "task_correctness": "pass"
+          },
+          "treatment": {
+            "advice_exposure": "local_abstention_fallback",
+            "agent_input_tokens": 136611.0,
+            "agent_output_tokens": 1173.0,
+            "agent_usage_status": "available",
+            "completion_ms": 35296.62,
+            "first_successful_relevant_check_ms": null,
+            "first_useful_error_ms": 6658.07,
+            "mandatory_validation": "pass",
+            "provider_usage": {
+              "input_tokens": null,
+              "invocation_count": 1,
+              "output_tokens": null,
+              "provider_cost_status": "unknown_after_or_during_request",
+              "provider_cost_usd": null,
+              "usage_status": "not_reported"
+            },
+            "task_correctness": "pass"
+          }
+        },
+        "cohort": "feasibility",
+        "coordinator_quality_validation": "passed",
+        "first_arm": "treatment",
+        "pair": "A-F2",
+        "pair_status": "completed",
+        "profile": "ambiguous_failure_triage",
+        "quality_gates_passed": true,
+        "receipt_status": "completed",
+        "runner_status": "completed"
+      },
+      {
+        "arms": {
+          "baseline": {
+            "advice_exposure": "no_call",
+            "agent_input_tokens": 89047.0,
+            "agent_output_tokens": 439.0,
+            "agent_usage_status": "available",
+            "completion_ms": 19264.41,
+            "first_successful_relevant_check_ms": 14204.69,
+            "first_useful_error_ms": null,
+            "mandatory_validation": "pass",
+            "provider_usage": {
+              "input_tokens": null,
+              "invocation_count": 0,
+              "output_tokens": null,
+              "provider_cost_status": "not_invoked",
+              "provider_cost_usd": null,
+              "usage_status": "not_invoked"
+            },
+            "task_correctness": "pass"
+          },
+          "treatment": {
+            "advice_exposure": "remote_choice",
+            "agent_input_tokens": 89262.0,
+            "agent_output_tokens": 439.0,
+            "agent_usage_status": "available",
+            "completion_ms": 25033.33,
+            "first_successful_relevant_check_ms": 17616.68,
+            "first_useful_error_ms": null,
+            "mandatory_validation": "pass",
+            "provider_usage": {
+              "input_tokens": 368,
+              "invocation_count": 1,
+              "output_tokens": 44,
+              "provider_cost_status": "reported_amount",
+              "provider_cost_usd": 1.5456e-05,
+              "usage_status": "complete"
+            },
+            "task_correctness": "pass"
+          }
+        },
+        "cohort": "main",
+        "coordinator_quality_validation": "passed",
+        "first_arm": "baseline",
+        "pair": "P1",
+        "pair_status": "completed",
+        "profile": "pretask_strategy",
+        "quality_gates_passed": true,
+        "receipt_status": "completed",
+        "runner_status": "completed"
+      },
+      {
+        "arms": {},
+        "cohort": "main",
+        "first_arm": "baseline",
+        "pair": "T1",
+        "pair_status": "not_run_case_stopped",
+        "profile": "post_change_test_order",
+        "quality_gates_passed": null,
+        "receipt_status": "not_available",
+        "runner_status": null
+      },
+      {
+        "arms": {
+          "baseline": {
+            "advice_exposure": "no_call",
+            "agent_input_tokens": 97295.0,
+            "agent_output_tokens": 618.0,
+            "agent_usage_status": "available",
+            "completion_ms": 21361.15,
+            "first_successful_relevant_check_ms": null,
+            "first_useful_error_ms": 6085.11,
+            "mandatory_validation": "pass",
+            "provider_usage": {
+              "input_tokens": null,
+              "invocation_count": 0,
+              "output_tokens": null,
+              "provider_cost_status": "not_invoked",
+              "provider_cost_usd": null,
+              "usage_status": "not_invoked"
+            },
+            "task_correctness": "pass"
+          },
+          "treatment": {
+            "advice_exposure": "no_call",
+            "agent_input_tokens": 101701.0,
+            "agent_output_tokens": 808.0,
+            "agent_usage_status": "available",
+            "completion_ms": 32863.23,
+            "first_successful_relevant_check_ms": null,
+            "first_useful_error_ms": 7746.74,
+            "mandatory_validation": "pass",
+            "provider_usage": {
+              "input_tokens": null,
+              "invocation_count": 0,
+              "output_tokens": null,
+              "provider_cost_status": "not_invoked",
+              "provider_cost_usd": null,
+              "usage_status": "not_invoked"
+            },
+            "task_correctness": "pass"
+          }
+        },
+        "cohort": "main",
+        "coordinator_quality_validation": "passed",
+        "first_arm": "baseline",
+        "pair": "A1",
+        "pair_status": "completed",
+        "profile": "ambiguous_failure_triage",
+        "quality_gates_passed": true,
+        "receipt_status": "completed",
+        "runner_status": "completed"
+      },
+      {
+        "arms": {
+          "baseline": {
+            "advice_exposure": "no_call",
+            "agent_input_tokens": 89005.0,
+            "agent_output_tokens": 561.0,
+            "agent_usage_status": "available",
+            "completion_ms": 21022.48,
+            "first_successful_relevant_check_ms": 16541.5,
+            "first_useful_error_ms": null,
+            "mandatory_validation": "pass",
+            "provider_usage": {
+              "input_tokens": null,
+              "invocation_count": 0,
+              "output_tokens": null,
+              "provider_cost_status": "not_invoked",
+              "provider_cost_usd": null,
+              "usage_status": "not_invoked"
+            },
+            "task_correctness": "pass"
+          },
+          "treatment": {
+            "advice_exposure": "remote_choice",
+            "agent_input_tokens": 92217.0,
+            "agent_output_tokens": 521.0,
+            "agent_usage_status": "available",
+            "completion_ms": 20553.9,
+            "first_successful_relevant_check_ms": 15428.0,
+            "first_useful_error_ms": null,
+            "mandatory_validation": "pass",
+            "provider_usage": {
+              "input_tokens": 368,
+              "invocation_count": 1,
+              "output_tokens": 44,
+              "provider_cost_status": "reported_amount",
+              "provider_cost_usd": 1.5456e-05,
+              "usage_status": "complete"
+            },
+            "task_correctness": "pass"
+          }
+        },
+        "cohort": "main",
+        "coordinator_quality_validation": "passed",
+        "first_arm": "treatment",
+        "pair": "P2",
+        "pair_status": "completed",
+        "profile": "pretask_strategy",
+        "quality_gates_passed": true,
+        "receipt_status": "completed",
+        "runner_status": "completed"
+      },
+      {
+        "arms": {},
+        "cohort": "main",
+        "first_arm": "treatment",
+        "pair": "T2",
+        "pair_status": "not_run_case_stopped",
+        "profile": "post_change_test_order",
+        "quality_gates_passed": null,
+        "receipt_status": "not_available",
+        "runner_status": null
+      },
+      {
+        "arms": {
+          "baseline": {
+            "advice_exposure": "no_call",
+            "agent_input_tokens": 115376.0,
+            "agent_output_tokens": 913.0,
+            "agent_usage_status": "available",
+            "completion_ms": 31602.77,
+            "first_successful_relevant_check_ms": null,
+            "first_useful_error_ms": 6540.68,
+            "mandatory_validation": "pass",
+            "provider_usage": {
+              "input_tokens": null,
+              "invocation_count": 0,
+              "output_tokens": null,
+              "provider_cost_status": "not_invoked",
+              "provider_cost_usd": null,
+              "usage_status": "not_invoked"
+            },
+            "task_correctness": "pass"
+          },
+          "treatment": {
+            "advice_exposure": "no_call",
+            "agent_input_tokens": 114642.0,
+            "agent_output_tokens": 718.0,
+            "agent_usage_status": "available",
+            "completion_ms": 37867.71,
+            "first_successful_relevant_check_ms": null,
+            "first_useful_error_ms": 6987.5,
+            "mandatory_validation": "pass",
+            "provider_usage": {
+              "input_tokens": null,
+              "invocation_count": 0,
+              "output_tokens": null,
+              "provider_cost_status": "not_invoked",
+              "provider_cost_usd": null,
+              "usage_status": "not_invoked"
+            },
+            "task_correctness": "pass"
+          }
+        },
+        "cohort": "main",
+        "coordinator_quality_validation": "passed",
+        "first_arm": "treatment",
+        "pair": "A2",
+        "pair_status": "completed",
+        "profile": "ambiguous_failure_triage",
+        "quality_gates_passed": true,
+        "receipt_status": "completed",
+        "runner_status": "completed"
+      },
+      {
+        "arms": {
+          "baseline": {
+            "advice_exposure": "no_call",
+            "agent_input_tokens": 88955.0,
+            "agent_output_tokens": 634.0,
+            "agent_usage_status": "available",
+            "completion_ms": 37868.5,
+            "first_successful_relevant_check_ms": 29070.75,
+            "first_useful_error_ms": null,
+            "mandatory_validation": "pass",
+            "provider_usage": {
+              "input_tokens": null,
+              "invocation_count": 0,
+              "output_tokens": null,
+              "provider_cost_status": "not_invoked",
+              "provider_cost_usd": null,
+              "usage_status": "not_invoked"
+            },
+            "task_correctness": "pass"
+          },
+          "treatment": {
+            "advice_exposure": "remote_choice",
+            "agent_input_tokens": 92016.0,
+            "agent_output_tokens": 604.0,
+            "agent_usage_status": "available",
+            "completion_ms": 21953.94,
+            "first_successful_relevant_check_ms": 16571.16,
+            "first_useful_error_ms": null,
+            "mandatory_validation": "pass",
+            "provider_usage": {
+              "input_tokens": 368,
+              "invocation_count": 1,
+              "output_tokens": 44,
+              "provider_cost_status": "reported_amount",
+              "provider_cost_usd": 1.5456e-05,
+              "usage_status": "complete"
+            },
+            "task_correctness": "pass"
+          }
+        },
+        "cohort": "main",
+        "coordinator_quality_validation": "passed",
+        "first_arm": "baseline",
+        "pair": "P3",
+        "pair_status": "completed",
+        "profile": "pretask_strategy",
+        "quality_gates_passed": true,
+        "receipt_status": "completed",
+        "runner_status": "completed"
+      },
+      {
+        "arms": {},
+        "cohort": "main",
+        "first_arm": "baseline",
+        "pair": "T3",
+        "pair_status": "not_run_case_stopped",
+        "profile": "post_change_test_order",
+        "quality_gates_passed": null,
+        "receipt_status": "not_available",
+        "runner_status": null
+      },
+      {
+        "arms": {
+          "baseline": {
+            "advice_exposure": "no_call",
+            "agent_input_tokens": 98778.0,
+            "agent_output_tokens": 852.0,
+            "agent_usage_status": "available",
+            "completion_ms": 26010.35,
+            "first_successful_relevant_check_ms": null,
+            "first_useful_error_ms": 6523.22,
+            "mandatory_validation": "pass",
+            "provider_usage": {
+              "input_tokens": null,
+              "invocation_count": 0,
+              "output_tokens": null,
+              "provider_cost_status": "not_invoked",
+              "provider_cost_usd": null,
+              "usage_status": "not_invoked"
+            },
+            "task_correctness": "pass"
+          },
+          "treatment": {
+            "advice_exposure": "no_call",
+            "agent_input_tokens": 115368.0,
+            "agent_output_tokens": 691.0,
+            "agent_usage_status": "available",
+            "completion_ms": 24008.27,
+            "first_successful_relevant_check_ms": null,
+            "first_useful_error_ms": 6382.01,
+            "mandatory_validation": "pass",
+            "provider_usage": {
+              "input_tokens": null,
+              "invocation_count": 0,
+              "output_tokens": null,
+              "provider_cost_status": "not_invoked",
+              "provider_cost_usd": null,
+              "usage_status": "not_invoked"
+            },
+            "task_correctness": "pass"
+          }
+        },
+        "cohort": "main",
+        "coordinator_quality_validation": "passed",
+        "first_arm": "baseline",
+        "pair": "A3",
+        "pair_status": "completed",
+        "profile": "ambiguous_failure_triage",
+        "quality_gates_passed": true,
+        "receipt_status": "completed",
+        "runner_status": "completed"
+      },
+      {
+        "arms": {
+          "baseline": {
+            "advice_exposure": "no_call",
+            "agent_input_tokens": 88695.0,
+            "agent_output_tokens": 531.0,
+            "agent_usage_status": "available",
+            "completion_ms": 35032.18,
+            "first_successful_relevant_check_ms": 27358.24,
+            "first_useful_error_ms": null,
+            "mandatory_validation": "pass",
+            "provider_usage": {
+              "input_tokens": null,
+              "invocation_count": 0,
+              "output_tokens": null,
+              "provider_cost_status": "not_invoked",
+              "provider_cost_usd": null,
+              "usage_status": "not_invoked"
+            },
+            "task_correctness": "pass"
+          },
+          "treatment": {
+            "advice_exposure": "remote_choice",
+            "agent_input_tokens": 90736.0,
+            "agent_output_tokens": 512.0,
+            "agent_usage_status": "available",
+            "completion_ms": 20186.25,
+            "first_successful_relevant_check_ms": 15748.96,
+            "first_useful_error_ms": null,
+            "mandatory_validation": "pass",
+            "provider_usage": {
+              "input_tokens": 368,
+              "invocation_count": 1,
+              "output_tokens": 44,
+              "provider_cost_status": "reported_amount",
+              "provider_cost_usd": 1.5456e-05,
+              "usage_status": "complete"
+            },
+            "task_correctness": "pass"
+          }
+        },
+        "cohort": "main",
+        "coordinator_quality_validation": "passed",
+        "first_arm": "treatment",
+        "pair": "P4",
+        "pair_status": "completed",
+        "profile": "pretask_strategy",
+        "quality_gates_passed": true,
+        "receipt_status": "completed",
+        "runner_status": "completed"
+      },
+      {
+        "arms": {},
+        "cohort": "main",
+        "first_arm": "treatment",
+        "pair": "T4",
+        "pair_status": "not_run_case_stopped",
+        "profile": "post_change_test_order",
+        "quality_gates_passed": null,
+        "receipt_status": "not_available",
+        "runner_status": null
+      },
+      {
+        "arms": {
+          "baseline": {
+            "advice_exposure": "no_call",
+            "agent_input_tokens": 114987.0,
+            "agent_output_tokens": 911.0,
+            "agent_usage_status": "available",
+            "completion_ms": 42154.1,
+            "first_successful_relevant_check_ms": null,
+            "first_useful_error_ms": 8113.79,
+            "mandatory_validation": "pass",
+            "provider_usage": {
+              "input_tokens": null,
+              "invocation_count": 0,
+              "output_tokens": null,
+              "provider_cost_status": "not_invoked",
+              "provider_cost_usd": null,
+              "usage_status": "not_invoked"
+            },
+            "task_correctness": "pass"
+          },
+          "treatment": {
+            "advice_exposure": "no_call",
+            "agent_input_tokens": 115723.0,
+            "agent_output_tokens": 885.0,
+            "agent_usage_status": "available",
+            "completion_ms": 31211.59,
+            "first_successful_relevant_check_ms": null,
+            "first_useful_error_ms": 7413.64,
+            "mandatory_validation": "pass",
+            "provider_usage": {
+              "input_tokens": null,
+              "invocation_count": 0,
+              "output_tokens": null,
+              "provider_cost_status": "not_invoked",
+              "provider_cost_usd": null,
+              "usage_status": "not_invoked"
+            },
+            "task_correctness": "pass"
+          }
+        },
+        "cohort": "main",
+        "coordinator_quality_validation": "passed",
+        "first_arm": "treatment",
+        "pair": "A4",
+        "pair_status": "completed",
+        "profile": "ambiguous_failure_triage",
+        "quality_gates_passed": true,
+        "receipt_status": "completed",
+        "runner_status": "completed"
+      },
+      {
+        "arms": {
+          "baseline": {
+            "advice_exposure": "no_call",
+            "agent_input_tokens": 89228.0,
+            "agent_output_tokens": 566.0,
+            "agent_usage_status": "available",
+            "completion_ms": 19772.68,
+            "first_successful_relevant_check_ms": 15339.67,
+            "first_useful_error_ms": null,
+            "mandatory_validation": "pass",
+            "provider_usage": {
+              "input_tokens": null,
+              "invocation_count": 0,
+              "output_tokens": null,
+              "provider_cost_status": "not_invoked",
+              "provider_cost_usd": null,
+              "usage_status": "not_invoked"
+            },
+            "task_correctness": "pass"
+          },
+          "treatment": {
+            "advice_exposure": "remote_choice",
+            "agent_input_tokens": 108286.0,
+            "agent_output_tokens": 534.0,
+            "agent_usage_status": "available",
+            "completion_ms": 23174.92,
+            "first_successful_relevant_check_ms": 17102.75,
+            "first_useful_error_ms": null,
+            "mandatory_validation": "pass",
+            "provider_usage": {
+              "input_tokens": 368,
+              "invocation_count": 1,
+              "output_tokens": 44,
+              "provider_cost_status": "reported_amount",
+              "provider_cost_usd": 1.5456e-05,
+              "usage_status": "complete"
+            },
+            "task_correctness": "pass"
+          }
+        },
+        "cohort": "main",
+        "coordinator_quality_validation": "passed",
+        "first_arm": "baseline",
+        "pair": "P5",
+        "pair_status": "completed",
+        "profile": "pretask_strategy",
+        "quality_gates_passed": true,
+        "receipt_status": "completed",
+        "runner_status": "completed"
+      },
+      {
+        "arms": {},
+        "cohort": "main",
+        "first_arm": "baseline",
+        "pair": "T5",
+        "pair_status": "not_run_case_stopped",
+        "profile": "post_change_test_order",
+        "quality_gates_passed": null,
+        "receipt_status": "not_available",
+        "runner_status": null
+      },
+      {
+        "arms": {
+          "baseline": {
+            "advice_exposure": "no_call",
+            "agent_input_tokens": 97430.0,
+            "agent_output_tokens": 841.0,
+            "agent_usage_status": "available",
+            "completion_ms": 26944.24,
+            "first_successful_relevant_check_ms": null,
+            "first_useful_error_ms": 7278.21,
+            "mandatory_validation": "pass",
+            "provider_usage": {
+              "input_tokens": null,
+              "invocation_count": 0,
+              "output_tokens": null,
+              "provider_cost_status": "not_invoked",
+              "provider_cost_usd": null,
+              "usage_status": "not_invoked"
+            },
+            "task_correctness": "pass"
+          },
+          "treatment": {
+            "advice_exposure": "no_call",
+            "agent_input_tokens": 116233.0,
+            "agent_output_tokens": 912.0,
+            "agent_usage_status": "available",
+            "completion_ms": 28631.65,
+            "first_successful_relevant_check_ms": null,
+            "first_useful_error_ms": 6096.22,
+            "mandatory_validation": "pass",
+            "provider_usage": {
+              "input_tokens": null,
+              "invocation_count": 0,
+              "output_tokens": null,
+              "provider_cost_status": "not_invoked",
+              "provider_cost_usd": null,
+              "usage_status": "not_invoked"
+            },
+            "task_correctness": "pass"
+          }
+        },
+        "cohort": "main",
+        "coordinator_quality_validation": "passed",
+        "first_arm": "baseline",
+        "pair": "A5",
+        "pair_status": "completed",
+        "profile": "ambiguous_failure_triage",
+        "quality_gates_passed": true,
+        "receipt_status": "completed",
+        "runner_status": "completed"
+      },
+      {
+        "arms": {},
+        "cohort": "main",
+        "first_arm": "treatment",
+        "pair": "P6",
+        "pair_status": "token_usage_unknown_stop",
+        "profile": "pretask_strategy",
+        "quality_gates_passed": false,
+        "receipt_status": "not_recorded_usage_unknown_stop",
+        "runner_status": null
+      },
+      {
+        "arms": {},
+        "cohort": "main",
+        "first_arm": "treatment",
+        "pair": "T6",
+        "pair_status": "not_run_after_cohort_stop",
+        "profile": "post_change_test_order",
+        "quality_gates_passed": null,
+        "receipt_status": "not_available",
+        "runner_status": null
+      },
+      {
+        "arms": {},
+        "cohort": "main",
+        "first_arm": "treatment",
+        "pair": "A6",
+        "pair_status": "not_run_after_cohort_stop",
+        "profile": "ambiguous_failure_triage",
+        "quality_gates_passed": null,
+        "receipt_status": "not_available",
+        "runner_status": null
+      },
+      {
+        "arms": {},
+        "cohort": "main",
+        "first_arm": "baseline",
+        "pair": "P7",
+        "pair_status": "not_run_after_cohort_stop",
+        "profile": "pretask_strategy",
+        "quality_gates_passed": null,
+        "receipt_status": "not_available",
+        "runner_status": null
+      },
+      {
+        "arms": {},
+        "cohort": "main",
+        "first_arm": "treatment",
+        "pair": "T7",
+        "pair_status": "not_run_after_cohort_stop",
+        "profile": "post_change_test_order",
+        "quality_gates_passed": null,
+        "receipt_status": "not_available",
+        "runner_status": null
+      }
+    ],
+    "status": "terminal_aggregate",
+    "terminal_status": "stopped",
+    "unresolved_pair_ids": []
+  },
+  "runtime_semantics": "ledger charge includes 1080 seconds of conservative receipt-replay bounds; original elapsed time for those three attempts was unavailable",
+  "schema": "jevcompass.fixed_cohort_aggregate.v1",
+  "source_hashes": {
+    "ledger_sha256": "c0315e1d00ee807d3896f692cbf4a4231a43f1bdd8e3a6299bdfe82ef259c8ef",
+    "main_manifest_sha256": "4b4cc7e0d3d2a62665752eec28025da7ef19aee26ab8720ab1d359b7e5d7a1cd",
+    "original_manifest_sha256": "283bda79a7069ff454d5b6c92610f9113709918fa01bf50bcd88100d132e5cbd",
+    "receipt_and_arm_map_sha256_by_pair": {
+      "A-F1": {
+        "arm_map_sha256": "4716e1a21b277979de865118743e91ece5b464aa619de9c12ead96ab887e6192",
+        "receipt_sha256": "f7b4ba2f361babdf9ac11c2e37431bc6a5ef5afb76e38432654cf4ec23988914"
+      },
+      "A-F2": {
+        "arm_map_sha256": "0dd73ca40614096b9867278e88969da607035e5666d7fc5ce3f8dbcc2222f1db",
+        "receipt_sha256": "c4fe03c991eb16260c71bba1889bb86e0611c1a6f8f4d000f9cd42892cd1c421"
+      },
+      "A1": {
+        "arm_map_sha256": "b53fff0534f1205db62a8866bd465f40f3fc57e92c1957e7789d31c23552ff55",
+        "receipt_sha256": "b2ebe1f7e2f20af02ef0c0c36d860c01eca4e4985b43dc52e146911247ed7593"
+      },
+      "A2": {
+        "arm_map_sha256": "0e1466aa9226c79f3f4ea340f3993510b908aee0c373bbd62e99a6f70f91b711",
+        "receipt_sha256": "15afb14863776c1f17d6d20b2e98dc3580158385b942d84674ee9d46da75da87"
+      },
+      "A3": {
+        "arm_map_sha256": "752841b38ba35ad208d1b80412dfa5348a9f028b1540dedbcae25f69009404da",
+        "receipt_sha256": "9b24d5fd9eac8a57d832b1cf2d817b94ad6dedf52c45cbbb80078163a0a7d329"
+      },
+      "A4": {
+        "arm_map_sha256": "261ccf7bbf1d2208d139964626e27a77650040932a3fc65f5d5edf9f2451da5d",
+        "receipt_sha256": "775822493b84ddc8a32d59dc78bce67b9d8021125b86e0f5c06885e00a5eee8f"
+      },
+      "A5": {
+        "arm_map_sha256": "ce8ec847d6d7b04a61aeca830ab0ceca1e9041fd5df8ce6c8a1e03497146cbea",
+        "receipt_sha256": "b2f7e455946f12cfcbb073c3317c115c8e94471a821fdf6477ea0500587c4d2b"
+      },
+      "P-F1": {
+        "arm_map_sha256": "21124f0c04b5894eb4dc2c6fba637ad9d1a2492dc7a616f5dbe484c87cdff535",
+        "receipt_sha256": "884895566c134176a4954fbb2562c6a0f4489e9a4b6a6b13fdfdff2a3185a5c6"
+      },
+      "P-F2": {
+        "arm_map_sha256": "395a86f1ef7288eb2154657af70c887ea657de731a847e98b6b9d741be8a42f1",
+        "receipt_sha256": "907b2b522de8b727da68c6e539f930c7d5bbfd0df7b8684583fbe3943beb0dda"
+      },
+      "P1": {
+        "arm_map_sha256": "ea851a752953d8fb28812c56cc83e4d40e94c2566e0c86578d526714ba950b50",
+        "receipt_sha256": "2c4c3c492875031a5c6e203c53c02a0f8779b31fc8940bf2fa62d167f898115f"
+      },
+      "P2": {
+        "arm_map_sha256": "1401dc96719a77bd3b50e09f862af2e42f970e1467a9514851bb8afbeb0e724b",
+        "receipt_sha256": "a97b21389c4829099ed7eae4ac3b7a927ce8d8f7ef0f2955c1d2958ad345007c"
+      },
+      "P3": {
+        "arm_map_sha256": "1208051f553f07c570eb80c32cc83b63b0972cd38c55f03b80fab7a480cd84b1",
+        "receipt_sha256": "f7d8917805e58ed14c478368788dd1e85867585ed79a70694e873138cafbb9a5"
+      },
+      "P4": {
+        "arm_map_sha256": "60bcd1e194b5c45e853a4cc8346413a304c62533f8367447002110e17c886741",
+        "receipt_sha256": "cf565e29f3286491cb912638dfb6ce38737d75bde43db9aced09f38f51321180"
+      },
+      "P5": {
+        "arm_map_sha256": "6bc616ac490836ed59ebd44d0c01a0f3c654855fe4c0ba32337c54fee7d3ada1",
+        "receipt_sha256": "b39365c6d7812fd146680a72daad03116f424660506c3fb573f0598d7c9ad550"
+      },
+      "T-F1": {
+        "arm_map_sha256": "c22a2fb58a104cd691c0127120019f6152447fb076f2dbe7e140f71538ac8902",
+        "receipt_sha256": "e36782e560d15a5422ab7df58258b32611350863b9e51f584e7dc5cfd8f7d5d4"
+      }
+    },
+    "recovery_inventory_sha256": "f31be0f7414e46d3c17abe80d45b44fca5ce9d111858fa602e319e1beeebbf15"
+  },
+  "usage_semantics": "agent token total includes known usage only; P6 ended at token_usage_unknown_stop, so actual total is incomplete"
+}
