@@ -1,3 +1,7 @@
+## VCR281 — Installed CLI readiness
+
+A clean source wheel from commit 6e44df7 was installed locally into pipx. Command help for strategy choose, tests rank and triage passes. This development wheel shares version 0.1.22 with the published artifact but differs in code; version alone is not identity evidence. The supported installer preserved all five smem handlers and both existing advisory commands. Parent verification confirmed absolute hook interpreters and successful module imports, correcting the preliminary interpreter audit. This proves local CLI availability only; generic hooks do not automatically route the three task-specific APIs, and native Desktop delivery remains unverified.
+
 ## VCR280-A — Fixed prospective cohort
 
 [BENCHMARK_PROTOCOL.md](BENCHMARK_PROTOCOL.md) preregisters six feasibility pairs and a separate 20-pair cohort: seven strategy, seven test-order and six triage. All seed/order mappings were verified offline, with ten baseline-first and ten treatment-first main pairs. The seed controls arm assignment only. Outcomes cannot be replaced or rerun to select favorable results. Actual local/remote route, adoption, required correctness and delivery are scored separately. Execution remains pending an exact manifest of hashes, settings and enforceable limits; this document is not a result or acceptance claim.

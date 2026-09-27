@@ -1,3 +1,8 @@
+## VCR281 — Local source-wheel installation verified
+
+- Installed a clean committed source wheel from 6e44df7 into the existing pipx environment; strategy choose, tests rank and triage help all pass. The source wheel remains version 0.1.22 but is not the published 0.1.22 artifact. Wheel SHA-256: d8c45a3ef73c606bb7333f7a51924f583a03c593a6784bcd9c9a88c08ceb77d4.
+- Supported hook installation was idempotent; both advisory hooks use an absolute interpreter that imports JevCompass. All five smem entries were preserved. The initial interpreter-mismatch audit was corrected by direct verification of the actual configured commands. No paid call, native Desktop delivery or efficacy claim.
+
 ## VCR280-A — Frozen three-use comparison design
 
 - Added BENCHMARK_PROTOCOL.md: six feasibility pairs followed by a separate fixed 20-pair cohort (7 strategy, 7 test-order, 6 triage). All 26 seed/order mappings verified; main cohort has ten baseline-first and ten treatment-first pairs. Seeds affect arm order, not model sampling.
