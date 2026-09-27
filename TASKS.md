@@ -1,3 +1,8 @@
+## VCR274-A — Completed revised local triage pair
+
+- Run `266dd4e0f64c4789a56ffb4a3ad4bb89`, seed 274: treatment first, baseline second; both gates pass with initial focused failure, focused/full recovery, immutable fixtures, and independent focused/full validation (5 each).
+- Including 304.16 ms shared preparation: treatment 25,510.60 ms, baseline 32,029.13 ms (6,518.53 ms earlier). Useful error 5,381.05 ms earlier; diagnosis-to-focused-pass interval 6,431.90 vs 8,134.08 ms. Single positive observation, no repeatable benefit or causal wording comparison. Remote calls zero, billing unknown.
+
 ## VCR273-A — Timeout diagnosis-to-validation guidance
 
 - Updated production nonterminating-timeout advice to check contract support, treat the hypothesis as a lead, make only a supported minimal repair, rerun the same failed focused check, and complete mandatory validation. Local and remote-selected paths share the same conditional wording; remote choice does not claim verified evidence.
