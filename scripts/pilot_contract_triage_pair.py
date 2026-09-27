@@ -55,6 +55,11 @@ TRIAGE_SUFFIX = (
     "--json",
 )
 TRIAGE_IDS = ("confirm_behavior_contract",)
+ADVICE_POLICIES = ("legacy-required-step", "nonbinding")
+WORKFLOW_ACK_LINE = "JevCompass triage workflow instructions received."
+TRIAGE_RESULT_ACK_LINE = (
+    "JevCompass local triage result received: confirm_behavior_contract."
+)
 EVIDENCE_FILES = {
     "contract": "INVOICE_CONTRACT.md",
     "legacy": "legacy_golden.json",
@@ -81,6 +86,32 @@ TREATMENT_PROMPT = (
     "Do not pass source text, values, paths, or diagnostics to the command. "
     "Preserve the original failed test status, make no unsupported source or "
     "test changes, and report unresolved policy questions without guessing."
+)
+NONBINDING_TREATMENT_PROMPT = (
+    BASE_PROMPT
+    + "\n\nBefore using any tool, make your first assistant message contain this "
+    + "exact line: " + WORKFLOW_ACK_LINE
+    + " If you request triage, after its result and before using another tool, "
+    + "make your next assistant message contain this exact line: "
+    + TRIAGE_RESULT_ACK_LINE
+    + "\n\nAfter the initial focused test has completed, inspect the local "
+    + "contract, legacy golden, implementation, and focused test. Compare the "
+    + "requirements with the observed behavior and determine whether the local "
+    + "evidence establishes the intended behavior. Do not infer policy from "
+    + "current code or a legacy value alone. If the available contract evidence "
+    + "does not establish expected behavior, you may request this exact local "
+    + "enum-only triage using the observed focused exit code: "
+    + "python -m jevcompass triage --exit-code 1 --kind assertion "
+    + "--hypothesis assertion_expectation_drift "
+    + "--hypothesis assertion_behavior_regression "
+    + "--hypothesis confirm_behavior_contract "
+    + "--assertion-observation contract_underspecified --json. "
+    + "The request is optional; a local no-remote-choice result or not "
+    + "requesting triage does not require a source or test change and does not "
+    + "change the correctness criteria. Do not pass source text, values, paths, "
+    + "or diagnostics to the command. Preserve the original failed test status, "
+    + "make no unsupported source or test changes, and report unresolved policy "
+    + "questions without guessing."
 )
 SAFE_ID = re.compile(r"[A-Za-z0-9_.-]{1,64}")
 SAFE_MODEL = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}")
@@ -189,6 +220,7 @@ def _answer_text(item: dict[str, Any]) -> str | None:
 
 def _event_receipts(
     lines: Iterable[str], event_times: list[float], started: float,
+    *, advice_policy: str = "legacy-required-step",
 ) -> tuple[dict[str, Any], str | None]:
     lines = list(lines)
     pending: dict[str, tuple[str, str | None]] = {}
@@ -206,6 +238,13 @@ def _event_receipts(
     triage_usage = None
     last_answer: str | None = None
     evidence_before_triage = False
+    workflow_acknowledgment = "not_observed"
+    triage_result_acknowledgment = "not_applicable"
+    first_assistant_seen = False
+    first_tool_seen = False
+    triage_result_index: int | None = None
+    first_post_triage_assistant_seen = False
+    first_post_triage_tool_seen = False
 
     for index, line in enumerate(lines):
         try:
@@ -214,6 +253,38 @@ def _event_receipts(
             continue
         if not isinstance(event, dict):
             continue
+        if advice_policy == "nonbinding":
+            event_kind, message, _tool = core.extract_event(event)
+            if event_kind == "tool" and not first_tool_seen:
+                first_tool_seen = True
+            elif event_kind == "assistant" and not first_assistant_seen:
+                first_assistant_seen = True
+                has_ack = (
+                    isinstance(message, str)
+                    and WORKFLOW_ACK_LINE in [line.strip() for line in message.splitlines()]
+                )
+                if has_ack:
+                    workflow_acknowledgment = (
+                        "after_first_tool" if first_tool_seen else "before_first_tool"
+                    )
+                else:
+                    workflow_acknowledgment = "invalid"
+            if triage_result_index is not None:
+                if event_kind == "tool" and not first_post_triage_tool_seen:
+                    first_post_triage_tool_seen = True
+                elif event_kind == "assistant" and not first_post_triage_assistant_seen:
+                    first_post_triage_assistant_seen = True
+                    has_result_ack = (
+                        isinstance(message, str)
+                        and TRIAGE_RESULT_ACK_LINE in [line.strip() for line in message.splitlines()]
+                    )
+                    if has_result_ack:
+                        triage_result_acknowledgment = (
+                            "after_next_tool" if first_post_triage_tool_seen
+                            else "before_next_tool"
+                        )
+                    else:
+                        triage_result_acknowledgment = "invalid"
         item = _item(event)
         if item is None:
             continue
@@ -295,6 +366,8 @@ def _event_receipts(
                             if triage_choice.get("candidate_ids") == ["confirm_behavior_contract"]
                             else "invalid_output"
                         )
+                        if triage_output_status == "valid_local_step":
+                            triage_result_index = index
                 else:
                     triage_output_status = "out_of_order_or_unverified"
     token_counts = parse_codex_json_events(
@@ -327,6 +400,9 @@ def _event_receipts(
         "codex_billing_estimate": None,
         "event_count": len(list(lines)) if isinstance(lines, list) else None,
     }
+    if advice_policy == "nonbinding":
+        result["workflow_acknowledgment"] = workflow_acknowledgment
+        result["triage_result_acknowledgment"] = triage_result_acknowledgment
     return result, last_answer
 
 
@@ -352,6 +428,7 @@ def _empty_arm(failure: str) -> dict[str, Any]:
 def _run_arm(
     *, codex: str, model: str, reasoning_effort: str, prompt: str,
     fixture: Path, home: Path, timeout: int, treatment: bool,
+    advice_policy: str = "legacy-required-step",
 ) -> tuple[dict[str, Any], str | None]:
     (home / ".codex").mkdir(mode=0o700, parents=True, exist_ok=True)
     env = core._isolated_environment(
@@ -375,7 +452,9 @@ def _run_arm(
         failed = _empty_arm(failure)
         failed["completion_ms"] = wall_ms if wall_ms <= MAX_TIMEOUT * 1000 else None
         return failed, None
-    observed, answer = _event_receipts(lines, times, started)
+    observed, answer = _event_receipts(
+        lines, times, started, advice_policy=advice_policy,
+    )
     result = {
         "cli_status": "completed" if process.returncode == 0 else "failed",
         "failure": None if process.returncode == 0 else "cli_exit_nonzero",
@@ -450,6 +529,7 @@ def run_pair(
     *, codex: str, model: str, reasoning_effort: str,
     timeout: int = DEFAULT_TIMEOUT, seed: int | None = None,
     output_dir: Path, fixture_source: Path = FIXTURE,
+    advice_policy: str = "legacy-required-step",
 ) -> dict[str, Any]:
     """Run both local-only CLI arms and save private blind artifacts/receipts."""
     if not 1 <= timeout <= MAX_TIMEOUT:
@@ -458,6 +538,8 @@ def run_pair(
         raise FileNotFoundError("synthetic contract fixture is unavailable")
     if (not SAFE_MODEL.fullmatch(model) or not SAFE_ID.fullmatch(reasoning_effort)):
         raise ValueError("model and reasoning effort must be simple identifiers")
+    if not isinstance(advice_policy, str) or advice_policy not in ADVICE_POLICIES:
+        raise ValueError("invalid advice policy")
     if not _verify_codex_version(codex):
         raise ValueError("Codex CLI 0.157.0 is required")
 
@@ -517,11 +599,16 @@ def run_pair(
         answers: dict[str, str | None] = {}
         for true_arm in order:
             label = labels[true_arm]
-            prompt = BASE_PROMPT if true_arm == "baseline" else TREATMENT_PROMPT
+            prompt = BASE_PROMPT if true_arm == "baseline" else (
+                NONBINDING_TREATMENT_PROMPT if advice_policy == "nonbinding"
+                else TREATMENT_PROMPT
+            )
             arms[label], answers[label] = _run_arm(
                 codex=codex, model=model, reasoning_effort=reasoning_effort,
                 prompt=prompt, fixture=fixtures[true_arm], home=homes[true_arm],
                 timeout=timeout, treatment=true_arm == "treatment",
+                advice_policy=(advice_policy if true_arm == "treatment"
+                               else "legacy-required-step"),
             )
             arms[label]["fixture_sha256_before"] = digests[true_arm]
 
@@ -581,10 +668,63 @@ def run_pair(
             and treatment.get("triage_exit_code") == 0
             and treatment.get("triage_output_status") == "valid_local_step"
         )
+        if advice_policy == "nonbinding":
+            workflow_acknowledged = (
+                treatment.get("workflow_acknowledgment") == "before_first_tool"
+            )
+            verified_evidence = set(treatment.get("evidence_categories_verified", [])) == set(
+                _REQUIRED_EVIDENCE
+            )
+            valid_triage = (
+                treatment.get("triage_after_evidence") is True
+                and treatment.get("triage_invalid_invocation_observed") is False
+                and treatment.get("triage_exit_code") == 0
+                and treatment.get("triage_output_status") == "valid_local_step"
+                and treatment.get("triage_result_acknowledgment") == "before_next_tool"
+            )
+            valid_abstention = (
+                treatment.get("cli_status") == "completed"
+                and treatment.get("first_useful_failure_observed") is True
+                and verified_evidence
+                and treatment.get("triage_invocation_observed") is False
+                and treatment.get("triage_invalid_invocation_observed") is False
+            )
+            treatment_gate = (
+                treatment.get("first_useful_failure_observed") is True
+                and verified_evidence and workflow_acknowledged
+                and (valid_triage or valid_abstention)
+            )
+            task_correctness = bool(
+                protocol_complete and baseline_gate
+                and treatment.get("first_useful_failure_observed") is True
+                and verified_evidence
+            )
+            delivery_ok = workflow_acknowledged and (valid_triage or valid_abstention)
+            if not workflow_acknowledged or not (valid_triage or valid_abstention):
+                delivery_status = "delivery_failed"
+            elif valid_abstention:
+                delivery_status = "abstained"
+            else:
+                delivery_status = "advice_delivered"
+            adoption_status = (
+                "unscored" if valid_triage else "not_applicable"
+                if valid_abstention else "unscored"
+            )
+            effect_scope = (
+                "local_triage_advice" if valid_triage else "local_abstention"
+                if valid_abstention else "unscored"
+            )
+        else:
+            task_correctness = None
+            delivery_ok = True
+            delivery_status = None
+            adoption_status = None
+            effect_scope = None
+        pair_passed = protocol_complete and treatment_gate and baseline_gate and delivery_ok
         receipt = {
             "schema_version": 1,
             "run_id": run_id,
-            "status": "completed" if protocol_complete and treatment_gate and baseline_gate else "incomplete",
+            "status": "completed" if pair_passed else "incomplete",
             "run_status_scope": "protocol_observation_only_not_test_success_or_efficacy",
             "codex_cli_version_required": CODEX_VERSION,
             "pair_order": [labels[name] for name in order],
@@ -610,6 +750,15 @@ def run_pair(
             "primary_policy_check_timing": {"status": "unscored", "elapsed_ms": None},
             "arms": arms,
         }
+        if advice_policy == "nonbinding":
+            receipt.update({
+                "advice_policy": advice_policy,
+                "decision_scope": "local_fixture_triage_no_remote_choice",
+                "task_correctness_status": "passed" if task_correctness else "failed",
+                "protocol_delivery_status": delivery_status,
+                "adoption_status": adoption_status,
+                "effect_scope": effect_scope,
+            })
         common._private_write(
             output_dir / "receipt.json",
             (json.dumps(receipt, sort_keys=True, indent=2) + "\n").encode("utf-8"),
@@ -626,6 +775,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--reasoning-effort", required=True)
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
     parser.add_argument("--seed", type=int)
+    parser.add_argument("--advice-policy", choices=ADVICE_POLICIES,
+                        default="legacy-required-step",
+                        help="nonbinding is an opt-in profile; legacy remains the default")
     parser.add_argument("--output-dir", type=Path, required=True,
                         help="new private directory for blind receipts and artifacts")
     args = parser.parse_args(argv)
@@ -640,6 +792,7 @@ def main(argv: list[str] | None = None) -> int:
             codex=codex, model=args.model,
             reasoning_effort=args.reasoning_effort,
             timeout=args.timeout, seed=args.seed, output_dir=args.output_dir,
+            advice_policy=args.advice_policy,
         )
     except (OSError, ValueError, RuntimeError):
         print(json.dumps({"status": "failed", "failure": "runner_setup_failed"}))

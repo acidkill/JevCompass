@@ -1,3 +1,8 @@
+## VCR290 — Prospective nonbinding local triage profile
+
+- Added an opt-in nonbinding profile; the default legacy required-step contract and historical receipts remain unchanged. Workflow acknowledgement, actual result delivery, task correctness and adoption are recorded separately; invoking triage does not prove adoption.
+- Thirteen focused tests pass, covering local abstention, result acknowledgement before the next tool, missing/late acknowledgement, mandatory failed-suite preservation and legacy compatibility. This fixture remains a local-only contract control, not remote-choice efficacy evidence. No live pair has run with the new profile.
+
 ## VCR291 — Installed catalog parity verified
 
 - Upgraded local pipx from clean source 9efac29555ce0215c732caba56b362251d14d7c9; wheel SHA-256 6a9a03a44dbd28927f7641e7b79b3eb1da3af7d4b4acb1bce6f0e85b66f11edf. Installed catalog discovers coding-workflow as available, and all five installed skills match bundle resources.

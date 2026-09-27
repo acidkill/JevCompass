@@ -30,6 +30,8 @@ def event(kind: str, event_id: str, command: str | None = None, **extra):
 
 def arm_events(
     *, treatment: bool, include_evidence: bool = True, useful_failure: bool = True,
+    include_triage: bool = True, acknowledgment: str = "before_first_tool",
+    triage_acknowledgment: str = "before_next_tool", full_exit: int = 1,
 ):
     failure_output = "FAIL: test_invoice_total_matches_legacy_golden (test_invoice.InvoiceTotalTests)" + chr(10)
     failure_output += (
@@ -42,6 +44,13 @@ def arm_events(
         event("item.completed", "focused-1", runner.FOCUSED_COMMAND,
               exit_code=1, aggregated_output=failure_output),
     ]
+    if treatment and acknowledgment == "before_first_tool":
+        lines.insert(0, json.dumps({
+            "type": "item.completed", "item": {
+                "id": "advice-ack", "type": "agent_message",
+                "text": runner.WORKFLOW_ACK_LINE,
+            },
+        }))
     if treatment and include_evidence:
         evidence = (
             ("contract", "INVOICE_CONTRACT.md",
@@ -61,7 +70,7 @@ def arm_events(
             event("item.completed", "evidence-all", command,
                   exit_code=0, aggregated_output=combined_output),
         ])
-    if treatment:
+    if treatment and include_triage:
         triage = " ".join(runner._triage_argv(1))
         output = json.dumps({
             "observed_exit_status": 1,
@@ -78,10 +87,39 @@ def arm_events(
             event("item.completed", "triage", triage, exit_code=0,
                   aggregated_output=output),
         ])
-    lines.extend([
+    if treatment and include_triage and triage_acknowledgment == "before_next_tool":
+        lines.append(json.dumps({
+            "type": "item.completed", "item": {
+                "id": "triage-result-ack", "type": "agent_message",
+                "text": runner.TRIAGE_RESULT_ACK_LINE,
+            },
+        }))
+    lines.append(
         event("item.started", "full", runner.REQUIRED_COMMAND),
+    )
+    if treatment and include_triage and triage_acknowledgment == "after_next_tool":
+        lines.append(json.dumps({
+            "type": "item.completed", "item": {
+                "id": "triage-result-ack", "type": "agent_message",
+                "text": runner.TRIAGE_RESULT_ACK_LINE,
+            },
+        }))
+    if treatment and acknowledgment == "after_first_tool":
+        lines.append(json.dumps({
+            "type": "item.completed", "item": {
+                "id": "advice-ack", "type": "agent_message",
+                "text": runner.WORKFLOW_ACK_LINE,
+            },
+        }))
+    if treatment and acknowledgment == "invalid":
+        lines.insert(0, json.dumps({
+            "type": "item.completed", "item": {
+                "id": "advice-ack", "type": "agent_message", "text": "Got it.",
+            },
+        }))
+    lines.extend([
         event("item.completed", "full", runner.REQUIRED_COMMAND,
-              exit_code=1, aggregated_output="1 failing test\nPRIVATE_FULL_MARKER"),
+              exit_code=full_exit, aggregated_output="1 failing test\nPRIVATE_FULL_MARKER"),
         json.dumps({"type": "turn.completed", "usage": {
             "input_tokens": 34, "cached_input_tokens": 3,
             "cache_write_input_tokens": 0, "output_tokens": 11,
@@ -107,6 +145,9 @@ class ContractTriagePairTests(unittest.TestCase):
     def _run_pair(
         self, temp: str, *, evidence: bool = True, failure: str | None = None,
         useful_failure: bool = True, mutate_legacy: bool = False,
+        advice_policy: str = "legacy-required-step", include_triage: bool = True,
+        acknowledgment: str = "before_first_tool",
+        triage_acknowledgment: str = "before_next_tool", full_exit: int = 1,
     ):
         root = Path(temp)
         auth = root / "auth"
@@ -132,6 +173,10 @@ class ContractTriagePairTests(unittest.TestCase):
             lines, times, _ = arm_events(
                 treatment=treatment, include_evidence=evidence,
                 useful_failure=useful_failure,
+                include_triage=include_triage,
+                acknowledgment=acknowledgment,
+                triage_acknowledgment=triage_acknowledgment,
+                full_exit=full_exit,
             )
             return lines, times, failure
 
@@ -145,6 +190,7 @@ class ContractTriagePairTests(unittest.TestCase):
             receipt = runner.run_pair(
                 codex="/fake/codex", model="gpt-6-sol", reasoning_effort="high",
                 timeout=3, seed=1, output_dir=output,
+                advice_policy=advice_policy,
             )
         return receipt, calls, output
 
@@ -245,6 +291,78 @@ class ContractTriagePairTests(unittest.TestCase):
                     timeout=runner.MAX_TIMEOUT + 1, output_dir=output,
                     fixture_source=source,
                 )
+
+    def test_nonbinding_valid_local_abstention_is_correct_without_adoption(self):
+        with tempfile.TemporaryDirectory() as temp:
+            receipt, _calls, _output = self._run_pair(
+                temp, advice_policy="nonbinding", include_triage=False,
+            )
+            self.assertEqual(receipt["status"], "completed")
+            self.assertEqual(receipt["task_correctness_status"], "passed")
+            self.assertEqual(receipt["protocol_delivery_status"], "abstained")
+            self.assertEqual(receipt["adoption_status"], "not_applicable")
+            self.assertEqual(receipt["effect_scope"], "local_abstention")
+
+    def test_nonbinding_local_triage_delivery_is_separately_scoped(self):
+        with tempfile.TemporaryDirectory() as temp:
+            receipt, _calls, _output = self._run_pair(
+                temp, advice_policy="nonbinding", include_triage=True,
+            )
+            self.assertEqual(receipt["status"], "completed")
+            self.assertEqual(receipt["task_correctness_status"], "passed")
+            self.assertEqual(receipt["protocol_delivery_status"], "advice_delivered")
+            self.assertEqual(receipt["adoption_status"], "unscored")
+            self.assertEqual(receipt["effect_scope"], "local_triage_advice")
+            self.assertEqual(receipt["decision_scope"],
+                             "local_fixture_triage_no_remote_choice")
+
+    def test_nonbinding_triage_needs_ack_after_output_before_next_tool(self):
+        for acknowledgment in ("not_observed", "after_next_tool", "invalid"):
+            with self.subTest(acknowledgment=acknowledgment), tempfile.TemporaryDirectory() as temp:
+                receipt, _calls, _output = self._run_pair(
+                    temp, advice_policy="nonbinding", include_triage=True,
+                    triage_acknowledgment=acknowledgment,
+                )
+                self.assertEqual(receipt["status"], "incomplete")
+                self.assertEqual(receipt["task_correctness_status"], "passed")
+                self.assertEqual(receipt["protocol_delivery_status"], "delivery_failed")
+                self.assertEqual(receipt["adoption_status"], "unscored")
+
+    def test_nonbinding_missing_or_late_workflow_ack_fails_delivery_not_correctness(self):
+        for acknowledgment in ("not_observed", "after_first_tool", "invalid"):
+            with self.subTest(acknowledgment=acknowledgment), tempfile.TemporaryDirectory() as temp:
+                receipt, _calls, _output = self._run_pair(
+                    temp, advice_policy="nonbinding", include_triage=False,
+                    acknowledgment=acknowledgment,
+                )
+                self.assertEqual(receipt["status"], "incomplete")
+                self.assertEqual(receipt["task_correctness_status"], "passed")
+                self.assertEqual(receipt["protocol_delivery_status"], "delivery_failed")
+                self.assertEqual(receipt["adoption_status"], "not_applicable")
+
+    def test_nonbinding_still_fails_mandatory_full_suite_gate(self):
+        with tempfile.TemporaryDirectory() as temp:
+            receipt, _calls, _output = self._run_pair(
+                temp, advice_policy="nonbinding", include_triage=False, full_exit=0,
+            )
+            self.assertEqual(receipt["status"], "incomplete")
+            self.assertEqual(receipt["task_correctness_status"], "failed")
+            self.assertEqual(receipt["protocol_delivery_status"], "abstained")
+
+    def test_advice_policy_is_bounded_and_legacy_receipt_is_unchanged(self):
+        with tempfile.TemporaryDirectory() as temp:
+            receipt, _calls, _output = self._run_pair(temp)
+            self.assertNotIn("advice_policy", receipt)
+            self.assertNotIn("task_correctness_status", receipt)
+            self.assertNotIn("adoption_status", receipt)
+        for policy in (None, ["nonbinding"], "always-apply"):
+            with self.subTest(policy=policy), tempfile.TemporaryDirectory() as temp:
+                with self.assertRaisesRegex(ValueError, "invalid advice policy"):
+                    runner.run_pair(
+                        codex="codex", model="gpt-6-sol", reasoning_effort="high",
+                        timeout=3, output_dir=Path(temp) / "out",
+                        advice_policy=policy,
+                    )
 
     def test_enum_command_rejects_zero_or_bool_and_matches_frozen_cli(self):
         self.assertEqual(
