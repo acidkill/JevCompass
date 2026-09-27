@@ -1,0 +1,7 @@
+{
+  "contract_version": "v1",
+  "profile_id": "USER-7",
+  "shared_cache_key": "user-7",
+  "tenants": ["north", "south"],
+  "expected_legacy_cache_entries": 1
+}

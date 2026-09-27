@@ -1190,3 +1190,9 @@ Next: preserve this outcome unchanged, add bounded private event retention for f
 ## VCR398 — Optional private event retention for future trials
 
 The runner now exposes --retain-private-events to retain bounded raw CLI events in mode-0600 local files before task-specific parsing. Default execution retains its current behavior. Only capture status and byte count belong in receipts; raw prompts, source and outputs must never be copied into public documentation, logs or decision-service requests. The feature must reject oversize archives and existing/symlink targets, preserve timeout/parser-failure evidence, and leave historical VCR396 unchanged. Verification: 39 focused/regression tests pass; the complete local suite passes 818 tests in 37.686 seconds. Green hosted CI remains the merge gate.
+
+## VCR399 — Tenant-cache local-resolution control
+
+Added a synthetic source-only repair fixture with immutable contracts, history, a legacy golden and a consumer path. Three offline guards verify the seeded focused/full failure, independent acceptance of the tenant-aware repair, and rejection of source or evidence tampering. Diagnostic action IDs and causal hypotheses remain distinct.
+
+The current contract resolves the apparent legacy conflict on ordinary inspection. This fixture is a local-resolution/abstention control, not evidence of a genuinely unresolved remote choice, native delivery or advisor benefit. No paid comparison was launched. Oracle SHA-256: `212bd0339054ed8af8017adfca84f3154ae019b11138638317a3865accd99e78`.
