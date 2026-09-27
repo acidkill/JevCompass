@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-257-G — focused-check diagnostics and equal task clarity
+
+Pretask comparison now explicitly gives both focused commands to both arms and requests separate focused/full invocations. Metadata-only counters identify completed unittest/pytest commands not recognized as declared checks, deduplicated by event ID. Such diagnostics do not satisfy focused validation or useful-check timing. Two offline tests cover aliases, duplicate events, private output exclusion and recognized commands. Historical failed pair remains failed; fresh diagnostic pending.
+
 ### VCR-257-F — live supervisor advice delivery, comparison rejected
 
 Run `f1b09ba19ef14a1b9162bdf30019d4a7` confirms treatment acknowledged known strategy IDs before its first observed tool; preparation601.76ms. Both final repairs pass independent unit/contract/full checks and immutable-file checks. Baseline has no observed focused invocation, so pair acceptance fails despite full-suite success. Completion26.062s treatment vs18.756s baseline is not a valid compliant efficacy comparison. Provider368input/44output tokens, USD0.000015456. Native Desktop hook delivery and qualitative strategy benefit remain unproven. Variant-blind static review scored both final artifacts4/4 on rounding, exact weights, validation and minimal shape-preserving repair; no quality difference. This is not blind strategy/process assessment.
