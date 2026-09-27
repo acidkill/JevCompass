@@ -25,6 +25,8 @@ import tempfile
 import time
 from typing import Any, Iterable
 import uuid
+from dataclasses import dataclass
+import fnmatch
 
 import pilot_cli_core as core
 import pilot_test_order_pair as common
@@ -62,6 +64,7 @@ WORKFLOW_ACK_LINE = "JevCompass triage workflow instructions received."
 TRIAGE_RESULT_ACK_LINE = (
     "JevCompass local triage result received: confirm_behavior_contract."
 )
+PROFILE_TRIAGE_RESULT_ACK_LINE = "JevCompass triage result received."
 EVIDENCE_FILES = {
     "contract": "INVOICE_CONTRACT.md",
     "legacy": "legacy_golden.json",
@@ -117,12 +120,274 @@ NONBINDING_TREATMENT_PROMPT = (
 )
 SAFE_ID = re.compile(r"[A-Za-z0-9_.-]{1,64}")
 SAFE_MODEL = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}")
-def _matches_useful_failure(output: Any) -> bool:
-    return (
-        isinstance(output, str)
-        and "FAIL: test_invoice_total_matches_legacy_golden" in output
-        and "AssertionError: Decimal('0.02') != Decimal('0.01')" in output
+
+
+@dataclass(frozen=True)
+class CaseProfile:
+    case_id: str
+    fixture_source: Path
+    task_prompt: str
+    source_file: str
+    focused_test_file: str
+    focused_command: tuple[str, ...]
+    evidence_files: dict[str, str]
+    evidence_markers: dict[str, tuple[str, ...]]
+    failure_markers: tuple[str, ...]
+    triage_kinds: tuple[str, ...]
+    triage_hypotheses: tuple[str, ...]
+    triage_accepted_ids: tuple[str, ...]
+    triage_accepted_statuses: tuple[str, ...]
+    triage_observations: dict[str, tuple[str, ...]]
+    rank_hypotheses: bool
+    outcome_mode: str
+    oracle_script: Path
+    oracle_sha256: str
+
+
+def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate case-profile key")
+        result[key] = value
+    return result
+
+
+def _case_path(root: Path, value: Any, *, required: bool = True) -> str:
+    if (not isinstance(value, str) or not value or len(value) > 240
+            or value.startswith(("/", "\\\\")) or "\\\\" in value):
+        raise ValueError("invalid case-profile path")
+    parts = value.split("/")
+    if any(part in {"", ".", ".."} for part in parts):
+        raise ValueError("invalid case-profile path")
+    candidate = root
+    for part in parts:
+        candidate = candidate / part
+        if candidate.is_symlink():
+            raise ValueError("case-profile paths cannot traverse symlinks")
+    try:
+        candidate.resolve(strict=True).relative_to(root.resolve(strict=True))
+    except (OSError, ValueError) as exc:
+        raise ValueError("case-profile path escapes fixture") from exc
+    if not candidate.is_file():
+        raise ValueError("case-profile file is unavailable")
+    if required and candidate.stat().st_size > MAX_ARTIFACT_BYTES:
+        raise ValueError("case-profile file is too large")
+    return "/".join(parts)
+
+
+def _case_command(value: Any) -> tuple[str, ...]:
+    if (not isinstance(value, list) or not value
+            or len(value) > 32
+            or any(not isinstance(part, str) or not part or len(part) > 200 for part in value)):
+        raise ValueError("invalid case-profile command")
+    command = tuple(value)
+    if (len(command) < 4 or command[0] not in {"python", "python3"}
+            or command[1:3] != ("-m", "unittest")):
+        raise ValueError("case-profile commands must use Python unittest")
+    if any(part.startswith("-") and part not in {
+        "discover", "-s", "-p", "-t", "-v", "-q", "--locals", "--buffer",
+    } for part in command[3:]):
+        raise ValueError("unsupported case-profile unittest option")
+    return command
+
+
+def load_case_profile(path: Path) -> CaseProfile:
+    """Load a bounded, explicit profile without accepting shell commands or free-form enums."""
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > 64 * 1024:
+        raise ValueError("case profile must be a regular file no larger than 64 KiB")
+    try:
+        raw = json.loads(
+            path.read_text(encoding="utf-8"),
+            object_pairs_hook=_reject_duplicate_json_keys,
+            parse_constant=lambda _value: (_ for _ in ()).throw(ValueError("non-finite JSON")),
+        )
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError("invalid case-profile JSON") from exc
+    keys = {
+        "schema_version", "case_id", "fixture_source", "task_prompt_file",
+        "source_file", "focused_test_file", "focused_command", "evidence_files",
+        "evidence_markers", "failure_markers", "triage", "outcome_mode",
+        "oracle_script", "oracle_sha256",
+    }
+    if (not isinstance(raw, dict) or set(raw) != keys
+            or type(raw["schema_version"]) is not int or raw["schema_version"] != 1):
+        raise ValueError("unsupported case-profile schema")
+    case_id = raw["case_id"]
+    if not isinstance(case_id, str) or not SAFE_ID.fullmatch(case_id):
+        raise ValueError("invalid case-profile id")
+    fixture_rel = raw["fixture_source"]
+    if (not isinstance(fixture_rel, str) or not fixture_rel
+            or Path(fixture_rel).is_absolute() or ".." in Path(fixture_rel).parts
+            or "\\\\" in fixture_rel):
+        raise ValueError("invalid case-profile fixture")
+    fixture_lexical = ROOT / fixture_rel
+    if any((ROOT / Path(*Path(fixture_rel).parts[:index])).is_symlink()
+           for index in range(1, len(Path(fixture_rel).parts) + 1)):
+        raise ValueError("case-profile fixture cannot traverse symlinks")
+    fixture = fixture_lexical.resolve()
+    if ROOT.resolve() not in fixture.parents or not fixture.is_dir():
+        raise ValueError("case-profile fixture must be a repository directory")
+    prompt_file = _case_path(fixture, raw["task_prompt_file"])
+    prompt = (fixture / prompt_file).read_text(encoding="utf-8")
+    if not prompt.strip() or len(prompt.encode("utf-8")) > 16 * 1024:
+        raise ValueError("invalid case-profile task prompt")
+    source_file = _case_path(fixture, raw["source_file"])
+    test_file = _case_path(fixture, raw["focused_test_file"])
+    focused_command = _case_command(raw["focused_command"])
+    command_args = list(focused_command[3:])
+    if command_args and command_args[0] == "discover":
+        if "-p" not in command_args:
+            raise ValueError("focused discovery command must specify a test pattern")
+        pattern_index = command_args.index("-p") + 1
+        if pattern_index >= len(command_args):
+            raise ValueError("focused discovery pattern is missing")
+        if not __import__("fnmatch").fnmatch(Path(test_file).name, command_args[pattern_index]):
+            raise ValueError("focused command pattern does not identify the configured test")
+    elif Path(test_file).with_suffix("").as_posix().replace("/", ".") not in command_args:
+        raise ValueError("focused command module must identify the configured test")
+    full_command = shlex.split(REQUIRED_COMMAND)
+    evidence_files = raw["evidence_files"]
+    if (not isinstance(evidence_files, dict) or not evidence_files
+            or len(evidence_files) > 8):
+        raise ValueError("invalid case-profile evidence files")
+    safe_evidence: dict[str, str] = {}
+    for name, relative in evidence_files.items():
+        if not isinstance(name, str) or not SAFE_ID.fullmatch(name):
+            raise ValueError("invalid case-profile evidence id")
+        safe_evidence[name] = _case_path(fixture, relative)
+    markers = raw["evidence_markers"]
+    if not isinstance(markers, dict) or set(markers) != set(safe_evidence):
+        raise ValueError("case-profile evidence markers must match evidence files")
+    safe_markers: dict[str, tuple[str, ...]] = {}
+    for name, values in markers.items():
+        if (not isinstance(values, list) or not values or len(values) > 4
+                or any(not isinstance(value, str) or not value.strip() or len(value) > 200
+                       for value in values)):
+            raise ValueError("invalid case-profile evidence marker")
+        safe_markers[name] = tuple(values)
+    failure_markers = raw["failure_markers"]
+    if (not isinstance(failure_markers, list) or not failure_markers or len(failure_markers) > 4
+            or any(not isinstance(value, str) or not value.strip() or len(value) > 200
+                   for value in failure_markers)):
+        raise ValueError("invalid case-profile failure signature")
+    triage = raw["triage"]
+    if not isinstance(triage, dict) or set(triage) != {
+        "kinds", "hypotheses", "accepted_ids", "accepted_statuses", "observations",
+        "rank_hypotheses",
+    }:
+        raise ValueError("invalid case-profile triage")
+    from jevcompass.triage import FailureKind, HypothesisId
+    kinds, hypotheses, accepted = (triage[key] for key in ("kinds", "hypotheses", "accepted_ids"))
+    statuses = triage["accepted_statuses"]
+    observations = triage["observations"]
+    kind_values = {item.value for item in FailureKind}
+    hypothesis_values = {item.value for item in HypothesisId}
+    for values, allowed, label in (
+        (kinds, kind_values, "kind"), (hypotheses, hypothesis_values, "hypothesis"),
+        (accepted, hypothesis_values, "accepted id"),
+    ):
+        if (not isinstance(values, list) or not values or len(values) > 4
+                or any(not isinstance(value, str) or value not in allowed for value in values)
+                or len(set(values)) != len(values)):
+            raise ValueError(f"invalid case-profile {label}")
+    # Accepted diagnostic actions are a separate configured set: they need
+    # not be causal hypotheses and are never added to requested rank orders.
+    if (not isinstance(statuses, list) or not statuses or len(statuses) > 1
+            or any(not isinstance(value, str) or value != "no-remote-choice" for value in statuses)
+            or len(set(statuses)) != len(statuses)):
+        raise ValueError("invalid case-profile accepted status")
+    from jevcompass.triage import (
+        AssertionObservation, ImportObservation, TimeoutObservation,
     )
+    observation_enums = {
+        "import": ImportObservation, "assertion": AssertionObservation,
+        "timeout": TimeoutObservation,
+    }
+    safe_observations: dict[str, tuple[str, ...]] = {}
+    if not isinstance(observations, dict) or set(observations) - set(observation_enums):
+        raise ValueError("invalid case-profile observations")
+    for key, values in observations.items():
+        allowed_values = {item.value for item in observation_enums[key]}
+        if (not isinstance(values, list) or not values or len(values) > 4
+                or any(not isinstance(value, str) or value not in allowed_values for value in values)
+                or len(set(values)) != len(values)):
+            raise ValueError("invalid case-profile observation enum")
+        safe_observations[key] = tuple(values)
+    rank_hypotheses = triage["rank_hypotheses"]
+    if type(rank_hypotheses) is not bool:
+        raise ValueError("invalid case-profile ranking opt-in")
+    allow_remote = False
+    outcome = raw["outcome_mode"]
+    if outcome not in {"contract_triage", "repair"}:
+        raise ValueError("invalid case-profile outcome mode")
+    oracle_rel = raw["oracle_script"]
+    if (not isinstance(oracle_rel, str) or not oracle_rel
+            or Path(oracle_rel).is_absolute() or ".." in oracle_rel.split("/")
+            or "\\\\" in oracle_rel):
+        raise ValueError("invalid supervisor oracle path")
+    oracle_script = ROOT / oracle_rel
+    if any(part in {"", ".", ".."} for part in oracle_rel.split("/")):
+        raise ValueError("invalid supervisor oracle path")
+    if any((ROOT / Path(*Path(oracle_rel).parts[:index])).is_symlink()
+           for index in range(1, len(Path(oracle_rel).parts) + 1)):
+        raise ValueError("supervisor oracle cannot traverse symlinks")
+    if (not oracle_script.is_file() or oracle_script.is_symlink()
+            or fixture in oracle_script.resolve().parents):
+        raise ValueError("oracle must be an immutable supervisor-owned script")
+    expected_hash = raw["oracle_sha256"]
+    if (not isinstance(expected_hash, str) or not re.fullmatch(r"[0-9a-f]{64}", expected_hash)
+            or hashlib.sha256(oracle_script.read_bytes()).hexdigest() != expected_hash):
+        raise ValueError("supervisor oracle hash does not match profile")
+    return CaseProfile(
+        case_id, fixture, prompt, source_file, test_file, focused_command,
+        safe_evidence, safe_markers, tuple(failure_markers), tuple(kinds),
+        tuple(hypotheses), tuple(accepted), tuple(statuses), safe_observations,
+        rank_hypotheses, outcome, oracle_script, expected_hash,
+    )
+
+
+def _case_treatment_prompt(profile: CaseProfile, advice_policy: str) -> str:
+    evidence_paths = ", ".join(profile.evidence_files.values())
+    triage_command = shlex.join(_triage_argv(1, profile))
+    guidance = (
+        f"\n\nAfter the initial focused test, inspect these configured evidence files: {evidence_paths}. "
+        "Use only the locally observed exit code and allowlisted enums in any JevCompass triage command; "
+        "never pass file contents, paths, diagnostics, or source text to triage. "
+        "Triage is optional: skip it when local evidence resolves the choice. "
+        f"If you invoke triage, use this exact command: {triage_command}. "
+    )
+    if profile.outcome_mode == "repair":
+        guidance += (
+            f"Complete the requested behavior change in {profile.source_file}. "
+            f"Do not modify {profile.focused_test_file} or configured evidence files. "
+            "Run the focused test again and the required full test suite after the change. "
+            "The supervisor runs a separate immutable oracle."
+        )
+    else:
+        guidance += (
+            "Preserve the original test result and do not guess when the available evidence "
+            "does not establish the expected behavior."
+        )
+    if advice_policy == "nonbinding":
+        return (
+            profile.task_prompt + "\n\nBefore using a tool, make your first assistant message contain this "
+            "exact line: " + WORKFLOW_ACK_LINE
+            + " If you request triage, after its result and before using another tool, "
+            + "make your next assistant message contain this exact line: "
+            + PROFILE_TRIAGE_RESULT_ACK_LINE + guidance
+        )
+    return profile.task_prompt + guidance
+
+
+def _matches_useful_failure(output: Any, profile: CaseProfile | None = None) -> bool:
+    if not isinstance(output, str) or len(output.encode("utf-8")) > MAX_ANSWER_BYTES:
+        return False
+    markers = profile.failure_markers if profile else (
+        "FAIL: test_invoice_total_matches_legacy_golden",
+        "AssertionError: Decimal('0.02') != Decimal('0.01')",
+    )
+    return all(marker in output for marker in markers)
 _REQUIRED_EVIDENCE = frozenset(EVIDENCE_FILES)
 
 
@@ -130,38 +395,62 @@ def _item(event: dict[str, Any]) -> dict[str, Any] | None:
     return common._item(event)
 
 
-def _focused(item: dict[str, Any]) -> bool:
-    return common._command_argv(item) == shlex.split(FOCUSED_COMMAND)
+def _focused(item: dict[str, Any], profile: CaseProfile | None = None) -> bool:
+    command = profile.focused_command if profile else tuple(shlex.split(FOCUSED_COMMAND))
+    return common._command_argv(item) == list(command)
 
 
-def _full(item: dict[str, Any]) -> bool:
+def _full(item: dict[str, Any], profile: CaseProfile | None = None) -> bool:
     return common._command_argv(item) == shlex.split(REQUIRED_COMMAND)
 
 
-def _triage_argv(exit_code: int) -> list[str]:
+def _triage_argv(exit_code: int, profile: CaseProfile | None = None) -> list[str]:
     if isinstance(exit_code, bool) or not isinstance(exit_code, int) or exit_code == 0:
         raise ValueError("triage requires an observed nonzero focused exit")
-    return [*TRIAGE_PREFIX, str(exit_code), *TRIAGE_SUFFIX]
+    if profile is None:
+        suffix = list(TRIAGE_SUFFIX)
+    else:
+        suffix = []
+        for kind in profile.triage_kinds:
+            suffix.extend(("--kind", kind))
+        for hypothesis in profile.triage_hypotheses:
+            suffix.extend(("--hypothesis", hypothesis))
+        if profile.rank_hypotheses:
+            suffix.append("--rank-hypotheses")
+        observation_flags = {
+            "import": "--import-observation",
+            "assertion": "--assertion-observation",
+            "timeout": "--timeout-observation",
+        }
+        for category, values in profile.triage_observations.items():
+            for value in values:
+                suffix.extend((observation_flags[category], value))
+        suffix.append("--json")
+    return [*TRIAGE_PREFIX, str(exit_code), *suffix]
 
 
-def _is_triage(item: dict[str, Any], exit_code: int | None) -> bool:
+def _is_triage(item: dict[str, Any], exit_code: int | None,
+               profile: CaseProfile | None = None) -> bool:
     return exit_code is not None and exit_code != 0 and (
-        common._command_argv(item) == _triage_argv(exit_code)
+        common._command_argv(item) == _triage_argv(exit_code, profile)
     )
 
 
-def _evidence_kinds(item: dict[str, Any]) -> tuple[str, ...]:
+def _evidence_kinds(item: dict[str, Any], profile: CaseProfile | None = None) -> tuple[str, ...]:
     argv = common._command_argv(item) or []
     joined = " ".join(argv)
-    return tuple(
-        kind for kind, relative in EVIDENCE_FILES.items()
-        if relative in joined
-    )
+    files = profile.evidence_files if profile else EVIDENCE_FILES
+    return tuple(kind for kind, relative in files.items() if relative in joined)
 
 
-def _evidence_confirms(kind: str, output: Any) -> bool:
+def _evidence_confirms(kind: str, output: Any,
+                       profile: CaseProfile | None = None) -> bool:
     if not isinstance(output, str) or len(output.encode("utf-8")) > MAX_ANSWER_BYTES:
         return False
+    if profile is not None:
+        markers = profile.evidence_markers.get(kind, ())
+        lowered = output.lower()
+        return bool(markers) and all(marker.lower() in lowered for marker in markers)
     lowered = output.lower()
     if kind == "contract":
         return "half-up" in lowered and "cent" in lowered
@@ -185,7 +474,8 @@ def _strict_json(text: str) -> Any:
     return json.loads(text, object_pairs_hook=pairs)
 
 
-def _validated_triage(payload: Any, focused_exit: int) -> dict[str, Any]:
+def _validated_triage(payload: Any, focused_exit: int,
+                      profile: CaseProfile | None = None) -> dict[str, Any]:
     if (not isinstance(payload, str)
             or len(payload.encode("utf-8")) > triage_common.MAX_TRIAGE_OUTPUT_BYTES):
         return {"status": "unscored", "candidate_ids": []}
@@ -195,16 +485,33 @@ def _validated_triage(payload: Any, focused_exit: int) -> dict[str, Any]:
         return {"status": "unscored", "candidate_ids": []}
     if not isinstance(value, dict) or value.get("executed") is not False:
         return {"status": "unscored", "candidate_ids": []}
+    allowed_ids = profile.triage_accepted_ids if profile else TRIAGE_IDS
+    accepted_statuses = profile.triage_accepted_statuses if profile else ("no-remote-choice",)
     parsed = parse_choice_receipt(
-        value, choice_type="triage", candidate_ids=TRIAGE_IDS,
+        value, choice_type="triage", candidate_ids=allowed_ids,
     )
     if (
-        parsed.get("status") != "no-remote-choice"
-        or parsed.get("candidate_ids") != ["confirm_behavior_contract"]
+        parsed.get("status") not in accepted_statuses
+        or not parsed.get("candidate_ids")
+        or any(item not in allowed_ids for item in parsed["candidate_ids"])
         or parsed.get("observed_exit_status") != focused_exit
         or value.get("test_failed") is not True
     ):
         return {"status": "unscored", "candidate_ids": []}
+    if profile is not None and profile.rank_hypotheses:
+        order = value.get("hypothesis_order")
+        if (value.get("hypothesis_ranking_status") != "complete"
+                or not isinstance(order, list)
+                or len(order) != len(profile.triage_hypotheses)
+                or any(not isinstance(item, str) for item in order)
+                or set(order) != set(profile.triage_hypotheses)
+                or len(set(order)) != len(order)):
+            return {"status": "unscored", "candidate_ids": []}
+        parsed["hypothesis_ranking_status"] = "complete"
+        parsed["hypothesis_order"] = list(order)
+    else:
+        parsed["hypothesis_ranking_status"] = "not_established"
+        parsed["hypothesis_order"] = []
     return parsed
 
 
@@ -223,6 +530,7 @@ def _answer_text(item: dict[str, Any]) -> str | None:
 def _event_receipts(
     lines: Iterable[str], event_times: list[float], started: float,
     *, advice_policy: str = "legacy-required-step",
+    profile: CaseProfile | None = None,
 ) -> tuple[dict[str, Any], str | None]:
     lines = list(lines)
     pending: dict[str, tuple[str, str | None]] = {}
@@ -235,7 +543,9 @@ def _event_receipts(
     triage_after_evidence = False
     triage_invalid = False
     triage_exit: int | None = None
-    triage_choice = {"status": "unscored", "candidate_ids": []}
+    triage_choice = {"status": "unscored", "candidate_ids": [],
+                     "hypothesis_ranking_status": "not_established",
+                     "hypothesis_order": []}
     triage_output_status = "not_invoked"
     triage_usage = None
     last_answer: str | None = None
@@ -278,7 +588,9 @@ def _event_receipts(
                     first_post_triage_assistant_seen = True
                     has_result_ack = (
                         isinstance(message, str)
-                        and TRIAGE_RESULT_ACK_LINE in [line.strip() for line in message.splitlines()]
+                        and (TRIAGE_RESULT_ACK_LINE if profile is None else
+                             PROFILE_TRIAGE_RESULT_ACK_LINE)
+                        in [line.strip() for line in message.splitlines()]
                     )
                     if has_result_ack:
                         triage_result_acknowledgment = (
@@ -301,12 +613,12 @@ def _event_receipts(
             continue
         if event_type == "item.started":
             kind = None
-            if _focused(item):
+            if _focused(item, profile):
                 kind = "focused"
-            elif _full(item):
+            elif _full(item, profile):
                 kind = "full"
             else:
-                evidence_kinds = _evidence_kinds(item)
+                evidence_kinds = _evidence_kinds(item, profile)
                 if evidence_kinds:
                     kind = "evidence:" + ",".join(evidence_kinds)
             if kind:
@@ -314,8 +626,9 @@ def _event_receipts(
             argv = common._command_argv(item)
             if argv and "jevcompass" in argv:
                 triage_seen = True
-                exact = _is_triage(item, focused_exits[0] if focused_exits else None)
-                evidence_before_triage = _REQUIRED_EVIDENCE.issubset(evidence)
+                exact = _is_triage(item, focused_exits[0] if focused_exits else None, profile)
+                required_evidence = frozenset(profile.evidence_files) if profile else _REQUIRED_EVIDENCE
+                evidence_before_triage = required_evidence.issubset(evidence)
                 accepted = (
                     exact and bool(focused_exits) and focused_exits[0] == 1
                     and useful_failure_observed and evidence_before_triage
@@ -336,7 +649,7 @@ def _event_receipts(
                 if not isinstance(output, str):
                     output = item.get("output")
                 if (len(focused_exits) == 1 and code == 1
-                        and _matches_useful_failure(output)):
+                        and _matches_useful_failure(output, profile)):
                     useful_failure_observed = True
                     observed = event_times[index] if index < len(event_times) else None
                     if observed is not None:
@@ -350,7 +663,7 @@ def _event_receipts(
                 if not isinstance(output, str):
                     output = item.get("output")
                 for evidence_kind in kind.split(":", 1)[1].split(","):
-                    if _evidence_confirms(evidence_kind, output):
+                    if _evidence_confirms(evidence_kind, output, profile):
                         evidence.add(evidence_kind)
             elif kind in {"triage-accepted", "triage-invalid"}:
                 triage_exit = code if isinstance(code, int) and not isinstance(code, bool) else None
@@ -362,12 +675,13 @@ def _event_receipts(
                     if callable(usage_fn):
                         triage_usage = usage_fn(output)
                     if code == 0:
-                        triage_choice = _validated_triage(output, focused_exits[0])
-                        triage_output_status = (
-                            "valid_local_step"
-                            if triage_choice.get("candidate_ids") == ["confirm_behavior_contract"]
-                            else "invalid_output"
-                        )
+                        triage_choice = _validated_triage(output, focused_exits[0], profile)
+                        if not triage_choice.get("candidate_ids"):
+                            triage_output_status = "invalid_output"
+                        elif profile is None:
+                            triage_output_status = "valid_local_step"
+                        else:
+                            triage_output_status = "valid_configured_choice"
                         if triage_output_status == "valid_local_step":
                             triage_result_index = index
                 else:
@@ -433,6 +747,7 @@ def _run_arm(
     fixture: Path, home: Path, timeout: int, treatment: bool,
     measurement_path: Path | None = None,
     advice_policy: str = "legacy-required-step",
+    profile: CaseProfile | None = None,
 ) -> tuple[dict[str, Any], str | None]:
     (home / ".codex").mkdir(mode=0o700, parents=True, exist_ok=True)
     measurement_path = measurement_path or (home / ".codex" / "agent-measurement.json")
@@ -443,7 +758,10 @@ def _run_arm(
     started = time.monotonic()
     try:
         process = subprocess.Popen(
-            common._cli_command(codex, model, reasoning_effort, prompt, allow_network=False),
+            common._cli_command(
+                codex, model, reasoning_effort, prompt,
+                allow_network=False,
+            ),
             cwd=fixture, env=env, stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
         )
@@ -474,7 +792,7 @@ def _run_arm(
         return failed, None
 
     observed, answer = _event_receipts(
-        lines, times, started, advice_policy=advice_policy,
+        lines, times, started, advice_policy=advice_policy, profile=profile,
     )
     result = {
         "cli_status": "completed" if process.returncode == 0 else "failed",
@@ -487,14 +805,17 @@ def _run_arm(
     return result, answer
 
 
-def _fixture_digest(root: Path) -> str | None:
+def _fixture_digest(root: Path, *, exclude_relative: str | None = None) -> str | None:
     """Hash fixture files while ignoring generated Python bytecode."""
     digest = hashlib.sha256()
     try:
         for path in sorted(root.rglob("*")):
             if "__pycache__" in path.parts or path.suffix == ".pyc":
                 continue
-            relative = path.relative_to(root).as_posix().encode("utf-8")
+            relative_text = path.relative_to(root).as_posix()
+            if relative_text == exclude_relative:
+                continue
+            relative = relative_text.encode("utf-8")
             digest.update(len(relative).to_bytes(4, "big"))
             digest.update(relative)
             if path.is_symlink():
@@ -513,6 +834,40 @@ def _fixture_digest(root: Path) -> str | None:
     except OSError:
         return None
     return digest.hexdigest()
+
+
+def _run_independent_oracle(
+    profile: CaseProfile, fixture: Path, timeout: int,
+) -> dict[str, Any]:
+    started = time.monotonic()
+    evidence: dict[str, Any] = {
+        "status": "unscored",
+        "exit_code": None,
+        "elapsed_ms": None,
+        "oracle_sha256": profile.oracle_sha256,
+        "oracle_unchanged": False,
+    }
+    try:
+        before = hashlib.sha256(profile.oracle_script.read_bytes()).hexdigest()
+        if before != profile.oracle_sha256:
+            return evidence
+        completed = subprocess.run(
+            [sys.executable, str(profile.oracle_script), "--fixture-dir", str(fixture)],
+            cwd=ROOT, env={}, stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            timeout=timeout, check=False,
+        )
+        after = hashlib.sha256(profile.oracle_script.read_bytes()).hexdigest()
+        evidence["oracle_unchanged"] = after == profile.oracle_sha256
+        evidence["exit_code"] = completed.returncode
+        evidence["elapsed_ms"] = round((time.monotonic() - started) * 1000, 2)
+        if evidence["oracle_unchanged"] and completed.returncode == 0:
+            evidence["status"] = "passed"
+        elif evidence["oracle_unchanged"]:
+            evidence["status"] = "failed"
+    except (OSError, subprocess.TimeoutExpired):
+        evidence["elapsed_ms"] = round((time.monotonic() - started) * 1000, 2)
+    return evidence
 
 
 def _safe_artifact(path: Path) -> bytes | None:
@@ -552,8 +907,14 @@ def run_pair(
     timeout: int = DEFAULT_TIMEOUT, seed: int | None = None,
     output_dir: Path, fixture_source: Path = FIXTURE,
     advice_policy: str = "legacy-required-step",
+    case_profile: CaseProfile | None = None,
 ) -> dict[str, Any]:
     """Run both local-only CLI arms and save private blind artifacts/receipts."""
+    if case_profile is not None:
+        fixture_source = case_profile.fixture_source
+    source_file_rel = case_profile.source_file if case_profile else SOURCE_FILE
+    test_file_rel = case_profile.focused_test_file if case_profile else TEST_FILE
+    required_evidence = frozenset(case_profile.evidence_files) if case_profile else _REQUIRED_EVIDENCE
     if not 1 <= timeout <= MAX_TIMEOUT:
         raise ValueError(f"timeout must be between 1 and {MAX_TIMEOUT} seconds")
     if not fixture_source.is_dir():
@@ -597,9 +958,12 @@ def run_pair(
         digests: dict[str, str] = {}
         initial_sources = {
             name: _safe_artifact(fixture_source / name)
-            for name in (SOURCE_FILE, TEST_FILE)
+            for name in (source_file_rel, test_file_rel)
         }
         initial_fixture_digest = _fixture_digest(fixture_source)
+        initial_protected_digest = _fixture_digest(
+            fixture_source, exclude_relative=source_file_rel,
+        ) if case_profile and case_profile.outcome_mode == "repair" else initial_fixture_digest
         for true_arm in ("baseline", "treatment"):
             fixtures[true_arm] = private_root / f"{true_arm}-fixture"
             homes[true_arm] = private_root / f"{true_arm}-home"
@@ -621,10 +985,13 @@ def run_pair(
         answers: dict[str, str | None] = {}
         for true_arm in order:
             label = labels[true_arm]
-            prompt = BASE_PROMPT if true_arm == "baseline" else (
-                NONBINDING_TREATMENT_PROMPT if advice_policy == "nonbinding"
-                else TREATMENT_PROMPT
-            )
+            prompt = (BASE_PROMPT if case_profile is None else case_profile.task_prompt)
+            if true_arm == "treatment":
+                prompt = (
+                    NONBINDING_TREATMENT_PROMPT if case_profile is None and advice_policy == "nonbinding"
+                    else TREATMENT_PROMPT if case_profile is None
+                    else _case_treatment_prompt(case_profile, advice_policy)
+                )
             arms[label], answers[label] = _run_arm(
                 codex=codex, model=model, reasoning_effort=reasoning_effort,
                 prompt=prompt, fixture=fixtures[true_arm], home=homes[true_arm],
@@ -632,23 +999,35 @@ def run_pair(
                 advice_policy=(advice_policy if true_arm == "treatment"
                                else "legacy-required-step"),
                 measurement_path=output_dir / f"{label}-agent-measurement.json",
+                profile=case_profile,
             )
             arms[label]["fixture_sha256_before"] = digests[true_arm]
 
         source_unchanged: dict[str, bool] = {}
+        source_changed: dict[str, bool] = {}
         tests_unchanged: dict[str, bool] = {}
         fixture_unchanged: dict[str, bool] = {}
+        protected_fixture_unchanged: dict[str, bool] = {}
         for true_arm in ("baseline", "treatment"):
             label = labels[true_arm]
-            for relative, target in ((SOURCE_FILE, source_unchanged), (TEST_FILE, tests_unchanged)):
+            for relative, target in ((source_file_rel, source_unchanged), (test_file_rel, tests_unchanged)):
                 final = _safe_artifact(fixtures[true_arm] / relative)
                 original = initial_sources.get(relative)
                 target[label] = final is not None and original is not None and final == original
+                if relative == source_file_rel:
+                    source_changed[label] = (
+                        final is not None and original is not None and final != original
+                    )
             fixture_unchanged[label] = (
                 initial_fixture_digest is not None
                 and _fixture_digest(fixtures[true_arm]) == initial_fixture_digest
             )
-            source_bytes = _safe_artifact(fixtures[true_arm] / SOURCE_FILE)
+            protected_fixture_unchanged[label] = (
+                initial_protected_digest is not None
+                and _fixture_digest(fixtures[true_arm], exclude_relative=source_file_rel)
+                == initial_protected_digest
+            )
+            source_bytes = _safe_artifact(fixtures[true_arm] / source_file_rel)
             if source_bytes is not None:
                 common._private_write(output_dir / f"{label}-source.py", source_bytes)
             answer = answers.get(label)
@@ -665,44 +1044,94 @@ def run_pair(
         common._private_write(output_dir / "arm-map.json",
                               (json.dumps(mapping, sort_keys=True) + "\n").encode())
 
+        if case_profile is not None:
+            for true_arm in ("baseline", "treatment"):
+                label = labels[true_arm]
+                validation = _run_independent_oracle(
+                    case_profile, fixtures[true_arm], timeout,
+                )
+                arm = arms[label]
+                arm["independent_oracle"] = validation
+                endpoint_ms = None
+                if (arm.get("cli_status") == "completed"
+                        and validation.get("status") == "passed"
+                        and isinstance(arm.get("completion_ms"), (int, float))
+                        and isinstance(validation.get("elapsed_ms"), (int, float))):
+                    endpoint_ms = round(arm["completion_ms"] + validation["elapsed_ms"], 2)
+                arm["validated_endpoint_ms"] = endpoint_ms
+                completion_valid = bool(
+                    case_profile.outcome_mode == "repair"
+                    and endpoint_ms is not None
+                    and arm.get("first_useful_failure_observed") is True
+                    and 0 in arm.get("focused_exit_codes", [])[1:]
+                    and arm.get("full_suite_exit") == 0
+                    and source_changed.get(label) is True
+                    and tests_unchanged.get(label) is True
+                    and protected_fixture_unchanged.get(label) is True
+                )
+                arm["validated_completion_ms"] = endpoint_ms if completion_valid else None
+                arm["task_outcome_status"] = (
+                    "completed" if completion_valid else "incomplete"
+                ) if case_profile.outcome_mode == "repair" else "not_applicable"
+
         protocol_complete = all(
             arms.get(label, {}).get("cli_status") == "completed"
             and arms[label].get("initial_focused_exit") == 1
             and arms[label].get("full_suite_invocation_observed") is True
-            and arms[label].get("full_suite_exit") == 1
-            and source_unchanged.get(label) is True
             and tests_unchanged.get(label) is True
-            and fixture_unchanged.get(label) is True
+            and (
+                protected_fixture_unchanged.get(label) is True
+                if case_profile and case_profile.outcome_mode == "repair"
+                else (
+                    arms[label].get("full_suite_exit") == 1
+                    and source_unchanged.get(label) is True
+                    and fixture_unchanged.get(label) is True
+                )
+            )
             for label in ("arm-a", "arm-b")
         )
         baseline_label = "arm-a" if mapping["arm-a"] == "baseline" else "arm-b"
         baseline = arms.get(baseline_label, {})
-        baseline_gate = (
-            baseline.get("first_useful_failure_observed") is True
-            and baseline.get("triage_invocation_observed") is False
-        )
+        if case_profile and case_profile.outcome_mode == "repair":
+            baseline_gate = baseline.get("task_outcome_status") == "completed"
+        else:
+            baseline_gate = (
+                baseline.get("first_useful_failure_observed") is True
+                and baseline.get("triage_invocation_observed") is False
+            )
         treatment_label = "arm-a" if mapping["arm-a"] == "treatment" else "arm-b"
         treatment = arms.get(treatment_label, {})
-        treatment_gate = (
-            treatment.get("first_useful_failure_observed") is True
-            and treatment.get("evidence_complete_before_triage") is True
-            and treatment.get("triage_after_evidence") is True
-            and treatment.get("triage_invalid_invocation_observed") is False
-            and treatment.get("triage_exit_code") == 0
-            and treatment.get("triage_output_status") == "valid_local_step"
+        if case_profile and case_profile.outcome_mode == "repair":
+            treatment_gate = treatment.get("task_outcome_status") == "completed"
+        else:
+            treatment_gate = (
+                treatment.get("first_useful_failure_observed") is True
+                and treatment.get("evidence_complete_before_triage") is True
+                and treatment.get("triage_after_evidence") is True
+                and treatment.get("triage_invalid_invocation_observed") is False
+                and treatment.get("triage_exit_code") == 0
+                and treatment.get("triage_output_status") == (
+                    "valid_local_step" if case_profile is None else "valid_configured_choice"
+                )
+            )
+        repair_task_correctness = bool(
+            case_profile and case_profile.outcome_mode == "repair"
+            and protocol_complete and baseline_gate and treatment_gate
         )
         if advice_policy == "nonbinding":
             workflow_acknowledged = (
                 treatment.get("workflow_acknowledgment") == "before_first_tool"
             )
             verified_evidence = set(treatment.get("evidence_categories_verified", [])) == set(
-                _REQUIRED_EVIDENCE
+                required_evidence
             )
             valid_triage = (
                 treatment.get("triage_after_evidence") is True
                 and treatment.get("triage_invalid_invocation_observed") is False
                 and treatment.get("triage_exit_code") == 0
-                and treatment.get("triage_output_status") == "valid_local_step"
+                and treatment.get("triage_output_status") in {
+                    "valid_local_step", "valid_configured_choice",
+                }
                 and treatment.get("triage_result_acknowledgment") == "before_next_tool"
             )
             valid_abstention = (
@@ -743,6 +1172,10 @@ def run_pair(
             delivery_status = None
             adoption_status = None
             effect_scope = None
+        if case_profile and case_profile.outcome_mode == "repair":
+            # Task acceptance is symmetric and independent of optional advice.
+            task_correctness = repair_task_correctness
+            treatment_gate = treatment.get("task_outcome_status") == "completed"
         pair_passed = protocol_complete and treatment_gate and baseline_gate and delivery_ok
         receipt = {
             "schema_version": 1,
@@ -755,6 +1188,18 @@ def run_pair(
             "event_limit_bytes": EVENT_LIMIT,
             "fixture_parity_sha256": digests["baseline"],
             "randomization_seed": seed,
+            "case_profile_id": case_profile.case_id if case_profile else None,
+            "outcome_mode": case_profile.outcome_mode if case_profile else "legacy_contract_triage",
+            "decision_scope": (
+                "local_fixture_triage_no_remote_choice" if case_profile is None
+                else "case_profile_local_triage_remote_unavailable"
+            ),
+            "task_outcome_acceptance_status": (
+                "passed" if case_profile and case_profile.outcome_mode == "repair"
+                and repair_task_correctness else "failed" if case_profile and case_profile.outcome_mode == "repair"
+                else "not_applicable"
+            ),
+            "advice_adoption_status": "not_measured",
             "original_failed_exit_preserved": all(
                 arms.get(label, {}).get("initial_focused_exit") == 1
                 for label in ("arm-a", "arm-b")
@@ -762,6 +1207,8 @@ def run_pair(
             "source_unchanged": source_unchanged,
             "tests_unchanged": tests_unchanged,
             "fixture_unchanged_excluding_bytecode": fixture_unchanged,
+            "protected_fixture_unchanged_excluding_source": protected_fixture_unchanged,
+            "source_changed": source_changed,
             "baseline_gate_observed": baseline_gate,
             "blind_artifacts": {
                 label: {
@@ -779,7 +1226,10 @@ def run_pair(
         if advice_policy == "nonbinding":
             receipt.update({
                 "advice_policy": advice_policy,
-                "decision_scope": "local_fixture_triage_no_remote_choice",
+                "decision_scope": (
+                    "local_fixture_triage_no_remote_choice" if case_profile is None
+                    else "case_profile_local_triage_remote_unavailable"
+                ),
                 "task_correctness_status": "passed" if task_correctness else "failed",
                 "protocol_delivery_status": delivery_status,
                 "adoption_status": adoption_status,
@@ -801,6 +1251,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--reasoning-effort", required=True)
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
     parser.add_argument("--seed", type=int)
+    parser.add_argument("--case-profile", type=Path,
+                        help="validated JSON case profile for a new synthetic fixture")
     parser.add_argument("--advice-policy", choices=ADVICE_POLICIES,
                         default="legacy-required-step",
                         help="nonbinding is an opt-in profile; legacy remains the default")
@@ -819,6 +1271,7 @@ def main(argv: list[str] | None = None) -> int:
             reasoning_effort=args.reasoning_effort,
             timeout=args.timeout, seed=args.seed, output_dir=args.output_dir,
             advice_policy=args.advice_policy,
+            case_profile=load_case_profile(args.case_profile) if args.case_profile else None,
         )
     except (OSError, ValueError, RuntimeError):
         print(json.dumps({"status": "failed", "failure": "runner_setup_failed"}))

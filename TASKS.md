@@ -1125,3 +1125,9 @@ The runner now writes the bounded redacted measurement to its private output dir
 
 - Correct the triage ranking contract so `confirm_behavior_contract` remains an eligible diagnostic next step but is excluded from causal hypothesis comparisons and `hypothesis_order`. Rank only when at least two causal candidates remain.
 - Acceptance requires independent validation of the diagnostic answer and the causal ordering, with the original failed test status preserved. Offline tests establish the contract; no live benefit claim follows from this change.
+
+## VCR384 — Explicit repair-case profiles for the triage pilot
+
+- Added a bounded JSON case-profile interface to the existing runner: fixture/task paths, focused command, evidence and failure markers, reviewed triage enums, and a supervisor-owned SHA-256-pinned oracle outside the agent fixture. The default invoice protocol remains available without a profile.
+- Both repair arms receive the same task and independent oracle. Acceptance requires the initial observed failure, a successful post-edit focused test/full suite, an allowed source-only repair, immutable tests and other fixture files, and a passing oracle. Validated completion includes agent and independent validation time.
+- Optional advice delivery is scored separately from task correctness; abstaining from triage cannot turn a failed repair into success. Current profiles run with provider credentials and network access disabled: remote triage comparisons need a separately verified transport integration. No new model trial or historical rescore occurred.
