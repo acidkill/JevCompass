@@ -1,3 +1,7 @@
+## VCR289 — Local workflow installation evidence
+
+A clean development wheel from 00b87ba installed all five bundled skills. Three were new, one recognized historical file was refreshed with a verified backup, and all installed bytes match the bundle. Repeat dry-run reports five unchanged; config, hooks and smem fingerprints are unchanged. This Desktop session exposes the five skill entries and the primary agent read coding-workflow. Skill discovery is distinct from delivered hook advice or task adoption. No native A/B or provider test was performed. The installed wheel still predates the separately merged catalog entry, so source/installed catalog parity remains a follow-up.
+
 ## VCR288 — Installed workflow catalog eligibility
 
 The curated workflow entry becomes available only after actual skill discovery. Tests cover bundle-only exclusion, installed availability, relevant coding/debugging/testing selection and exclusion from unrelated tasks. The no-failure avoidance rule applies to triage only, preserving pretask/test phases. Two new catalog tests and the full 600-test local suite passed. This proves selector eligibility, not agent adoption or efficacy.
