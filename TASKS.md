@@ -1,3 +1,8 @@
+## VCR291 — Installed catalog parity verified
+
+- Upgraded local pipx from clean source 9efac29555ce0215c732caba56b362251d14d7c9; wheel SHA-256 6a9a03a44dbd28927f7641e7b79b3eb1da3af7d4b4acb1bce6f0e85b66f11edf. Installed catalog discovers coding-workflow as available, and all five installed skills match bundle resources.
+- Codex configuration, hooks and smem fingerprints remain unchanged. Development installation only; no provider calls, native advisory delivery or efficacy claim. This closes the catalog parity follow-up from VCR289.
+
 ## VCR289 — Five installed workflow skills verified
 
 - Installed clean source wheel from 00b87ba, SHA-256 134c000afbe2b4e07db0d638e82e499dd11d0ba54a94f2d95eec0a3b21fb88b7. Explicit refresh installed three new skills and refreshed one recognized old skill; all five files match the wheel. The old focused-tests backup matches a045c63304fac3ff220dd0aa69a35590807e425d5d56d5eebfdd7d60ea85b781.
