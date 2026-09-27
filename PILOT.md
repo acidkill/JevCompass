@@ -1573,3 +1573,9 @@ No user-global pipx installation, PATH, production hooks, remote decision or pub
 The selector now resolves locally when exactly one candidate has direct coverage, all alternatives have indirect coverage, all share one known runtime bucket, and no change signals or coverage targets are supplied. It preserves every required command and orders remaining candidates by the established fallback. Unknown/mixed runtime, multiple direct candidates, explicit signals and targets retain their existing decision paths. This removes a remote call for a locally resolved metadata case, not for genuine cost/coverage tradeoffs.
 
 Focused tests verify no client construction, null provider usage, unchanged required order and remote eligibility of contrasting cases. Full validation passed 730 tests in 30.409 seconds; Graphify rebuilt 2,989 nodes, 5,999 edges and 192 communities. VCR353 read-only audit independently identified this gap; implementation deliberately uses the narrower no-signals/no-targets condition. No paid request, release or measured coding-time benefit occurred.
+
+## VCR359 — Respect coverage targets before local dominance
+
+The existing direct/fast and boundary/direct local shortcuts now check declared coverage targets. With target metadata supplied, a local winner must declare coverage for every normalized change signal; absent signals or conflicting targets retain the ordinary choice path. Inputs without target metadata keep established behavior. This prevents a cheap but unrelated test from being presented as locally dominant. Required commands remain unchanged.
+
+Regression tests cover conflicting targets with both known and unknown runtime, and declared targets without a change signal. The full suite passed 732 tests in 30.291 seconds; Graphify rebuilt 2,994 nodes, 6,010 edges and 184 communities. No paid request, release or coding-time improvement claim occurred.

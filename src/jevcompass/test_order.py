@@ -252,9 +252,16 @@ def rank_tests(
 
     # Skip the remote choice only for the specifically evidenced direct+fast
     # candidate against alternatives that are all indirect+slow.
+    def targets_support_local_choice(candidate: TestCandidate) -> bool:
+        if not any(item.coverage_targets for item in local_candidates):
+            return True
+        declared = {target.value for target in candidate.coverage_targets}
+        return bool(normalized_signals) and set(normalized_signals).issubset(declared)
+
     dominant = [
         candidate for candidate in local_candidates
         if candidate.coverage is Coverage.DIRECT and candidate.runtime is RuntimeBucket.FAST
+        and targets_support_local_choice(candidate)
         and all(
             candidate is other or
             (other.coverage is Coverage.INDIRECT and other.runtime is RuntimeBucket.SLOW)
@@ -276,6 +283,7 @@ def rank_tests(
     ]
     if (ChangeSignal.BOUNDARY_MAPPING_CHANGED.value in normalized_signals
             and len(boundary_direct) == 1
+            and targets_support_local_choice(boundary_direct[0])
             and all(item.runtime is RuntimeBucket.UNKNOWN for item in local_candidates)
             and all(item is boundary_direct[0] or item.coverage is Coverage.INDIRECT
                     for item in local_candidates)):
