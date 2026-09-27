@@ -974,3 +974,30 @@ Private artifacts and receipts: `/tmp/jev-pretask-strategy-vcr257-20260927-01`. 
 ## VCR-257-G — focused-check diagnostic coverage
 
 The supervisor-pretask runner now provides the literal unit and contract commands to both variants, requesting separate focused and full invocations. This repairs ambiguity in the shared task instruction without changing candidate choice, fixture or validation requirements. Receipts count completed unrecognized unittest/pytest argv families once per valid event ID; no command, path or output is retained. Counters are narrow diagnostics, not exhaustive shell analysis. For example, a python3 alias is diagnosed but not retroactively accepted as a declared check. Unknown calls never satisfy focused acceptance or successful-check timing. Two offline tests cover this distinction and privacy. Historical VCR-257-F remains failed; a fresh trial is required to establish current coverage.
+
+
+## VCR-257-H — compliant supervisor-pretask pair (2026-09-27)
+
+Luna supervised exactly one fresh run `59eca50bd6c747afbe40eb6fff2615d1`, seed257, gpt-6-luna/low, baseline then treatment. The parent verified receipt/map and final artifact hashes. Same starting fixture hash `db47b815d401bf3e05809215c993532254e80d2f18013c72c660b6a07b7cff13`; current explicit shared candidate instructions apply to both arms.
+
+| Measure | Baseline | Treatment |
+| --- | ---: | ---: |
+| Completion including preparation ms | 25188.09 | 25941.81 |
+| Agent-only completion ms | 25188.09 | 25265.79 |
+| Preparation ms | 0.00 | 676.02 |
+| First observed tool start ms | 6748.07 | 7817.99 |
+| First successful relevant focused check ms | 19827.39 | 19993.23 |
+| Agent input tokens | 107485 | 93859 |
+| Cached input tokens | 97536 | 84480 |
+| Agent output tokens | 684 | 716 |
+| Observed focused invocations / exit | 1/0 | 1/0 |
+| Observed required full-suite exit | 0 | 0 |
+| Independent unit/contract/full exits | 0/0/0 | 0/0/0 |
+| Unmatched unittest/pytest counts | 0/0 | 0/0 |
+| Immutable files preserved | true | true |
+
+Pair status `completed` means its current process/validation gates passed, not project acceptance. Treatment strategy field is `remote-choice`, ordered symbol inspection then contract definition; exact strategy receipt acknowledged before first observed tool. The legacy generic `choice` field is unused test-ranking data and does not negate strategy exposure. One supervisor call reported368input/44output provider tokens and USD0.000015456; agent billing unknown. No useful failure was observed.
+
+Treatment completion was753.72ms slower and first successful focused check165.84ms later. Agent input totals were lower in this single run, output higher; this does not establish repeatable token/cost savings. Both final artifacts have SHA256 `58ae150840350f1f26c890835746ff74bbd6603e38712161b3d907b8a3c299f8`, identical to the VCR-257-F artifacts reviewed without variant labels (4/4 each). This is identity-based carryover of static quality evidence, not a new blind assessment. No speed or quality benefit is demonstrated.
+
+Private receipts/artifacts: `/tmp/jev-pretask-strategy-vcr257-20260927-02`. Current focused-command observation gap is closed for this run; historical rejected pair remains rejected. Native Desktop hook delivery, broader tasks and repeatable efficacy remain open. Further easy-fixture repetitions are not justified as benefit-seeking; next investigate applicability to genuinely unresolved strategy decisions and avoid redundant advice where local evidence already resolves the approach.

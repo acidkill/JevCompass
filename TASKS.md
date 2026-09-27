@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-257-H — compliant supervisor-pretask pair
+
+Run `59eca50bd6c747afbe40eb6fff2615d1` passes current focused/full and independent frozen validation in both arms, zero unmatched commands. Advice acknowledged before first observed tool. Baseline25.188s vs treatment25.942s including676.02ms preparation; treatment753.72ms slower. First successful focused check19.827s vs19.993s. Final artifact bytes identical to previously variant-blind reviewed4/4 repairs. Provider368input/44output tokens, USD0.000015456. No speed or quality benefit demonstrated. This closes current command-observation gap for this run only; native Desktop and broad efficacy remain unverified.
+
 ### VCR-257-G — focused-check diagnostics and equal task clarity
 
 Pretask comparison now explicitly gives both focused commands to both arms and requests separate focused/full invocations. Metadata-only counters identify completed unittest/pytest commands not recognized as declared checks, deduplicated by event ID. Such diagnostics do not satisfy focused validation or useful-check timing. Two offline tests cover aliases, duplicate events, private output exclusion and recognized commands. Historical failed pair remains failed; fresh diagnostic pending.
