@@ -1,3 +1,7 @@
+## VCR290 — Optional local triage assessment
+
+The prospective nonbinding profile separates acknowledgement of workflow instructions from acknowledgement of a valid triage result before the next tool. Invocation alone leaves adoption unscored. Local abstention may preserve task correctness; missing or late delivery fails the delivery gate independently. Immutable fixture and mandatory red test-status checks remain enforced. Thirteen focused tests passed. The default legacy profile and historical results are unchanged. This local-only contract fixture does not establish accepted remote choice or benefit; no new live pair was run.
+
 ## VCR291 — Installed catalog parity
 
 The local pipx development installation now comes from clean source 9efac29555ce0215c732caba56b362251d14d7c9, wheel SHA-256 6a9a03a44dbd28927f7641e7b79b3eb1da3af7d4b4acb1bce6f0e85b66f11edf. Its catalog marks the discovered coding-workflow skill available; all five installed skills match bundled resources. Configuration, hooks and smem fingerprints are unchanged. This closes the earlier installed catalog gap, but does not establish native advice delivery, adoption or benefit. No provider request was made.
