@@ -1,3 +1,7 @@
+## VCR343 — Prospective task-outcome and observation protocol
+
+Future comparisons record integrity, treatment exposure, command observability and task outcome separately. Valid task failures remain quality outcomes; an unobserved command remains unknown, not proof of omission. Successful completion requires the frozen oracle and every mandatory check. Cold and warm cache strata include all preparation and warming costs. This protocol does not rescore historical cohorts, retry stopped cases or establish benefit; no runner or product behavior changed.
+
 ## VCR341 — Explicit triage selection provenance
 
 The source CLI distinguishes a remotely preferred diagnostic action from locally resolved guidance and unranked fallback steps. JSON exposes fixed decision reasons and explicitly states that hypothesis ranking is not established. Original exit status, usage and non-execution remain intact; no provider prose is introduced. All ten focused CLI tests and 712 Python tests passed; receipt consumers remain compatible. Graphify refreshed. This is not a release or measured task benefit; hosted CI remains the merge gate.
