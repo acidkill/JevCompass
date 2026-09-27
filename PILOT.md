@@ -1,3 +1,17 @@
+## VCR277-A — Autonomous baseline, enriched metadata, adherence failure
+
+Run `bb4555c0fa4f45158cffb60dc6db87ba` used seed 277 and fixture parity hash `c2c6d966362b13b28f5fc7296af86aa4843837033ea7ec3809333d3e7047541e`. Treatment arm-a first; baseline arm-b second. Both independently chose/executed allowed tests, completed focused/full checks, preserved immutable files, changed source, and passed independent unit/integration/full validation. Treatment ranked after its edit and before the focused check, but ran integration while the validated returned ordering was unit then integration. Thus `treatment_choice_not_followed` fails the pair; no compliant efficacy result is available.
+
+| Metric | Autonomous baseline | Advisor arm |
+| --- | ---: | ---: |
+| Completion (ms) | 22,226.83 | 28,414.46 |
+| First observed command start (ms; not usefulness) | 5,954.85 | 6,877.07 |
+| First focused candidate | unit | integration |
+| Input / cached / output tokens | 92,738 / 83,456 / 715 | 96,137 / 86,528 / 976 |
+| Uncached-input proxy | 9,282 | 9,609 |
+
+Rank status `no-remote-choice`, reason `insufficient_confidence`; latency 477.55 ms, provider 501 input/34 output tokens, cost USD 0.000021042. This records an actual request followed by local fallback, not an accepted remote choice. Advisor completion was 6,187.63 ms later in this ordered trial; adherence failure prevents claiming compliant benefit. No useful failure marker occurred, billing is unknown, and source correctness does not prove advisor usefulness or native Desktop acceptance. Thresholds and historical results remain unchanged.
+
 ## VCR276-A — Enriched autonomous comparison runner ready for CI
 
 `scripts/pilot_target_coverage_test_order_pair.py` reuses the cross-layer runner with per-run prompts and an explicit either-candidate baseline policy. It checks reviewed fixture hashes before creating an enriched copy; original task files remain unchanged. Both arms receive identical target metadata: unit internal logic; integration internal logic, boundary mapping, and public contract. These labels are nonexhaustive, overlapping coverage descriptors, not dominance claims.
