@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-270-B — timeout guidance live outcome retained
+
+Completed once400f001ad8c04740a3d3f132488cfbab. Both repairs pass observed focused/full and independent frozen checks with immutable files intact. Treatment25,978.89ms including shared preparation vsbaseline26,981.61ms; one ordered difference is not repeatable benefit. Protocol incomplete: initial failure not observed, and prompt did not explicitly mandate pre-edit reproduction expected by scorer. Fix instruction/gate alignment and equal acknowledgment burden prospectively; do not blame task correctness or rescore oldrun. Zero remote requests, billing unknown, useful-error timing unscored.
+
 ### VCR-266-B — condition-timeout comparison runner
 
 Added a keyless equal-information timeout repair comparison with pinned reviewed fixture file set/hashes, observed frozen initial failure, local enum triage guidance and counted preparation. Only inbox.py is editable; both arms retain focused repair/retest and required full validation. Changed immutable files or nonregular source skip trusted independent execution and fail the pair. Eight focused tests pass including the no-execution tamper spy. Advice utility stays unscored until a live paired outcome; this is local guidance, not remote efficacy. No live pair yet.
