@@ -2,6 +2,10 @@
 
 ## Status
 
+### VCR-256-M guidance-only pair (2026-09-27)
+
+Seed258 treatment-first, same boundary hash/model/settings; treatment received the full current focused-tests skill in its prompt rather than a forced rank command. Treatment21,035.77ms,92,126 input/84,480 cached/592 output tokens; baseline15,783.06ms,58,397 input/52,224 cached/450 output. Both selected contract, preserved immutable files and passed required/independent validation; ranking was not invoked. Treatment5,252.71ms slower; no benefit or causal overhead claim. Prompt injection is a guidance experiment, not automatic skill discovery. First successful relevant check remained null in both arms despite observed successful contract exits, so real event/output compatibility is not accepted; raw events were not retained and cannot be retrospectively inspected. Billing/blind quality remain unknown. Receipts `/tmp/jev-boundary-skill-20260927-01`. Next: privacy-safe event-shape diagnostics and reassess usefulness beyond this locally obvious task.
+
 ### VCR-256-L timing instrumentation (2026-09-27)
 
 Boundary runner now records first relevant contract failure and first successful relevant contract check only from matched completed execution events with observed timestamps and task-specific output. Partial/unrelated output and missing timestamps do not count. Timing marks process completion evidence, not semantic diagnosis quality. Previous runs remain unscored because their raw events were not retained. Offline instrumentation is not a new live outcome.
