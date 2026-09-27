@@ -1,3 +1,7 @@
+## VCR335 — Prospective first-tool measurement correction
+
+The plan-only runner now reads the parser's actual first-tool observation instead of a nonexistent flattened field. Future receipts retain observed elapsed time and preserve unknown values when no tool event exists. Historical VCR332 receipts and assessment remain unchanged; no retry or efficacy claim. All six focused runner tests passed, including a real parser tool event and no-tool case. All 708 Python tests passed; graphify refreshed (2907 nodes, 5816 edges). Hosted CI remains the merge gate.
+
 ## VCR333 — Actionable verified-contract advice
 
 For the existing local coding route with verified conflicting or absent contract evidence, strategy advice now asks to resolve behavior and precedence before editing, preserve supplied failure evidence, define a discriminating regression and retain mandatory validation. Other kinds, unknown/partial evidence, IDs and remote payloads remain unchanged. Thirteen focused contract tests and all 707 Python tests passed; graphify refreshed. This improves the locally authored guidance contract, not a demonstrated task outcome. No historical rescore, live retry, release or installed-package update.

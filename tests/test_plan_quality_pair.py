@@ -109,5 +109,37 @@ class PlanPairTests(unittest.TestCase):
             self.assertIsNone(result["token_usage"])
 
 
+    def test_first_observed_tool_metric_uses_parser_dict_and_absent_is_none(self):
+        tool_events = [
+            json.dumps({"type": "item.completed", "item": {
+                "type": "agent_message", "text": "A synthetic conditional plan."}}),
+            json.dumps({"type": "item.started", "item": {
+                "type": "command_execution", "name": "exec_command",
+                "command": "private command"}}),
+            json.dumps({"type": "turn.completed"}),
+        ]
+        no_tool_events = [
+            json.dumps({"type": "item.completed", "item": {
+                "type": "agent_message", "text": "A synthetic conditional plan."}}),
+            json.dumps({"type": "turn.completed"}),
+        ]
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for events, expected in ((tool_events, 125.0), (no_tool_events, None)):
+                def collect(process, *, started, **kwargs):
+                    times = [started + 0.05, started + 0.125, started + 0.2]
+                    return events, times[:len(events)], None
+
+                with mock.patch.object(runner.subprocess, "Popen"), \
+                     mock.patch.object(runner.core, "_collect_events", side_effect=collect):
+                    result, plan = runner.run_arm(
+                        codex="codex", model="gpt-6-luna", effort="low",
+                        timeout=10, max_tokens=1000, fixture=root, home=root,
+                        prompt=runner.PROMPT)
+                self.assertEqual(result["status"], "completed")
+                self.assertEqual(result["first_observed_tool_ms"], expected)
+                self.assertIsNotNone(plan)
+
 if __name__ == "__main__":
     unittest.main()
