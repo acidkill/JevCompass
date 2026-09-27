@@ -1,3 +1,7 @@
+## VCR311 — Prospective triage reason capture
+
+Future supervisor receipts retain only a fixed decision-reason enum. Local resolution and local abstention are separate; invalid confidence values are invalid responses, while valid confidence below the threshold is insufficient confidence. Exception text and provider prose are never retained, and the reason is stripped from agent-facing advice. Wrapped transport failures remain provider_error when their cause is unavailable. Valid reported usage remains attached to abstentions; unknown usage is not zero. Twelve new diagnostic tests, 18 triage tests, 21 timeout-pair tests and the full 676-test suite pass. Graph rebuild succeeded. This does not recover A-F2's lost reason, rescore historical receipts, or establish efficacy.
+
 ## VCR310 — Post-change phase tracking correction
 
 Treatment phase tracking now uses explicit per-run profile inputs and the paired baseline/treatment prompt values instead of searching prompt text for a marker. Phase credit still requires the observed source change before ranking and the recorded event order. Thirty-six focused tests and the copied 664-test full suite pass; graph refresh reports 2,665 nodes, 5,329 edges and 173 communities. Historical T-F1 remains failed and was not rescored. No new live pair or efficacy claim.

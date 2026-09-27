@@ -1,3 +1,7 @@
+## VCR311 — Safe triage decision diagnostics
+
+Added allowlisted decision reasons distinguishing local resolution, local abstention, invalid response, insufficient confidence, provider timeout/error and accepted choice. Diagnostics remain in the supervisor receipt and are removed from agent-facing advice; unknown wrapped transport failures remain generic. Twelve new diagnostic, 18 existing triage and 21 timeout-pair tests pass; full suite: 676 tests. Graph refreshed to 2,695 nodes and 5,399 edges. No historical result was rescored or rerun.
+
 ## VCR310 — Post-change phase tracking correction
 
 Treatment phase tracking now follows explicit per-run profile inputs and prompt values, avoiding prompt-marker inference; phase credit still requires source-change and event-order evidence. Thirty-six focused and copied 664-test full-suite checks pass; graph refreshed to 2,665 nodes, 5,329 edges, 173 communities. T-F1 remains failed and unrescored; no new live pair or efficacy claim.
