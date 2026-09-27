@@ -1159,3 +1159,9 @@ The module is not yet integrated into the profile runner and proves neither nati
 ## VCR397 — Bounded live event observer
 
 The shared collector supports an optional event observer without changing default collection. Callback failures retain collected events and return a generic failure status. Three real-subprocess tests verify malformed-line retention, callback-failure preservation and compatibility with the observed token cap without double-counting cached input. The existing 63 collector tests remain green. This is an integration prerequisite, not a live agent comparison.
+
+## VCR395 — Explicit profile bridge integration
+
+The profile runner now has explicit supervisor opt-in for remote triage and accepted result statuses. Both arms use equal network and token-budget settings; only treatment receives the credential-isolated bridge. The live event observer confirms the focused failure before the bridge can decide. Private agent measurement and typed bridge receipts survive optional parser failure. Diagnostic delivery, causal ranking and measured provider calls remain separate.
+
+Offline integration tests cover the arm pipeline, symmetric configuration, deterministic observer acknowledgment, and receipt preservation after timeout or parser failure. The complete local suite passes: 810 tests in 37.714 seconds. This is not native hook delivery or efficacy evidence. The optional completed-turn token cap is observational, not a provider-side spending limit, and enabled network access is not restricted to loopback. A prospective trial still requires frozen code/profile/oracle and green hosted CI.
