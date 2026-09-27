@@ -1,3 +1,19 @@
+## VCR274-A — Revised timeout guidance: one positive completed pair
+
+Run `266dd4e0f64c4789a56ffb4a3ad4bb89` used seed 274 on merged PR #204. Treatment arm-a ran first; baseline arm-b second. Both acknowledged before tools, reproduced focused exit 1, then passed focused/full exit 0, preserved frozen files, and passed independent focused/full checks (5 tests each). Protocol completed; advice utility remains unscored.
+
+| Metric | Baseline | Revised local guidance |
+| --- | ---: | ---: |
+| Agent completion (ms) | 31,724.97 | 25,206.44 |
+| Including 304.16 ms shared preparation | 32,029.13 | 25,510.60 |
+| First useful error (ms) | 17,091.37 | 11,710.32 |
+| First successful focused check (ms) | 25,225.45 | 18,142.22 |
+| Error-to-focused-pass interval (ms) | 8,134.08 | 6,431.90 |
+| Input / cached / output tokens | 129,912 / 118,784 / 948 | 113,359 / 103,680 / 709 |
+| Uncached-input proxy | 11,128 | 9,679 |
+
+Treatment completed 6,518.53 ms earlier and exposed the useful failure 5,381.05 ms earlier in this single ordered pair. Neither repeatable benefit nor a causal effect of revised wording is established; VCR271 used different wording and order, and remains mixed. Zero remote triage calls, billing unknown, no native Desktop acceptance evidence. Both source artifacts independently validate; no quality advantage is inferred. Private receipts remain local; source and raw events are not published.
+
 ## VCR273-A — Production guidance refinement, efficacy pending
 
 The locally authored `timeout_nonterminating` instruction now links inspection to a contract-supported minimal repair, rerunning the failed focused check, and all mandatory validation. It conditionally refers to local observations and explicitly treats the timeout as a lead rather than a confirmed cause. The same instruction is used after local resolution or validated remote selection; no decision threshold or eligibility changes.
