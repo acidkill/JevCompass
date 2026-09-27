@@ -1622,3 +1622,27 @@ Private evidence SHA-256: events `834c4177ba89f1ec02ea77cec2ab6ea350f50e07641b91
 The diagnostic log now records total strategy-enabled `evaluate()` duration separately from the existing generic catalog metric, which can report a low-signal skip even when strategy advice was delivered. This metric is emitted only when both the strategy bridge and diagnostics are enabled; fixed labels distinguish accepted/local-fallback/abstained/error outcomes and local/remote/cached source. No prompt, response prose, paths or usage values are logged. Focused offline tests passed 4 cases, including a controlled four-second selector interval, privacy allowlist, cached/error provenance and unchanged default diagnostics. This verifies measurement scope only; it makes no performance or quality claim.
 
 Parent validation: full discovery passed 746 tests in 30.368 seconds; after the default-call compatibility adjustment, 53 advisor and diagnostic tests passed in 0.152 seconds. Graph refresh completed: 3,048 nodes, 6,123 edges, 196 communities.
+
+
+## VCR367 — Native vanilla coding pair; strategy routing deviation retained (2026-09-27)
+
+A new synthetic label-normalization task ran once per arm with source `c03dc34`, auth-only private profiles, no copied MCP/skills/user configuration, no OpenRouter key, cache off, and actual source hook installation only in treatment. Seed 367 selected treatment first; each arm had 180 seconds and a 150,000-token budget observed at completed turns. Preflight corrections (reference Git initialization and monotonic timestamp accounting) occurred before any model invocation; the original preregistration was preserved. No advice was injected into either prompt, and no retry occurred.
+
+Both CLI processes exited 0 without collector failure. Both retained unchanged tests and ran the exact focused, full and diff checks as separate successful commands (2 focused tests, 3 full tests). Independent focused/full/diff/oracle checks also passed. The task tested normalization, first-occurrence order, one-shot iterables, list nonmutation and the display consumer; these are bounded task checks, not general quality or regression guarantees.
+
+| Measurement | Baseline | Treatment |
+| --- | ---: | ---: |
+| Agent elapsed, ms | 47,661.53 | 27,890.31 |
+| Independent validation, ms | 120.00 | 142.69 |
+| Measured agent plus validation, ms | 47,781.53 | 28,033.00 |
+| First shell tool, ms | 6,413.90 | 6,794.95 |
+| First completed source read, ms | 9,036.57 | 9,505.74 |
+| Input tokens | 116,732 | 117,576 |
+| Cached input tokens (subset) | 107,520 | 105,472 |
+| Output tokens | 713 | 742 |
+
+Reasoning output was 0 in both arms. Shared fixture/profile preparation and Codex provider costs are unknown; no paid Jev request occurred. Neither arm observed a useful failing test during coding, so that metric remains null.
+
+The intended strategy was **not exposed**. The treatment hook classified the prompt as `review` because mandatory `git diff --check` matched the broad review pattern. It delivered generic local catalog advice `0b6d7978`, acknowledged at 5,626.43 ms before the first tool; the agent correctly reported strategy absent. Baseline reported both IDs absent. The catalog metric of 7.1 ms excludes startup and is not total hook latency. Preserve this completed coding comparison as unexpected generic-advice exposure, excluded from strategy-selection and remote-Jev efficacy claims. One faster completion with slightly later first actions and higher token counts does not establish causality or repeatable benefit. Repair routing prospectively; do not rerun or relabel this case as strategy evidence.
+
+Private hashes: final preregistration `c6f246e037d91b13b02dacf73ba67aeb9c67712ef92c2c7d0fcda5eb2215c448`; runner `30f1e9f4cdf2e4a9afe3fa21ae2dd95e277913dd04bf33617a2a5693b421dad5`; terminal summary `fbd8525542124704fd405d630d2e4745a1463ecf7815bcab5866105990e163c5`.
