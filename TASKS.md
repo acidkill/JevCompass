@@ -1,3 +1,7 @@
+## VCR321 — Enum-only timeout bridge observations
+
+The pilot CLI shim forwards optional validated timeout observations through the supervisor bridge to production triage. Unknown, duplicate and contradictory facts are rejected without a provider call; legacy requests preserve their existing state shape. Phase credit now permits immediate triage or completed safe read-only inspection, retaining rejection of unsafe/incomplete inspection. Twenty-eight focused tests and the full 698-test suite passed with mocked decisions; no live provider call or historical rescoring. This improves prospective benchmark fidelity, not evidence of coding benefit.
+
 ## VCR322 — Worker-queue local-resolution control
 
 Added a bounded FIFO queue fixture and six offline verifier tests. The starter fails focused and full fixture suites; the reference notification repair passes both; notification, ordering and consumption mutants are rejected. Shared coarse observations alone leave the wait condition unknown, but source inspection reveals crossed condition notifications. This is explicitly a local-resolution/no-call control, not a remote-choice or efficacy result. Graph rebuilt to 2,826 nodes and 5,672 edges. No coding-agent pair or provider request was executed for this fixture.

@@ -18,6 +18,7 @@ import math
 import os
 from pathlib import Path
 import random
+import re
 import shlex
 import shutil
 import stat
@@ -66,18 +67,57 @@ TRIAGE_COMMAND_PREFIX = (
     "--hypothesis timeout_contention --hypothesis timeout_nonterminating --json"
 )
 TREATMENT_GUIDANCE = (
-    "\n\nOptional triage, if the focused test actually fails with the inbox "
-    "timeout and the cause is still unclear: immediately after that completed "
-    "test command, and before opening or searching fixture source, contract, or "
-    "test files, you may run exactly this command:\n"
+    "\n\nOptional triage after the focused test shows the inbox timeout: if the "
+    "cause remains unclear from the failure, you may run this command either "
+    "immediately or after read-only inspection of the relevant source, test, and "
+    "contract, but before editing:\n"
     + TRIAGE_COMMAND_PREFIX
-    + "\nIt sends only the observed nonzero exit and the two allowlisted timeout "
-    "hypothesis identifiers; it sends no test output, source, paths, or inferred "
-    "wait-condition observations. This is nonbinding advice, not a diagnosis or "
-    "a correctness result. If local evidence already resolves the cause, skip "
-    "the call. In either case, inspect the full error and contract before editing, "
-    "then rerun the focused and required full checks."
+    + "\nIf local inspection establishes any timeout observations, you may append "
+    "one or more repeated --timeout-observation VALUE options using only these "
+    "fixed values: progress_observed, no_progress_observed, "
+    "resource_contention_observed, no_resource_contention_observed, "
+    "wait_condition_satisfiable, wait_condition_unsatisfiable. Use only facts "
+    "verified from local evidence. Never pass trace text, paths, commands, source, "
+    "or a guessed cause. Conflicting or repeated values are rejected. The result "
+    "is a nonbinding next-check suggestion, not a diagnosis or correctness result. "
+    "If local evidence already resolves the cause, skip triage. Rerun the focused "
+    "check and required full suite after any repair."
 )
+
+
+def _validated_timeout_observations(raw: Any) -> tuple[Any, ...] | None:
+    """Validate bridge facts with production enum and contradiction checks."""
+    from jevcompass.triage import (
+        TimeoutObservation, _contradictory_timeout_observations,
+        _normalize_timeout_observations,
+    )
+    if not isinstance(raw, list) or any(not isinstance(item, str) for item in raw):
+        return None
+    if len(raw) > len(TimeoutObservation) or len(set(raw)) != len(raw):
+        return None
+    try:
+        observations = _normalize_timeout_observations(
+            tuple(TimeoutObservation(item) for item in raw)
+        )
+    except (TypeError, ValueError):
+        return None
+    if _contradictory_timeout_observations(observations):
+        return None
+    return observations
+
+
+def _safe_timeout_observation_rules() -> tuple[tuple[str, ...], tuple[tuple[str, str], ...]]:
+    """Return production enum values and conflicting pairs for the private shim."""
+    from itertools import combinations
+    from jevcompass.triage import TimeoutObservation, _contradictory_timeout_observations
+
+    values = tuple(item.value for item in TimeoutObservation)
+    pairs = tuple(
+        (left.value, right.value)
+        for left, right in combinations(TimeoutObservation, 2)
+        if _contradictory_timeout_observations((left, right))
+    )
+    return values, pairs
 
 
 class _SupervisorBridge:
@@ -94,6 +134,7 @@ class _SupervisorBridge:
         self._state = "not_requested"
         self._triage_status = "not_attempted"
         self._decision_reason: str | None = None
+        self._timeout_observations: tuple[Any, ...] = ()
         self._server = self._make_server()
         self._thread = threading.Thread(
             target=self._server.serve_forever, kwargs={"poll_interval": 0.05},
@@ -216,23 +257,34 @@ class _SupervisorBridge:
         except (UnicodeDecodeError, ValueError, TypeError, json.JSONDecodeError):
             self._reject(handler, "invalid_request")
             return
-        if not isinstance(request, dict) or set(request) != {
-            "observed_exit_status", "failure_kind", "hypothesis_ids",
-        }:
+        legacy_keys = {"observed_exit_status", "failure_kind", "hypothesis_ids"}
+        observation_keys = legacy_keys | {"timeout_observations"}
+        request_keys = frozenset(request) if isinstance(request, dict) else frozenset()
+        if request_keys not in {frozenset(legacy_keys), frozenset(observation_keys)}:
             self._reject(handler, "invalid_request")
             return
         status = request.get("observed_exit_status")
         hypotheses = request.get("hypothesis_ids")
+        observations_included = "timeout_observations" in request
+        observations = (
+            _validated_timeout_observations(request.get("timeout_observations"))
+            if observations_included else ()
+        )
         if (
             isinstance(status, bool) or not isinstance(status, int) or status != observed_exit
             or status == 0 or request.get("failure_kind") != "timeout"
             or hypotheses != list(TIMEOUT_CANDIDATES)
+            or observations is None
         ):
             self._reject(handler, "invalid_request")
             return
         with self._lock:
             self._state = "accepted"
-        payload = _production_timeout_payload(status)
+            self._timeout_observations = observations
+        payload = (
+            _production_timeout_payload(status, observations)
+            if observations_included else _production_timeout_payload(status)
+        )
         if payload is None:
             with self._lock:
                 self._state = "fallback"
@@ -287,6 +339,7 @@ class _SupervisorBridge:
                 "advisor_result": self._triage_status,
                 "decision_reason": self._decision_reason,
                 "observed_timeout_exit": self.observed_exit is not None,
+                "timeout_observations": [item.value for item in self._timeout_observations],
             }
 
 
@@ -307,17 +360,24 @@ def _local_timeout_payload(exit_code: int) -> dict[str, Any]:
     }
 
 
-def _production_timeout_payload(exit_code: int) -> dict[str, Any] | None:
+def _production_timeout_payload(
+    exit_code: int, timeout_observations: tuple[Any, ...] | None = None,
+) -> dict[str, Any] | None:
     """Call enum-only triage and attach its fixed reason for bridge-only receipt use."""
     try:
         from jevcompass.triage import (
             CATALOG, FailureKind, HypothesisId, REMOTE_CHOICE,
             TriageDecisionReason, TriageResult, triage_failure,
         )
+        triage_kwargs = (
+            {"timeout_observations": timeout_observations}
+            if timeout_observations is not None else {}
+        )
         result = triage_failure(
             (FailureKind.TIMEOUT,),
             tuple(HypothesisId(candidate) for candidate in TIMEOUT_CANDIDATES),
             exit_code,
+            **triage_kwargs,
         )
         if not isinstance(result, TriageResult) or result.observed_exit_status != exit_code:
             return None
@@ -369,34 +429,56 @@ def _production_timeout_payload(exit_code: int) -> dict[str, Any] | None:
 
 
 def _write_python_shim(home: Path, bridge_url: str) -> Path:
-    """Install a private wrapper for only the exact fixed triage CLI invocation."""
+    """Install a private wrapper for the fixed timeout triage CLI and safe enum flags."""
     bindir = home / "bin"
     bindir.mkdir(mode=0o700, parents=True, exist_ok=True)
     shim = bindir / "python"
     real_python = sys.executable
+    allowed_observations, contradictory_pairs = _safe_timeout_observation_rules()
     source = f"""#!/usr/bin/env python3
-import json, os, subprocess, sys
+import json, os, sys
 from urllib.request import Request, urlopen
 REAL = {real_python!r}
 URL = os.environ.get("JEVCOMPASS_TRIAGE_BRIDGE_URL", "")
+ALLOWED = {allowed_observations!r}
+CONTRADICTORY = {contradictory_pairs!r}
 ARGS = sys.argv[1:]
 def fallback():
     os.execv(REAL, [REAL, *ARGS])
 expected = ["-m", "jevcompass", "triage", "--exit-code"]
-if len(ARGS) == 12 and ARGS[:4] == expected:
+fixed_tail = ["--kind", "timeout", "--hypothesis", "timeout_contention",
+              "--hypothesis", "timeout_nonterminating", "--json"]
+if len(ARGS) >= 12 and ARGS[:4] == expected:
     try:
         code = int(ARGS[4])
-        if ARGS[5:] == ["--kind", "timeout", "--hypothesis", "timeout_contention",
-                        "--hypothesis", "timeout_nonterminating", "--json"] and code != 0:
-            body = json.dumps({{"observed_exit_status": code, "failure_kind": "timeout",
-                               "hypothesis_ids": ["timeout_contention", "timeout_nonterminating"]}},
-                              separators=(",", ":")).encode()
-            req = Request(URL, data=body, headers={{"Content-Type": "application/json"}}, method="POST")
-            with urlopen(req, timeout=2.0) as response:
-                data = response.read({MAX_TRIAGE_OUTPUT_BYTES + 1})
-            if len(data) <= {MAX_TRIAGE_OUTPUT_BYTES}:
-                sys.stdout.buffer.write(data + (b"\\n" if not data.endswith(b"\\n") else b""))
-                raise SystemExit(0)
+        tail = ARGS[5:]
+        if code == 0 or tail[:len(fixed_tail)] != fixed_tail:
+            fallback()
+        option_tail = tail[len(fixed_tail):]
+        if len(option_tail) % 2:
+            fallback()
+        observations = []
+        for index in range(0, len(option_tail), 2):
+            if option_tail[index] != "--timeout-observation":
+                fallback()
+            value = option_tail[index + 1]
+            if value not in ALLOWED or value in observations:
+                fallback()
+            observations.append(value)
+        observed = set(observations)
+        if any(left in observed and right in observed for left, right in CONTRADICTORY):
+            fallback()
+        body_value = {{"observed_exit_status": code, "failure_kind": "timeout",
+                      "hypothesis_ids": ["timeout_contention", "timeout_nonterminating"]}}
+        if observations:
+            body_value["timeout_observations"] = observations
+        body = json.dumps(body_value, separators=(",", ":")).encode()
+        req = Request(URL, data=body, headers={{"Content-Type": "application/json"}}, method="POST")
+        with urlopen(req, timeout=2.0) as response:
+            data = response.read({MAX_TRIAGE_OUTPUT_BYTES + 1})
+        if len(data) <= {MAX_TRIAGE_OUTPUT_BYTES}:
+            sys.stdout.buffer.write(data + (b"\\n" if not data.endswith(b"\\n") else b""))
+            raise SystemExit(0)
     except SystemExit:
         raise
     except Exception:
@@ -501,12 +583,78 @@ def _strict_json(text: str) -> Any:
     return json.loads(text, object_pairs_hook=unique_pairs)
 
 
-def _triage_command(exit_code: int) -> tuple[str, ...]:
+def _triage_command(
+    exit_code: int, timeout_observations: Iterable[Any] = (),
+) -> tuple[str, ...]:
     if isinstance(exit_code, bool) or not isinstance(exit_code, int) or exit_code == 0:
         raise ValueError("triage requires an observed nonzero focused exit")
+    from jevcompass.triage import (
+        TimeoutObservation, _contradictory_timeout_observations,
+        _normalize_timeout_observations,
+    )
+    if (isinstance(timeout_observations, (str, bytes))
+            or not isinstance(timeout_observations, Iterable)):
+        raise ValueError("timeout observations must be enum values")
+    raw = tuple(timeout_observations)
+    if any(not isinstance(item, TimeoutObservation) for item in raw):
+        raise ValueError("timeout observations must be enum values")
+    if len(set(raw)) != len(raw) or _contradictory_timeout_observations(raw):
+        raise ValueError("timeout observations must be unique and consistent")
+    normalized = _normalize_timeout_observations(raw)
     parts = list(shlex.split(TRIAGE_COMMAND_PREFIX))
     parts[parts.index("1")] = str(exit_code)
+    for observation in normalized:
+        parts.extend(("--timeout-observation", observation.value))
     return tuple(parts)
+
+
+def _is_safe_local_inspection(item: dict[str, Any]) -> bool:
+    """Recognize only simple direct commands that cannot edit or execute code."""
+    argv = common._command_argv(item)
+    if not argv or argv[0] not in {"cat", "sed", "rg", "grep", "head", "tail"}:
+        return False
+    forbidden = {";", "&&", "||", "|", ">", ">>", "<", "<<", "&", "\n", "\r"}
+    shell_markers = (";", "&&", "||", "|", ">", "<", "`", "$")
+    if any(
+        token in forbidden or any(marker in token for marker in shell_markers)
+        for token in argv
+    ):
+        return False
+    command, args = argv[0], argv[1:]
+    if command == "sed":
+        if args and args[0] in {"-n", "--quiet", "--silent"}:
+            args = args[1:]
+        if (
+            not args
+            or re.fullmatch(r"(?:[0-9]+)?(?:,[0-9]+)?p", args[0]) is None
+        ):
+            return False
+    if command in {"rg", "grep"} and any(
+        arg == "--pre" or arg.startswith("--pre=") or arg == "--pre-glob"
+        for arg in args
+    ):
+        return False
+    return True
+
+
+def _is_triage(item: dict[str, Any], observed_exit: int | None) -> bool:
+    if observed_exit is None or observed_exit == 0:
+        return False
+    argv = common._command_argv(item)
+    base = list(_triage_command(observed_exit))
+    if argv is None or argv[:len(base)] != base:
+        return False
+    suffix = argv[len(base):]
+    if not suffix:
+        return True
+    if len(suffix) % 2 or any(
+        suffix[index] != "--timeout-observation"
+        for index in range(0, len(suffix), 2)
+    ):
+        return False
+    return _validated_timeout_observations(
+        [suffix[index + 1] for index in range(0, len(suffix), 2)]
+    ) is not None
 
 
 def _is_focused(item: dict[str, Any]) -> bool:
@@ -516,11 +664,6 @@ def _is_focused(item: dict[str, Any]) -> bool:
 def _is_full(item: dict[str, Any]) -> bool:
     return common._command_argv(item) == shlex.split(REQUIRED_COMMAND)
 
-
-def _is_triage(item: dict[str, Any], observed_exit: int | None) -> bool:
-    if observed_exit is None or observed_exit == 0:
-        return False
-    return common._command_argv(item) == list(_triage_command(observed_exit))
 
 
 def _matches_timeout_error(output: Any) -> bool:
@@ -604,6 +747,9 @@ def _event_receipts(
     first_tool_index: int | None = None
     first_tool_is_focused = False
     post_timeout_tool_count = 0
+    post_timeout_inspection_count = 0
+    pending_inspections: set[str] = set()
+    post_timeout_inspection_invalid = False
     triage_invocations = 0
     triage_invalid = False
     triage_phase_proven = False
@@ -639,8 +785,14 @@ def _event_receipts(
             if tool_event and first_tool_index is None:
                 first_tool_index = index
                 first_tool_is_focused = focused
-            if tool_event and first_focus_exit == 1 and useful_timeout:
+            triage_argv = bool(argv and "jevcompass" in argv and "triage" in argv)
+            if (tool_event and first_focus_exit == 1 and useful_timeout
+                    and not triage_argv):
                 post_timeout_tool_count += 1
+                if identifier and _is_safe_local_inspection(item):
+                    pending_inspections.add(identifier)
+                else:
+                    post_timeout_inspection_invalid = True
             if identifier and focused:
                 if identifier in pending_focused:
                     malformed = True
@@ -654,7 +806,8 @@ def _event_receipts(
                 exact = _is_triage(item, first_focus_exit)
                 eligible = (
                     exact and first_focus_exit == 1 and useful_timeout
-                    and post_timeout_tool_count == 1
+                    and post_timeout_tool_count == post_timeout_inspection_count
+                    and not post_timeout_inspection_invalid
                     and first_focus_index is not None and index > first_focus_index
                 )
                 triage_phase_proven = triage_phase_proven or eligible
@@ -685,6 +838,13 @@ def _event_receipts(
                 code = item.get("exit_code")
                 if isinstance(code, int) and not isinstance(code, bool):
                     full_exits.append(code)
+            if identifier in pending_inspections:
+                pending_inspections.remove(identifier)
+                code = item.get("exit_code")
+                if isinstance(code, int) and not isinstance(code, bool) and code == 0:
+                    post_timeout_inspection_count += 1
+                else:
+                    post_timeout_inspection_invalid = True
             if identifier in pending_triage:
                 eligible, exact = pending_triage.pop(identifier)
                 code = item.get("exit_code")
@@ -1026,7 +1186,10 @@ def run_pair(
         else "keyless_local_fallback_only",
         "remote_advice_status": remote_advice_status,
         "supervisor_bridge_request_count": bridge_requests,
-        "supervisor_bridge_payload_scope": "fixed timeout kind, fixed two hypothesis ids, observed nonzero exit only",
+        "supervisor_bridge_payload_scope": (
+            "fixed timeout kind and two hypothesis ids, observed nonzero exit, "
+            "optional validated timeout observation enums only"
+        ),
         "agent_api_key_exposed": False,
         "agent_network_access": allow_supervisor_triage,
         "external_egress_restriction": "not_enforced" if allow_supervisor_triage else "disabled",
