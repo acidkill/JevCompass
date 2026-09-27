@@ -251,6 +251,7 @@ def _event_receipts(
     rank_completions: list[tuple[str, int, float, int | None]] = []
     source_edit_starts: dict[str, tuple[int, float]] = {}
     source_edit_completions: list[tuple[int, float]] = []
+    first_command_start_index: int | None = None
     first_observed_failure_ms: float | None = None
     first_useful_error_ms: float | None = None
     first_useful_candidate: str | None = None
@@ -289,6 +290,9 @@ def _event_receipts(
         identifier = _event_id(item)
         if identifier is None:
             continue
+        if (first_command_start_index is None and event_type == "item.started"
+                and item.get("type") == "command_execution"):
+            first_command_start_index = index
         command_kind = _test_kind(item)
         is_rank = engine._rank_invocation(item)
         is_edit = _source_edit_event(item)
@@ -431,6 +435,8 @@ def _event_receipts(
         "focused_test_exits": focus_results,
         "focused_invocation_count": len(completed_focused_ids),
         "focused_candidate_order": focused_order,
+        "first_command_start_ms": elapsed(first_command_start_index) if first_command_start_index is not None else None,
+        "first_command_start_semantics": "first observed started command event; not semantic usefulness or coverage of all tool types",
         "first_focused_candidate": selected,
         "first_observed_focused_failure_ms": first_observed_failure_ms,
         "first_useful_error_ms": first_useful_error_ms,

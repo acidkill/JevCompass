@@ -551,5 +551,22 @@ class CrossLayerRunnerTests(unittest.TestCase):
         self.assertIn("--allow-openrouter-key", output.getvalue())
 
 
+class FirstObservedCommandTests(unittest.TestCase):
+    def test_only_started_commands_count_not_reasoning_or_completion(self):
+        rows = [json.dumps({"type": "item.started", "item": {"id": "r", "type": "reasoning", "text": "private"}}),
+                event("item.completed", "done", "private", exit_code=0),
+                event("item.started", "c", "private"),
+                event("item.started", "c", "private")]
+        result = runner._event_receipts(rows, [10.1, 10.2, 10.3, 10.4], 10.0)
+        self.assertEqual(result["first_command_start_ms"], 300.0)
+        self.assertNotIn("private", json.dumps(result))
+
+    def test_missing_invalid_first_timestamp_is_not_replaced_by_later_command(self):
+        rows = [event("item.started", "first", "read"), event("item.started", "later", "read")]
+        for times in ([], [True, 11.0], [float("nan"), 11.0], [9.0, 11.0]):
+            with self.subTest(times=times):
+                self.assertIsNone(runner._event_receipts(rows, times, 10.0)["first_command_start_ms"])
+
+
 if __name__ == "__main__":
     unittest.main()
