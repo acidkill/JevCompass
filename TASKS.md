@@ -459,3 +459,12 @@ Important limits: the Codex event has no reliable task objective; the article th
 - [x] Record a prospective independent validation gate in PILOT.md without changing historical scores.
 - [ ] Implement and validate verified contract-evidence metadata only where it leaves a real unresolved choice; bypass remote selection when local evidence resolves it.
 - [ ] Freeze a new paired-task rubric and independent checks before running; native Desktop/CLI and overall acceptance remain open.
+
+
+## VCR-258-B — independent retry contract gate
+
+- [x] Add a prospective supervisor-side retry contract verifier without editing the historical fixture.
+- [x] Verify correct implementation acceptance and rejection of upper-bound/exhaustion mutants, missing input and timeout.
+- [x] Run 447 Python tests and refresh graphify (1772 nodes, 3455 edges).
+- [ ] Deliver through green hosted CI.
+- [ ] Integrate this quality gate into a future frozen paired task before collecting efficacy evidence. Standalone validation is not a new A/B result.
