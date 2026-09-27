@@ -12,6 +12,10 @@ Overall acceptance remains **not established**. Source delivery, transport and g
 
 Agent billing remains unknown in these comparisons; provider-reported Jev cost, when present, is only one cost component. Native fresh Desktop delivery and the broader cross-host acceptance gates remain open. The local retry pair is complete and retained, including its failed baseline quality gate. The dependency-guidance runner produced the failed VCR-265-A comparison below; the post-change cross-layer runner remains under preparation. No new pair should be inferred from fixture tests or timing metadata.
 
+### VCR-268-B bounded fallback diagnostics (2026-09-27)
+
+Test-order API and CLI now expose an optional allowlisted decision_reason. It distinguishes no choice needed, local resolution, malformed response, unknown selection, insufficient confidence, provider error and accepted selection. Unknown manually supplied text is not rendered. Required validation, remote eligibility and confidence thresholds are unchanged. This enables prospective diagnosis without retaining backend prose; it cannot recover the missing reason for VCR-268-A or convert a fallback into an accepted decision. No new live outcome or benefit follows from offline diagnostics.
+
 ### VCR-269-A first observed command timing (2026-09-27)
 
 The cross-layer runner now records first_command_start_ms for the first identified started command event. It ignores reasoning and completed-only items and preserves null when the first timestamp is missing, invalid or before the run start. It does not substitute a later command. This measures observed command initiation, not semantic usefulness, atomic execution time or all tool types. Nineteen focused tests pass; historical results remain unchanged. Live timing compatibility and benefit are not established by this instrumentation.

@@ -233,8 +233,16 @@ def doctor(*, test_jev: bool = False) -> dict[str, Any]:
 
 
 def _display_test_order(result: Any, as_json: bool) -> int:
+    from .test_order import DecisionReason
+
+    reason = getattr(result, "decision_reason", None)
+    try:
+        reason_value = DecisionReason(reason).value
+    except (TypeError, ValueError):
+        reason_value = None
     payload = {
         "status": result.status,
+        "decision_reason": reason_value,
         "ordered": [{
             "id": item.candidate_id, "kind": item.kind.value,
             "coverage": item.coverage.value, "runtime": item.runtime.value,
@@ -252,7 +260,7 @@ def _display_test_order(result: Any, as_json: bool) -> int:
     if as_json:
         print(json.dumps(payload, ensure_ascii=False))
     else:
-        print(f"Focused checks in suggested order ({result.status}; none executed):")
+        print(f"Focused checks in suggested order ({result.status}; reason={reason_value or 'unknown'}; none executed):")
         for index, item in enumerate(result.ordered_candidates, start=1):
             print(f"{index}. {item.command}")
         print("Required repository checks (always run):")

@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-268-B — bounded test-order decision diagnostics
+
+TestOrderResult and CLI expose optional allowlisted decision_reason values distinguishing local resolution, unnecessary choice, malformed/unknown response, insufficient confidence, provider error and accepted choice. Thresholds, eligibility, ordering, required checks and usage behavior stay intact; no backend prose or private exception text is rendered. Older positional construction remains compatible. The reason missing in VCR-268-A cannot be reconstructed retrospectively. Source diagnostics do not establish efficacy.
+
 ### VCR-269-A — observed first-command timing
 
 Cross-layer receipts now retain first_command_start_ms from the first identified started command event only. Reasoning/completed-only events do not count; missing or invalid first timestamps remain null rather than borrowing a later command. This is an observation proxy, not semantic usefulness or proof of all tool coverage. Nineteen focused tests pass. Historical receipts are not filled retrospectively; future matched runs can measure this scoped timing.
