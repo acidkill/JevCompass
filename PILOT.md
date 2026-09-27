@@ -1,3 +1,7 @@
+## VCR296 — Local-only timeout triage comparison
+
+Added a prospective nonbinding timeout runner with identical complete diagnostics and mandatory focused/full validation in both arms. Thirteen targeted tests pass; parent corrected literal newline escapes in shared instructions. The agent receives no advisor API key and network access is disabled: this profile measures local fallback only, not remote Jev advice. No live pair ran. A trusted remote route remains a separate prerequisite.
+
 ## VCR295 — Actual pair token-cap wiring
 
 The shared pretask/test-order engine and target-coverage live collector now accept an optional per-arm token cap and report it without altering defaults. Eight targeted tests pass. A parent split-write subprocess check confirmed one complete JSON event and token_budget_exceeded after correcting premature buffer flushing. These are execution-control checks; no agent comparison ran. Limits are observed after completed-turn usage, and missing usage still requires a runtime stop.
