@@ -235,6 +235,7 @@ def doctor(*, test_jev: bool = False) -> dict[str, Any]:
 def _display_test_order(result: Any, as_json: bool) -> int:
     from .test_order import ChangeSignal, DecisionReason
 
+    cache_hit = getattr(result, "cache_hit", False) is True
     reason = getattr(result, "decision_reason", None)
     try:
         reason_value = DecisionReason(reason).value
@@ -242,7 +243,7 @@ def _display_test_order(result: Any, as_json: bool) -> int:
         reason_value = None
     payload = {
         "status": result.status,
-        "cache_hit": getattr(result, "cache_hit", False) is True,
+        "cache_hit": cache_hit,
         "decision_reason": reason_value,
         "ordered": [{
             "id": item.candidate_id, "kind": item.kind.value,
@@ -264,7 +265,8 @@ def _display_test_order(result: Any, as_json: bool) -> int:
     if as_json:
         print(json.dumps(payload, ensure_ascii=False))
     else:
-        print(f"Focused checks in suggested order ({result.status}; reason={reason_value or 'unknown'}; none executed):")
+        cache_note = "; cached decision; no new API call" if cache_hit else ""
+        print(f"Focused checks in suggested order ({result.status}; reason={reason_value or 'unknown'}; none executed{cache_note}):")
         for index, item in enumerate(result.ordered_candidates, start=1):
             print(f"{index}. {item.command}")
         print("Required repository checks (always run):")
@@ -490,8 +492,9 @@ def main(argv: list[str] | None = None) -> int:
             args.kind, args.signal, resolved_strategy=args.resolved_strategy,
             contract_evidence=args.contract_evidence,
         )
+        cache_hit = getattr(result, "cache_hit", False) is True
         payload = {"status": result.status,
-                   "cache_hit": getattr(result, "cache_hit", False) is True,
+                   "cache_hit": cache_hit,
                    "strategies": [{"id": item.id.value, "rationale": item.rationale}
                                   for item in result.recommendations],
                    "usage": None if result.usage is None else {
@@ -502,7 +505,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.json:
             print(json.dumps(payload))
         else:
-            print(f"Suggested coding strategy ({result.status}):")
+            cache_note = "; cached decision; no new API call" if cache_hit else ""
+            print(f"Suggested coding strategy ({result.status}{cache_note}):")
             for item in result.recommendations:
                 print(f"- {item.id.value}: {item.rationale}")
             if not result.recommendations:

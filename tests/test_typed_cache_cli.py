@@ -96,6 +96,69 @@ class TypedCacheCliTests(unittest.TestCase):
             self.assertIsNone(result["usage"])
             self.assertFalse(result["executed"])
 
+    def test_strategy_text_identifies_cache_hit_and_preserves_remote_heading(self):
+        cached = StrategyResult(
+            recommendations=(StrategyRecommendation(StrategyId.REPRODUCE_FAILURE, "reproduce"),),
+            status="remote-choice",
+            cache_hit=True,
+        )
+        output = io.StringIO()
+        with mock.patch("jevcompass.strategy.choose_strategies", return_value=cached), \
+             contextlib.redirect_stdout(output):
+            self.assertEqual(main(["strategy", "choose", "--kind", "coding", "--signal",
+                                   "existing_symbol"]), 0)
+        self.assertEqual(
+            output.getvalue().splitlines()[0],
+            "Suggested coding strategy (remote-choice; cached decision; no new API call):",
+        )
+
+        legacy = SimpleNamespace(
+            recommendations=cached.recommendations, status="remote-choice", usage=None
+        )
+        output = io.StringIO()
+        with mock.patch("jevcompass.strategy.choose_strategies", return_value=legacy), \
+             contextlib.redirect_stdout(output):
+            self.assertEqual(main(["strategy", "choose", "--kind", "coding", "--signal",
+                                   "existing_symbol"]), 0)
+        self.assertEqual(
+            output.getvalue().splitlines()[0],
+            "Suggested coding strategy (remote-choice):",
+        )
+
+    def test_test_order_text_identifies_cache_hit_and_preserves_remote_heading(self):
+        candidate = TestCandidate(
+            TestKind.UNIT, "python -m unittest tests.test_one", "unit", 0.5,
+            Coverage.DIRECT, RuntimeBucket.FAST,
+        )
+        required = RequiredTest("python -m unittest discover -s tests", "full")
+        cached = TestOrderResult(
+            ordered_candidates=(candidate,), required=(required,),
+            status="remote-choice", decision_reason=DecisionReason.ACCEPTED, cache_hit=True,
+        )
+        legacy = SimpleNamespace(
+            ordered_candidates=(candidate,), required=(required,), status="remote-choice",
+            decision_reason=DecisionReason.ACCEPTED, usage=None,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "input.json"
+            source.write_text(json.dumps({
+                "surface": "api",
+                "candidates": [{"id": "unit", "kind": "unit",
+                                "command": "python -m unittest tests.test_one", "relevance": 0.5}],
+                "required": [{"id": "full", "command": "python -m unittest discover -s tests"}],
+            }))
+            for result, expected in (
+                (cached, "Focused checks in suggested order (remote-choice; reason=accepted; "
+                         "none executed; cached decision; no new API call):"),
+                (legacy, "Focused checks in suggested order (remote-choice; reason=accepted; "
+                         "none executed):"),
+            ):
+                output = io.StringIO()
+                with mock.patch("jevcompass.test_order.rank_tests", return_value=result), \
+                     contextlib.redirect_stdout(output):
+                    self.assertEqual(main(["tests", "rank", "--input", str(source)]), 0)
+                self.assertEqual(output.getvalue().splitlines()[0], expected)
+
     def test_triage_cache_hit_preserves_exit_status_and_marks_cached_preferred_action(self):
         steps = (
             DiagnosticStep(HypothesisId.IMPORT_PATH_CHANGED, "path changed", "inspect import"),
