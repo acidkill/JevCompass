@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-257-E — supervisor-prepared pretask comparison
+
+Added a separate pilot preparing safe strategy advice before agent launch, without an agent-side selector command. Only validated IDs render fixed local guidance. Both arms use the same acknowledgment instruction and keep agent network/key access disabled; provider key is confined to opt-in supervisor preparation. Total completion and first-action/check times include preparation. Timeout or malformed output skips advice. Existing independent frozen validation is retained. Five offline tests cover privacy, placement, timing, baseline, failure paths and accurate supervisor-only CLI help. This harness does not establish native Desktop hook delivery or efficacy; live confirmation remains pending.
+
 ### VCR-257-D — independent strategy validation
 
 Strategy runner now checks immutable fixture files and reruns unit, contract and required suites outside the observed agent. Tampered fixtures skip trusted re-execution and fail the pair; unchanged buggy code cannot pass through an agent success claim. Correct repair passes all frozen checks. Three new offline tests cover these cases. This is deterministic correctness evidence, not blind qualitative review; pre-edit ordering and real-host verification remain pending.
