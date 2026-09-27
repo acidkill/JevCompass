@@ -335,7 +335,7 @@ def main(argv: list[str] | None = None) -> int:
                                choices=tuple(item.value for item in AssertionObservation),
                                help="Allowlisted local assertion-contract observation; may be repeated")
     triage_parser.add_argument("--json", action="store_true", help="Print machine-readable result")
-    from .strategy import StrategyId
+    from .strategy import ContractEvidence, StrategyId
     strategy_parser = sub.add_parser("strategy", help="Choose a coding strategy from allowlisted signals")
     strategy_sub = strategy_parser.add_subparsers(dest="strategy_action", required=True)
     strategy_choose = strategy_sub.add_parser("choose", help="Get up to two reviewed pretask strategies")
@@ -345,6 +345,8 @@ def main(argv: list[str] | None = None) -> int:
                                           "unclear_contract", "regression_risk", "data_flow"))
     strategy_choose.add_argument("--resolved-strategy", choices=tuple(item.value for item in StrategyId),
                                  help="Use a reviewed strategy selected from verified local evidence")
+    strategy_choose.add_argument("--contract-evidence", choices=tuple(item.value for item in ContractEvidence),
+                                 help="Allowlisted local contract evidence; never provide prompt text")
     strategy_choose.add_argument("--json", action="store_true", help="Print machine-readable result")
     tests_parser = sub.add_parser("tests", help="Order focused tests after a code change without running them")
     tests_sub = tests_parser.add_subparsers(dest="tests_action", required=True)
@@ -426,7 +428,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "strategy":
         from .strategy import choose_strategies
-        result = choose_strategies(args.kind, args.signal, resolved_strategy=args.resolved_strategy)
+        result = choose_strategies(
+            args.kind, args.signal, resolved_strategy=args.resolved_strategy,
+            contract_evidence=args.contract_evidence,
+        )
         payload = {"status": result.status,
                    "strategies": [{"id": item.id.value, "rationale": item.rationale}
                                   for item in result.recommendations],

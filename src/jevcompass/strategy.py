@@ -32,6 +32,16 @@ class TaskSignal(str, Enum):
     DATA_FLOW = "data_flow"
 
 
+class ContractEvidence(str, Enum):
+    """Allowlisted local evidence about a requested behavior contract."""
+
+    CONSISTENT = "consistent"
+    CONFLICTING = "conflicting"
+    ABSENT = "absent"
+    PARTIAL = "partial"
+    UNKNOWN = "unknown"
+
+
 class StrategyId(str, Enum):
     REPRODUCE_FAILURE = "reproduce_failure"
     INSPECT_DEPENDENCY_OR_SYMBOL_USE = "inspect_dependency_or_symbol_use"
@@ -148,6 +158,7 @@ def _remote_choice(
     kind: TaskKind,
     signals: frozenset[TaskSignal],
     client: DecisionsClient,
+    contract_evidence: ContractEvidence | None = None,
 ) -> StrategyId | None:
     if len(ranked) < 2 or ranked[0][1] - ranked[1][1] > _SIMILAR_EVIDENCE_GAP:
         return None
@@ -160,6 +171,8 @@ def _remote_choice(
         "task_kind": kind.value,
         "signals": sorted(signal.value for signal in signals),
     }
+    if contract_evidence is ContractEvidence.PARTIAL:
+        state["contract_evidence"] = contract_evidence.value
     questions = {
         "strategy": {
             "type": "choice",
@@ -221,16 +234,25 @@ def choose_strategies(
     *,
     client: DecisionsClient | None = None,
     resolved_strategy: StrategyId | str | None = None,
+    contract_evidence: ContractEvidence | str | None = None,
 ) -> StrategyResult:
     """Return reviewed strategies from allowlisted metadata.
 
-    An explicit resolved strategy is a caller-supplied decision derived from
-    verified local evidence. It is never inferred from a prompt and never
-    triggers a client construction, API request, or usage charge. It is returned
-    only when it is a known strategy eligible for the normalized local inputs.
-    With no explicit resolution, ambiguous candidates retain the metered remote
-    choice path and unresolved cases retain the stable local ranking.
+    Explicit resolutions and contract evidence must come from verified local
+    observations, never prompt inference. Contract evidence changes strategy
+    selection only for coding tasks with exactly existing_symbol and
+    behavior_change signals. A local resolution never constructs a client or
+    sends a request. Partial evidence is only forwarded as its enum ID when the
+    existing ambiguous remote choice path runs; unknown or omitted evidence
+    leaves legacy behavior unchanged.
     """
+    evidence_id = None
+    if contract_evidence is not None:
+        try:
+            evidence_id = ContractEvidence(contract_evidence)
+        except (TypeError, ValueError):
+            return StrategyResult((), "no-remote-choice")
+
     resolved_id = None
     if resolved_strategy is not None:
         try:
@@ -246,6 +268,21 @@ def choose_strategies(
     if not ranked:
         return StrategyResult((), "no-remote-choice")
 
+    contract_scope = (
+        kind is TaskKind.CODING
+        and signal_set == frozenset({TaskSignal.EXISTING_SYMBOL, TaskSignal.BEHAVIOR_CHANGE})
+    )
+    contract_resolution = None
+    if contract_scope and evidence_id in {ContractEvidence.CONSISTENT}:
+        contract_resolution = StrategyId.INSPECT_DEPENDENCY_OR_SYMBOL_USE
+    elif contract_scope and evidence_id in {ContractEvidence.CONFLICTING, ContractEvidence.ABSENT}:
+        contract_resolution = StrategyId.DEFINE_CONTRACT_THEN_IMPLEMENT
+
+    if contract_resolution is not None:
+        if resolved_id is not None and resolved_id is not contract_resolution:
+            return StrategyResult((), "no-remote-choice")
+        resolved_id = contract_resolution
+
     if resolved_id is not None:
         for strategy, _score in ranked:
             if strategy.id == resolved_id:
@@ -260,7 +297,10 @@ def choose_strategies(
     if len(ranked) >= 2 and ranked[0][1] - ranked[1][1] <= _SIMILAR_EVIDENCE_GAP:
         decision_client = client if client is not None else DecisionsClient()
         metered = _MeteredAnswers(decision_client) if isinstance(decision_client, _USAGE_CLIENT_TYPE) else None
-        selected = _remote_choice(ranked, kind, signal_set, metered or decision_client)
+        selected = _remote_choice(
+            ranked, kind, signal_set, metered or decision_client,
+            evidence_id if contract_scope and evidence_id is ContractEvidence.PARTIAL else None,
+        )
         usage = metered.usage if metered is not None else None
         if selected is not None:
             ranked.sort(key=lambda item: (item[0].id != selected, -item[1], item[0].priority))
