@@ -898,3 +898,7 @@ Important limits: the Codex event has no reliable task objective; the article th
 - [x] Validate exact archived committed scope: all 520 tests passed; shared-worktree graph refreshed (2097 nodes, 4112 edges).
 - [ ] Merge after green hosted CI.
 - [ ] Run one prospective pair, retain all outcomes and distinguish local checklist evidence from remote Jev efficacy.
+
+## VCR342/VCR344 — Opt-in typed cache and CLI provenance
+
+Implemented a bounded private cross-process cache for validated strategy, test-order and triage choices, default off. Sanitized request/model/policy/threshold invalidation, hit revalidation, local-first selection, silent IO fallback and no usage replay preserve existing contracts. CLI distinguishes cached preferred triage guidance from a fresh remote choice. The final integrated documented suite passed 726 tests in 30.055 seconds, including 11 cache tests and 3 CLI presentation tests. Graphify was rebuilt (2,962 nodes, 5,957 edges, 185 communities). No paid call, release, native-host acceptance or coding-time benefit is claimed.
