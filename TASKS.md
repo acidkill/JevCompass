@@ -1,3 +1,8 @@
+## VCR272-A — Diagnose unmatched test invocations
+
+- Added bounded, path-free counters for completed declared and unmatched unittest/pytest invocations, combined/unknown command shapes, exit-status classes, and duplicate completion IDs. These diagnostics grant no focused/full validation credit.
+- Valid rank receipts retain only allowlisted decision reasons; invalid receipts and unknown text omit the field. Twenty-three focused tests pass. Historical trials are not reconstructed; no new efficacy claim.
+
 ## VCR271-B — Fresh completed local triage pair
 
 - Run `3e2bb8664e7b43c59912be2d0a7636d3`: baseline first, treatment second. Both protocol gates pass: focused failure then focused success, required full success, immutable fixtures preserved, and independent frozen focused/full checks pass (5 each).

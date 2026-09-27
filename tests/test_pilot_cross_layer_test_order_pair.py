@@ -50,8 +50,9 @@ def native_file_change(status="completed", changes=None, identifier="file-change
     })
 
 
-def rank_payload(order=("integration", "unit"), status="remote-choice"):
-    return json.dumps({
+def rank_payload(order=("integration", "unit"), status="remote-choice",
+                 decision_reason=None):
+    value = {
         "status": status,
         "ordered": [
             {"id": candidate, "kind": candidate,
@@ -60,7 +61,10 @@ def rank_payload(order=("integration", "unit"), status="remote-choice"):
         ],
         "required": [{"id": "full", "command": runner.REQUIRED_COMMAND}],
         "executed": False,
-    })
+    }
+    if decision_reason is not None:
+        value["decision_reason"] = decision_reason
+    return json.dumps(value)
 
 
 def arm_events(prompt: str, *, edit_before_rank=True, edit_after_rank=False,
@@ -139,6 +143,20 @@ class CrossLayerRunnerTests(unittest.TestCase):
         valid = runner._validated_choice(rank_payload())
         self.assertEqual(valid["status"], "remote-choice")
         self.assertEqual(valid["candidate_ids"], ["integration", "unit"])
+        reasoned = runner._validated_choice(
+            rank_payload(decision_reason="accepted")
+        )
+        self.assertEqual(reasoned["decision_reason"], "accepted")
+        unknown_reason_text = "private-provider-detail"
+        unknown = runner._validated_choice(
+            rank_payload(decision_reason=unknown_reason_text)
+        )
+        self.assertNotIn("decision_reason", unknown)
+        self.assertNotIn(unknown_reason_text, json.dumps(unknown))
+        invalid_with_reason = json.loads(rank_payload(decision_reason="accepted"))
+        invalid_with_reason["ordered"][1]["id"] = "integration"
+        unscored = runner._validated_choice(json.dumps(invalid_with_reason))
+        self.assertEqual(unscored, {"status": "unscored", "candidate_ids": []})
         abstention = runner._validated_choice(
             rank_payload(("unit", "integration"), status="no-remote-choice")
         )
@@ -159,6 +177,11 @@ class CrossLayerRunnerTests(unittest.TestCase):
         self.assertEqual(result["first_useful_error_event_count"], 1)
         self.assertEqual(result["focused_invocation_count"], 1)
         self.assertEqual(result["required_suite_exit"], 0)
+        self.assertEqual(result["completed_declared_test_invocation_count"], 2)
+        self.assertEqual(result["completed_declared_test_invocation_kind_counts"], {
+            "unit": 0, "integration": 1, "required": 1,
+        })
+        self.assertEqual(result["unmatched_test_invocation_count"], 0)
         self.assertEqual(result["rank_phase_order_status"], "verified_order")
         self.assertEqual(result["choice_follow_status"], "followed")
         self.assertNotIn("FAIL:", json.dumps(result))
@@ -167,6 +190,99 @@ class CrossLayerRunnerTests(unittest.TestCase):
         unit_result = runner._event_receipts(unit_lines, unit_times, unit_times[0])
         self.assertEqual(unit_result["first_useful_error_candidate"], "unit")
         self.assertEqual(unit_result["first_useful_error_event_count"], 1)
+
+    def test_unmatched_test_invocations_are_counted_without_gate_credit(self):
+        rows = [
+            event(
+                "item.completed", "alias-unittest",
+                "python -m unittest tests.test_private_case",
+                exit_code=23, aggregated_output="NO_RAW_OUTPUT",
+            ),
+            event(
+                "item.completed", "alias-pytest", "pytest tests/test_private_case",
+                exit_code=0, aggregated_output="NO_RAW_OUTPUT",
+            ),
+            event(
+                "item.completed", "combined",
+                "python -m unittest tests.test_private_case && pytest tests/test_private_case",
+                exit_code=2, aggregated_output="NO_RAW_OUTPUT",
+            ),
+            event(
+                "item.completed", "broken-runner",
+                "python -m unittest 'unterminated",
+                aggregated_output="NO_RAW_OUTPUT",
+            ),
+            event(
+                "item.completed", "ordinary", "python build.py",
+                exit_code=9, aggregated_output="NO_RAW_OUTPUT",
+            ),
+        ]
+        start = time.monotonic()
+        result = runner._event_receipts(
+            rows, [start + index / 1000 for index in range(len(rows))], start
+        )
+        self.assertEqual(result["unmatched_test_invocation_count"], 4)
+        self.assertEqual(result["unmatched_test_invocation_kind_counts"], {
+            "unittest": 1, "pytest": 1, "combined": 1, "unknown": 1,
+        })
+        self.assertEqual(result["unmatched_test_invocation_exit_status_counts"], {
+            "zero": 1, "nonzero": 2, "unavailable": 1,
+        })
+        self.assertEqual(result["focused_invocation_count"], 0)
+        self.assertFalse(result["required_suite_invocation_observed"])
+        serialized = json.dumps(result)
+        for private_value in (
+            "tests.test_private_case", "NO_RAW_OUTPUT", "python -m unittest",
+            "pytest tests", "unterminated",
+        ):
+            self.assertNotIn(private_value, serialized)
+        self.assertNotIn('"exit_code": 23', serialized)
+
+    def test_unmatched_test_command_duplicate_id_counts_once(self):
+        command = "pytest tests/test_private_case"
+        rows = [
+            event("item.completed", "duplicate-test-id", command, exit_code=1),
+            event("item.completed", "duplicate-test-id", command, exit_code=1),
+        ]
+        start = time.monotonic()
+        result = runner._event_receipts(
+            rows, [start, start + .001], start
+        )
+        self.assertEqual(result["unmatched_test_invocation_count"], 1)
+        self.assertEqual(result["unmatched_test_invocation_kind_counts"]["pytest"], 1)
+        self.assertEqual(result["test_invocation_duplicate_completion_count"], 1)
+        self.assertEqual(result["unmatched_test_invocation_exit_status_counts"]["nonzero"], 1)
+
+    def test_versioned_pytest_executable_alias_is_counted(self):
+        row = event(
+            "item.completed", "versioned-pytest",
+            "pytest-3.14 tests/test_private_case", exit_code=0,
+        )
+        start = time.monotonic()
+        result = runner._event_receipts([row], [start], start)
+        self.assertEqual(result["unmatched_test_invocation_count"], 1)
+        self.assertEqual(result["unmatched_test_invocation_kind_counts"]["pytest"], 1)
+        self.assertEqual(result["unmatched_test_invocation_exit_status_counts"]["zero"], 1)
+        self.assertEqual(result["focused_invocation_count"], 0)
+        self.assertFalse(result["required_suite_invocation_observed"])
+
+    def test_canonical_commands_are_counted_as_declared_not_unmatched(self):
+        rows = [
+            event("item.completed", "canonical-unit", runner.UNIT_COMMAND, exit_code=0),
+            event("item.completed", "canonical-integration", runner.INTEGRATION_COMMAND, exit_code=1),
+            event("item.completed", "canonical-full", runner.REQUIRED_COMMAND, exit_code=0),
+        ]
+        start = time.monotonic()
+        result = runner._event_receipts(
+            rows, [start + index / 1000 for index in range(len(rows))], start
+        )
+        self.assertEqual(result["completed_declared_test_invocation_count"], 3)
+        self.assertEqual(result["completed_declared_test_invocation_kind_counts"], {
+            "unit": 1, "integration": 1, "required": 1,
+        })
+        self.assertEqual(result["unmatched_test_invocation_count"], 0)
+        self.assertEqual(result["focused_invocation_count"], 0)
+        self.assertEqual(result["required_suite_invocation_observed"], False)
 
     def test_unrelated_error_and_unmatched_completion_are_not_useful(self):
         lines, times, _ = arm_events(
