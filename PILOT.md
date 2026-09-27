@@ -1670,3 +1670,7 @@ No retry or historical rescore. This is a local-guidance cohort, not remote Jev 
 ## VCR375 — Preserve partial pilot evidence on failure
 
 The prospective event collector now retains bounded events by default after timeout, token-budget and output-limit failures; callers may explicitly opt out. The shared arm runner parses retained usage and first-action evidence while preserving failed status, including a collector failure paired with process exit zero. Missing usage remains unknown. Tests use synthetic subprocesses and injected events only. The previous full suite passed 758 tests before the final two focused cases; the final focused gate is recorded with the PR. No historical trial is rerun, reconstructed or rescored, and this is measurement reliability rather than efficacy evidence.
+
+## VCR377 — Synthetic ranked-triage smoke: measurement error
+
+One synthetic timeout-ranking invocation was attempted using stored credentials and fixed enum metadata only. The receipt serializer failed after the triage function returned: it referenced `usage` instead of `TriageResult.decision_usage`. No response, ranking, latency or usage receipt survived; actual acceptance, provider cost and API call count are unknown. The private receipt records a measurement error, not zero usage or successful integration. No retry, reconstruction or efficacy claim. Future runners must validate their receipt serializer offline before invoking the provider.
