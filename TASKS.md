@@ -568,5 +568,15 @@ Important limits: the Codex event has no reliable task objective; the article th
 - [x] Send partial facts only for existing timeout ambiguity; retain other failure kinds and no-fact behavior.
 - [x] Add repeatable CLI options and focused verification (35 tests, 31 subtests through pytest).
 - [x] Parent combined-tree 519 tests pass; graph refreshed (2071 nodes, 4061 edges); keyless CLI smoke retains failed exit 1 and local wait-condition step.
-- [ ] Merge after green hosted CI; dependency/cross-layer runners remain outside this commit.
+- [x] Merge after green hosted CI (PR #187, 38 s); dependency/cross-layer runners remain outside this commit.
 - [ ] Evaluate task outcomes before claiming better diagnosis or faster completion.
+
+
+## VCR-262-B — frozen dependency strategy comparison runner
+
+- [x] Prepare randomized equal-evidence local-checklist/baseline arms with mandatory focused/full checks and separate ten-check supervisor gate.
+- [x] Require exact reviewed contract/dependency hashes; reject appended contradictions that preserve text markers.
+- [x] Verify 14 focused runner tests covering strict preparation, privacy, quality hashes, acknowledgment/order and withheld timing.
+- [x] Validate exact archived committed scope: all 520 tests passed; shared-worktree graph refreshed (2097 nodes, 4112 edges).
+- [ ] Merge after green hosted CI.
+- [ ] Run one prospective pair, retain all outcomes and distinguish local checklist evidence from remote Jev efficacy.
