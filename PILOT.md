@@ -1680,3 +1680,7 @@ One synthetic timeout-ranking invocation was attempted using stored credentials 
 Built wheel and sdist from immutable source `7cf9cab04c832654f030ddb440df17069b3a10cc`, still declaring version 0.1.22. Wheel SHA-256: `873849ac9a1556b17c0bc744aadd34065bd191f758fc740ccb9db21fa1201a28`; sdist: `b72dde1e9a5aecfde60a90fb7c2712f6374e9d4f50cc20d4a90fdce11b822f93`. Manifest checks found required CLI, triage, typed-cache, catalog and bundled-skill files.
 
 The wheel installed into a private venv using no-index/no-deps. Installed CLI exposed `--rank-hypotheses`; malformed input exited 2; allowlisted local-resolution smoke returned nonexecuting guidance without a key. Installer dry-run preserved the two advisory hooks and synthetic smem entries while removing the known daily-command Jev gate; the dry-run changed no files. No global installation, real-host delivery, pipx installation, publication, new release or efficacy is proved by these checks. Private receipts: `/tmp/jevcompass-vcr376`.
+
+### VCR379 — Hook strategy transport integration
+
+Three offline tests exercise `evaluate()` through the real strategy selector with a synthetic transport: an accepted choice issues one request containing only allowlisted signals, timeout and low confidence produce local fallback without blocking, and a single-signal local decision issues no request. Focused suite passes 3/3. This validates the integration path and fallback contract, not live service availability or coding efficacy.
