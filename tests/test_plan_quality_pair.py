@@ -75,6 +75,16 @@ class PlanPairTests(unittest.TestCase):
             with self.assertRaises(FileExistsError):
                 self.execute(root)
 
+    def test_preregistered_digest_mismatch_stops_before_agent_or_output(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "output"
+            with mock.patch.object(runner, "run_arm") as arm:
+                with self.assertRaisesRegex(ValueError, "digest mismatch"):
+                    runner.run_pair(output_dir=output, model="gpt-6-luna",
+                                    expected_fixture_sha256="0" * 64)
+            arm.assert_not_called()
+            self.assertFalse(output.exists())
+
     def test_cli_process_uses_read_only_and_redacts_stream(self):
         events = [
             json.dumps({"type": "item.completed", "item": {
