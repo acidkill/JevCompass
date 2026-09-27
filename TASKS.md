@@ -1,3 +1,13 @@
+## VCR286 — Align prospective prompt with nonbinding advice
+
+- The enriched test-order prompt now explicitly permits either declared focused candidate whether an ordering is returned or not. The separate default cross-layer prompt and all historical receipts remain unchanged. Required ranking timing and mandatory validation stay intact.
+- Targeted verification: 12 tests and Python compilation passed. No live comparison or benefit claim.
+
+## VCR284–285 — Explicit coding workflow and safe skill refresh (in progress)
+
+- Audit found no bundled phase-aware routing across strategy choose, tests rank and triage; only two older local skills are installed, and stale content causes the current installer to refuse the whole operation.
+- Implement one optional English coding-workflow skill using verified CLI contracts and safe metadata. Implement a separate explicit refresh restricted to known historical bundle contents, preserving arbitrary user edits and creating backups. Commands remain advisory; mandatory checks remain required. No native delivery or benefit claim.
+
 ## VCR281 — Local source-wheel installation verified
 
 - Installed a clean committed source wheel from 6e44df7 into the existing pipx environment; strategy choose, tests rank and triage help all pass. The source wheel remains version 0.1.22 but is not the published 0.1.22 artifact. Wheel SHA-256: d8c45a3ef73c606bb7333f7a51924f583a03c593a6784bcd9c9a88c08ceb77d4.

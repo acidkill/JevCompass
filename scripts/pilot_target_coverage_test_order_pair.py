@@ -29,7 +29,18 @@ BASELINE_PROMPT = (
     "services unless a JevCompass ranking instruction explicitly authorizes "
     "that rank request. Report command exit statuses without source text."
 )
-TARGET_RANKING = cross_layer.TREATMENT_RANKING
+TARGET_RANKING = (
+    "\n\nAfter a meaningful edit to checkout/service.py has completed, and "
+    "before starting any focused candidate, request an advisory order using "
+    "the same local test-options.json by running exactly:\n"
+    f"{cross_layer.RANK_COMMAND}\n"
+    "The rank command does not execute tests. Its recommendation is optional "
+    "and nonbinding: use your judgment to choose either declared focused "
+    "candidate, whether the returned order is valid or not. If it abstains, "
+    "fails, or returns invalid data, choose locally using the task and "
+    "candidate metadata. Then run the required full suite. Do not call Jev "
+    "before changing checkout/service.py."
+)
 TARGETS_BY_ID = {
     "unit": ["internal_logic_changed"],
     "integration": [
