@@ -239,7 +239,7 @@ def rank_tests(
             and not normalized_signals
             and {item.kind for item in local_candidates} == {TestKind.UNIT, TestKind.CONTRACT}
             and all(item.coverage is Coverage.UNKNOWN and item.runtime is RuntimeBucket.UNKNOWN
-                    for item in local_candidates)):
+                    and not item.coverage_targets for item in local_candidates)):
         unit = next(item for item in local_candidates if item.kind is TestKind.UNIT)
         contract = next(item for item in local_candidates if item.kind is TestKind.CONTRACT)
         if unit.relevance >= contract.relevance:
@@ -285,7 +285,8 @@ def rank_tests(
         )
 
     signatures = {
-        (candidate.kind, candidate.coverage, candidate.runtime)
+        (candidate.kind, candidate.coverage, candidate.runtime,
+         tuple(target.value for target in candidate.coverage_targets))
         for candidate in local_candidates
     }
     scores = sorted((candidate.relevance for candidate in local_candidates), reverse=True)
