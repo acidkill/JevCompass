@@ -1,0 +1,16 @@
+{
+  "files": {
+    "CONTRACT.md": "d4bf76ee6c26526de60cb39849296470a505e7423471939da0a8b6ead3f971c4",
+    "README.md": "831f0697b98f748e8f4f010d326661d6a3bd6344634f28c01df69d6e63c7f1f9",
+    "TESTING.md": "8d00b6303bd182dc74e83762c0f56826df62aaf2f843a5296318487b37996712",
+    "roster/__init__.py": "3bc364540a7b31788fe2c0ee552de1873a009c02a254f9feaa37e2f6bf4f0efb",
+    "roster/__main__.py": "b0cd35ee14c6915a50c18042b17f666c0c5f3c27ba9ca64dd89cafec123599c6",
+    "roster/service.py": "6f016c58b02b681488932676f27f3865dc3d430d445a03be4b86faff8aae18e3",
+    "runtime-samples.json": "98a169eb443c63477dcd67d778f9e0f373871f8fd36534ae44450e51c58064a0",
+    "test-options.json": "af7a5cb8e217bd62b4cc4e797b80d053e172f700c4710ae79e80a9804b2de38e",
+    "tests/data/roster.json": "ba1549c1a4598bd8aae039c3eecfcb7fa7e434cd1c55191372b23be7dcb3e324",
+    "tests/frozen_oracle.py": "893a532d412415ef3c564c82d3143fdd50f036a9df82ef2247f5067cb4342c97",
+    "tests/test_integration_roster.py": "35198467800376ef57dc734631c5da449bc0e2a5c9f7332a8a300f6f18ae7df6",
+    "tests/test_unit_roster.py": "86de2e84980330044d8d2864766b7f84787249576053eb1ab81ca51918283b81"
+  }
+}

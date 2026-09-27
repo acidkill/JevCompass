@@ -1,3 +1,7 @@
+## VCR318 — New roster test-order fixture
+
+Added a separately frozen roster-import CLI task with unit/domain and integration/public-JSON checks, a mandatory full suite and a black-box oracle. Offline reference and partial/order/first-record/type mutants distinguish correct and incomplete repairs. The baseline can choose either focused candidate; treatment requests one post-edit ordering to establish exposure but may reject it. Abstention/adoption and task correctness remain separate from delivery gates. Eight focused tests and an isolated 685-test suite passed; graph rebuild succeeded. Local alternating timings document candidate costs without artificial delays. No live pair has run; historical cohorts remain unchanged and no efficacy is claimed.
+
 ## VCR319/VCR320 — Triage and host-delivery audits
 
 Read-only review found that production triage already accepts allowlisted timeout observations, while the pilot bridge omits them. A prospective bridge correction is in progress; no new remote efficacy result is claimed. The existing locally resolved condition-timeout fixture remains a no-call control.

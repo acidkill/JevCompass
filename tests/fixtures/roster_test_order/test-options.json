@@ -1,0 +1,28 @@
+{
+  "surface": "mixed",
+  "signals": ["internal_logic_changed", "public_contract_changed"],
+  "candidates": [
+    {
+      "id": "unit",
+      "kind": "unit",
+      "command": "python -m unittest discover -s tests -p 'test_unit*.py' -v",
+      "coverage": "direct",
+      "runtime": "fast",
+      "coverage_targets": ["internal_logic_changed"]
+    },
+    {
+      "id": "integration",
+      "kind": "integration",
+      "command": "python -m unittest discover -s tests -p 'test_integration*.py' -v",
+      "coverage": "direct",
+      "runtime": "slow",
+      "coverage_targets": ["internal_logic_changed", "public_contract_changed"]
+    }
+  ],
+  "required": [
+    {
+      "id": "full",
+      "command": "python -m unittest discover -s tests -v"
+    }
+  ]
+}
