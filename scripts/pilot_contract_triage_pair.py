@@ -840,6 +840,33 @@ def _empty_arm(failure: str) -> dict[str, Any]:
         "codex_billing_estimate": None,
     }
 
+def _write_private_event_archive(
+    lines: list[str], archive_path: Path,
+) -> dict[str, Any]:
+    """Write bounded raw CLI events once to a private local-only JSONL file."""
+    payload = ("\n".join(lines) + ("\n" if lines else "")).encode("utf-8")
+    if len(payload) > core.MAX_EVENT_BYTES:
+        return {
+            "private_event_archive_captured": False,
+            "private_event_archive_bytes": None,
+        }
+    directory_fd = None
+    try:
+        directory_fd, _ = core._private_directory_fd(archive_path.parent)
+        core._write_new_file_at(directory_fd, archive_path.name, payload, 0o600)
+    except (OSError, ValueError):
+        return {
+            "private_event_archive_captured": False,
+            "private_event_archive_bytes": None,
+        }
+    finally:
+        if directory_fd is not None:
+            os.close(directory_fd)
+    return {
+        "private_event_archive_captured": True,
+        "private_event_archive_bytes": len(payload),
+    }
+
 
 def _run_arm(
     *, codex: str, model: str, reasoning_effort: str, prompt: str,
@@ -851,6 +878,7 @@ def _run_arm(
     accepted_triage_statuses: tuple[str, ...] | None = None,
     allow_network: bool = False,
     max_tokens: int | None = None,
+    retain_private_events: bool = False,
 ) -> tuple[dict[str, Any], str | None]:
     (home / ".codex").mkdir(mode=0o700, parents=True, exist_ok=True)
     measurement_path = measurement_path or (home / ".codex" / "agent-measurement.json")
@@ -959,6 +987,12 @@ def _run_arm(
     measurement = build_agent_measurement_receipt(
         lines, times, started, ended, process.returncode, failure,
     )
+    private_archive = (
+        _write_private_event_archive(
+            lines, measurement_path.with_name(measurement_path.stem + "-events.jsonl"),
+        )
+        if retain_private_events else {}
+    )
     # Preserve the bounded event measurement before task-specific parsing.
     common._private_write(
         measurement_path,
@@ -994,6 +1028,7 @@ def _run_arm(
         failed["cli_exit_code"] = process.returncode
         failed["agent_measurement"] = measurement
         failed["event_count"] = len(lines)
+        failed.update(private_archive)
         if bridge_summary is not None:
             failed["profile_triage_bridge"] = bridge_summary
             failed["profile_triage_typed_receipt"] = typed_bridge_receipt
@@ -1016,6 +1051,7 @@ def _run_arm(
             "profile_triage_bridge": bridge_summary,
             "profile_triage_typed_receipt": typed_bridge_receipt,
             **bridge_metadata,
+            **private_archive,
         })
         return failed, None
 
@@ -1026,6 +1062,7 @@ def _run_arm(
         "completion_ms": wall_ms if wall_ms <= MAX_TIMEOUT * 1000 else None,
         "agent_measurement": measurement,
         **observed,
+        **private_archive,
     }
     if bridge_summary is not None:
         result["profile_triage_bridge"] = bridge_summary
@@ -1192,6 +1229,7 @@ def run_pair(
     remote_profile_triage: bool = False,
     accepted_remote_statuses: tuple[str, ...] = (),
     max_tokens: int | None = None,
+    retain_private_events: bool = False,
 ) -> dict[str, Any]:
     """Run both local-only CLI arms and save private blind artifacts/receipts."""
     if case_profile is not None:
@@ -1225,6 +1263,8 @@ def run_pair(
         or not 1 <= max_tokens <= core.MAX_EVENT_TOKEN_BUDGET
     ):
         raise ValueError("max_tokens is outside the supported event-token budget")
+    if type(retain_private_events) is not bool:
+        raise ValueError("retain_private_events must be boolean")
     if not _verify_codex_version(codex):
         raise ValueError("Codex CLI 0.157.0 is required")
 
@@ -1325,6 +1365,7 @@ def run_pair(
                 ),
                 allow_network=remote_profile_triage,
                 max_tokens=max_tokens,
+                **({"retain_private_events": True} if retain_private_events else {}),
             )
             if repair_profile:
                 arms[label].setdefault("agent_git_diff_check_invocation_observed", False)
@@ -1605,6 +1646,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="explicit supervisor acceptance status (repeat as needed)")
     parser.add_argument("--max-tokens", type=int,
                         help="observed completed-turn token cap; not a provider-side limit")
+    parser.add_argument("--retain-private-events", action="store_true",
+                        help="archive bounded raw CLI JSONL locally in each private arm directory")
     parser.add_argument("--output-dir", type=Path, required=True,
                         help="new private directory for blind receipts and artifacts")
     args = parser.parse_args(argv)
@@ -1624,6 +1667,7 @@ def main(argv: list[str] | None = None) -> int:
             remote_profile_triage=args.remote_profile_triage,
             accepted_remote_statuses=tuple(args.accept_profile_triage_status),
             max_tokens=args.max_tokens,
+            retain_private_events=args.retain_private_events,
         )
     except (OSError, ValueError, RuntimeError):
         print(json.dumps({"status": "failed", "failure": "runner_setup_failed"}))
