@@ -325,12 +325,73 @@ def _load_advice_dependencies() -> None:
         globals().setdefault("configured_model", configured_model)
 
 
+def _prompt_strategy_signals(prompt: str) -> tuple[Any, ...]:
+    """Extract request-scope signals only; never claim observed repository facts."""
+    from .strategy import TaskSignal
+
+    actions = r"(?:change|modify|update|alter|rewrite|implement|refactor|fix|add|remove|rename|replace|upgrade)"
+    signals = []
+    for clause in re.split(r"[.!?;\n]+", prompt):
+        negative = re.search(r"\b(?:do not|don't|never|avoid|without)\b", clause, re.I)
+        existing = re.search(r"\b(?:existing|current)\s+(?:function|method|class|module|command|parser|handler)\b", clause, re.I)
+        action = re.search(r"\b" + actions + r"\b", clause, re.I)
+        if existing and action and not negative:
+            signals.append(TaskSignal.EXISTING_SYMBOL)
+        if re.search(r"\b(?:change|modify|update|alter|rewrite|implement|refactor|fix)\b.{0,60}\b(?:behavior|behaviour|output|semantics|ordering|result)\b", clause, re.I) and not negative:
+            signals.append(TaskSignal.BEHAVIOR_CHANGE)
+        if re.search(r"\b(?:add|remove|upgrade|replace)\b.{0,40}\bdependenc(?:y|ies)\b|\bdependenc(?:y|ies)\b.{0,40}\b(?:add|remove|upgrade|replace)\b", clause, re.I) and not negative:
+            signals.append(TaskSignal.DEPENDENCY_CHANGE)
+        if re.search(r"\b(?:trace|follow)\b.{0,35}\b(?:data flow|data path)\b", clause, re.I) and not negative:
+            signals.append(TaskSignal.DATA_FLOW)
+        if re.search(r"\b(?:regression risk|backward compatibility)\b", clause, re.I) and not negative:
+            signals.append(TaskSignal.REGRESSION_RISK)
+        if re.search(r"\b(?:unclear|ambiguous|unspecified)\b.{0,30}\b(?:contract|behavior|behaviour|requirement)\b", clause, re.I) and not negative:
+            signals.append(TaskSignal.UNCLEAR_CONTRACT)
+    return tuple(dict.fromkeys(signals))
+
+
+def _strategy_context(
+    result: Any, trace: str | None, generic: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Compose fixed local strategy text and ordinary local catalog advice within hook limits."""
+    recs = getattr(result, "recommendations", ())
+    if not recs:
+        return generic
+    cache_hit = getattr(result, "cache_hit", False) is True
+    source = "cached" if cache_hit else (
+        "remote" if getattr(result, "status", None) == "remote-choice" else "local"
+    )
+    lines = [f"JevCompass strategy advice ({source}; optional, validate against the task):"]
+    for item in recs[:2]:
+        identifier = getattr(getattr(item, "id", None), "value", None)
+        rationale = getattr(item, "rationale", None)
+        if isinstance(identifier, str) and isinstance(rationale, str):
+            lines.append(f"- {identifier}: {rationale}")
+    if len(lines) == 1:
+        return generic
+    context = "\n".join(lines[:2])
+    if trace:
+        context = f"JevCompass advice ID: {trace}\n{context}"
+    context += "\nSignals reflect the request wording, not verified repository facts."
+    if cache_hit:
+        context += " Cached selection made no new API call."
+    context += "\nFollow task and project instructions; run required tests."
+    if generic:
+        old = generic.get("hookSpecificOutput", {}).get("additionalContext", "")
+        if isinstance(old, str):
+            old = re.sub(r"^JevCompass advice ID: [^\n]+\n", "", old)
+            if len(context) + len(old) + 2 <= MAX_CONTEXT_CHARS:
+                context += "\n\n" + old
+    return {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": context}}
+
+
 def select_advice(
     name: str, category: str, domain: str, role: str, trace: str | None = None,
     security_relevant: bool = False,
     test_command_supplied: bool = False,
     test_selection_requested: bool = False,
     plan_focus: str | None = None,
+    local_only: bool = False,
 ) -> dict[str, Any] | None:
     _load_advice_dependencies()
     started = time.monotonic()
@@ -387,8 +448,8 @@ def select_advice(
     choices = _read_cache(key, allowed)
     status = "cache" if choices is not None else "jev"
     if choices is None:
-        choices = _judge(category, role, domain, items, plan_focus)
-        if choices:
+        choices = None if local_only else _judge(category, role, domain, items, plan_focus)
+        if choices and not local_only:
             _write_cache(key, choices)
         else:
             status = "local"
@@ -435,13 +496,15 @@ def _spawn_intent(event: dict[str, Any]) -> tuple[str, str, str] | None:
     return category, domain, role if role in {"explorer", "worker"} else "subagent"
 
 
-def evaluate(event: dict[str, Any], trace: str | None = None) -> dict[str, Any] | None:
+def evaluate(event: dict[str, Any], trace: str | None = None, *, strategy_advice: bool = False) -> dict[str, Any] | None:
     name = event.get("hook_event_name")
     started = time.monotonic()
     security_relevant = False
     test_command_supplied = False
     test_selection_requested = False
     plan_focus = None
+    strategy_result = None
+    strategy_attempted = False
     if name == "UserPromptSubmit":
         prompt = event.get("prompt")
         parsed = classify_task(prompt)
@@ -459,6 +522,14 @@ def evaluate(event: dict[str, Any], trace: str | None = None) -> dict[str, Any] 
         if domain == "general" and category in {"coding", "debugging", "testing", "infrastructure", "codebase"}:
             domain = "software"
         role = "primary"
+        signals = _prompt_strategy_signals(prompt) if strategy_advice and category == "coding" and isinstance(prompt, str) else ()
+        if signals:
+            strategy_attempted = True
+            try:
+                from .strategy import TaskKind, choose_strategies
+                strategy_result = choose_strategies(TaskKind.CODING, signals)
+            except Exception:
+                strategy_result = None
     elif name == "SubagentStart":
         role = event.get("agent_type")
         if role not in ROLE_CATEGORIES:
@@ -475,20 +546,28 @@ def evaluate(event: dict[str, Any], trace: str | None = None) -> dict[str, Any] 
         category, domain, role = intent
         arguments = event.get("tool_input", {})
         if isinstance(arguments, dict):
-            # The child message may be an opaque host token. Only descriptive
-            # text can supply an extra local signal; neither is sent to Jev.
+            # Read only descriptive local fields; opaque host tokens are never strategy input.
             security_relevant = any(
                 isinstance(value, str) and bool(SECURITY_INTENT.search(value))
                 for value in (arguments.get("task_name"), arguments.get("message"))
             )
     else:
         return None
-    return select_advice(name, category, domain, role, trace,
-                         security_relevant=security_relevant, test_command_supplied=test_command_supplied,
-                         test_selection_requested=test_selection_requested, plan_focus=plan_focus)
+    advice_options = {
+        "security_relevant": security_relevant,
+        "test_command_supplied": test_command_supplied,
+        "test_selection_requested": test_selection_requested,
+        "plan_focus": plan_focus,
+    }
+    if strategy_attempted:
+        advice_options["local_only"] = True
+    generic = select_advice(name, category, domain, role, trace, **advice_options)
+    if strategy_result is not None:
+        return _strategy_context(strategy_result, trace, generic)
+    return generic
 
 
-def hook_main() -> int:
+def hook_main(*, strategy_advice: bool = False) -> int:
     """Read one Codex hook event and always exit without blocking it."""
     try:
         raw = sys.stdin.buffer.read(MAX_EVENT_BYTES + 1)
@@ -508,7 +587,7 @@ def hook_main() -> int:
                 _metric(name if name in {"UserPromptSubmit", "SubagentStart", "PreToolUse"} else "unknown",
                         mode if mode in {"default", "plan", "acceptEdits", "dontAsk", "bypassPermissions"} else "unknown",
                         "collab-plan" if collaboration == "plan" else "collab-unavailable", time.monotonic(), trace)
-            output = evaluate(event, trace)
+            output = evaluate(event, trace, strategy_advice=strategy_advice)
             if output:
                 print(json.dumps(output, ensure_ascii=False))
     except (OSError, ValueError, TypeError, KeyError):
@@ -516,7 +595,10 @@ def hook_main() -> int:
     return 0
 
 
-def hook_command() -> str:
+def hook_command(*, strategy_advice: bool = False) -> str:
     """Return a shell-safe hook command bound to this Python installation."""
     import shlex
-    return shlex.join([sys.executable, "-m", "jevcompass", "hook"])
+    command = [sys.executable, "-m", "jevcompass", "hook"]
+    if strategy_advice:
+        command.append("--strategy-advice")
+    return shlex.join(command)

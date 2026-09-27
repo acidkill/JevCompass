@@ -993,3 +993,10 @@ Both arms exceeded the frozen observed-token limit and exited -9 after completed
 Retained raw events show separate successful equivalent unit, CLI-contract, full and diff checks in both arms, with test counts 1/1/2. Baseline first reproduced both failures, then issued an incorrect default discovery command that ran zero tests and exited 5, before correcting full discovery to two passing tests. Its first observed focused test failure completed at 27,891.75 ms; treatment had no observed failing test. First tool: treatment 6,650.86 ms, baseline 16,885.85 ms; first source read: 17,350.30/23,003.65 ms. Independent immutable focused/full/diff checks passed in both arms and tests remained unchanged; these do not erase the budget failures.
 
 This pair is excluded from successful-completion efficacy claims. It used copied user configuration and skills, so it does not establish vanilla Codex performance. Future vanilla trials must preregister a minimal native profile and its available tools/skills without copying personal MCP configuration. Preserve this failed, remotely unexposed pair and its measured overhead; do not rerun it to obtain acceptance.
+
+
+## VCR360 — Opt-in strategy advice bridge
+
+Added an explicit `jevcompass install --strategy-advice` hook option for conservative pretask strategy guidance on eligible coding prompts; default install remains unchanged and reinstall preserves the opt-in until `--disable-strategy-advice`. The bridge sends only allowlisted request-scope signals to the typed selector, never infers verified contract or test facts, and does not make a second generic catalog decision call. Cached choice is labeled separately; local tool/skill advice is retained only when it fits the existing context bound. The selector and hook keep existing timeout/fail-soft behavior and apply across permission modes.
+
+Focused bridge/install/advisor/product-contract tests passed (73 tests). Full-suite and graph verification are tracked in the corresponding PILOT entry. No paid API call or effectiveness claim.

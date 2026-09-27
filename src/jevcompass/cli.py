@@ -330,7 +330,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="jevcompass", description="Privacy-first tool and skill advice for Codex")
     parser.add_argument("--version", action="version", version=f"JevCompass {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("hook", help="Handle a Codex hook event from stdin")
+    hook_parser = sub.add_parser("hook", help="Handle a Codex hook event from stdin")
+    hook_parser.add_argument("--strategy-advice", action="store_true",
+                             help="Opt in to conservative pretask strategy advice on eligible coding prompts")
     recommend = sub.add_parser("recommend", help="Request advice using allowlisted metadata only")
     recommend.add_argument("--category", required=True, choices=CATEGORIES)
     recommend.add_argument("--domain", required=True, choices=DOMAINS)
@@ -380,6 +382,11 @@ def main(argv: list[str] | None = None) -> int:
     doctor_parser.add_argument("--test-jev", action="store_true", help="Send one synthetic, billed Jev request")
     installer = sub.add_parser("install", help="Merge JevCompass advisory hooks")
     installer.add_argument("--dry-run", action="store_true", help="Validate planned changes without writing files")
+    strategy_group = installer.add_mutually_exclusive_group()
+    strategy_group.add_argument("--strategy-advice", action="store_true", default=None,
+                                help="Opt in to pretask strategy advice for eligible coding prompts")
+    strategy_group.add_argument("--disable-strategy-advice", action="store_false", dest="strategy_advice",
+                                help="Remove opt-in pretask strategy advice")
     spawn_group = installer.add_mutually_exclusive_group()
     spawn_group.add_argument(
         "--spawn-advice", action="store_true", default=None,
@@ -411,7 +418,7 @@ def main(argv: list[str] | None = None) -> int:
     auth_sub.add_parser("delete", help="Remove the keyring entry after confirmation")
     args = parser.parse_args(argv)
     if args.command == "hook":
-        return advisor.hook_main()
+        return advisor.hook_main(strategy_advice=args.strategy_advice)
     if args.command == "recommend":
         return _recommend(args.category, args.domain, args.role)
     if args.command == "triage":
@@ -611,7 +618,7 @@ def main(argv: list[str] | None = None) -> int:
         return auth_main(args.auth_action)
     if args.command == "install":
         try:
-            result = install(dry_run=args.dry_run, spawn_advice=args.spawn_advice)
+            result = install(dry_run=args.dry_run, spawn_advice=args.spawn_advice, strategy_advice=args.strategy_advice)
         except (OSError, ValueError, RuntimeError) as error:
             print(f"JevCompass install failed: {error}", file=sys.stderr)
             return 1

@@ -28,6 +28,7 @@ def _is_product_hook(command: str) -> bool:
     except ValueError:
         return False
     return (len(words) >= 3 and words[-3:] == ["-m", "jevcompass", "hook"] or
+            len(words) >= 4 and words[-4:] == ["-m", "jevcompass", "hook", "--strategy-advice"] or
             len(words) == 1 and Path(words[0]).name == "codex-jev-advisor")
 
 
@@ -53,8 +54,18 @@ def _is_spawn_advice_group(group: dict[str, Any], command: str) -> bool:
     )
 
 
+def _has_strategy_advice_flag(command: object) -> bool:
+    if not isinstance(command, str) or not _is_product_hook(command):
+        return False
+    try:
+        return "--strategy-advice" in shlex.split(command)
+    except ValueError:
+        return False
+
+
 def merge_hooks(
     data: dict[str, Any], command: str, spawn_advice: bool | None = None,
+    strategy_advice: bool | None = None,
 ) -> dict[str, Any]:
     """Return a config copy with only JevCompass hooks added and legacy Jev gate removed."""
     result = json.loads(json.dumps(data))
@@ -63,6 +74,23 @@ def merge_hooks(
         raise ValueError("hooks.json: 'hooks' must be an object")
 
     existing_spawn_advice = False
+    existing_strategy_advice = False
+    for group in hooks.get("UserPromptSubmit", []):
+        if not isinstance(group, dict) or not isinstance(group.get("hooks"), list):
+            continue
+        if any(_has_strategy_advice_flag(handler.get("command"))
+               for handler in group["hooks"] if isinstance(handler, dict)):
+            existing_strategy_advice = True
+            break
+    use_strategy_advice = existing_strategy_advice if strategy_advice is None else strategy_advice
+    strategy_command = command
+    if use_strategy_advice and _is_product_hook(command):
+        try:
+            command_words = shlex.split(command)
+            if command_words[-3:] == ["-m", "jevcompass", "hook"]:
+                strategy_command = shlex.join([*command_words, "--strategy-advice"])
+        except ValueError:
+            strategy_command = command
     for event in ("PreToolUse", *ADVISOR_EVENTS):
         groups = hooks.get(event, [])
         if not isinstance(groups, list):
@@ -100,7 +128,8 @@ def merge_hooks(
             hooks.pop(event, None)
 
     handler = {"type": "command", "command": command, "timeout": 2, "additionalContextLimit": 400}
-    hooks.setdefault("UserPromptSubmit", []).append({"hooks": [handler]})
+    strategy_handler = {**handler, "command": strategy_command}
+    hooks.setdefault("UserPromptSubmit", []).append({"hooks": [strategy_handler]})
     hooks.setdefault("SubagentStart", []).append({
         "matcher": SUBAGENT_MATCHER,
         "hooks": [handler],
@@ -140,8 +169,9 @@ def _write_hooks(path: Path, data: dict[str, Any]) -> Path | None:
 
 def install(
     *, dry_run: bool = False, home: Path | None = None, spawn_advice: bool | None = None,
+    strategy_advice: bool | None = None,
 ) -> str:
-    """Register standard hooks and optionally opt in to spawn advice."""
+    """Register standard hooks and optionally opt in to spawn or strategy advice."""
     config_home = home / ".codex" if home is not None else resolve_codex_home()
     if sys.version_info < (3, 11):
         raise RuntimeError("Python 3.11 or newer is required")
@@ -156,7 +186,7 @@ def install(
     if not isinstance(current, dict):
         raise ValueError("hooks.json must contain a JSON object")
     command = advisor.hook_command()
-    merged = merge_hooks(current, command, spawn_advice=spawn_advice)
+    merged = merge_hooks(current, command, spawn_advice=spawn_advice, strategy_advice=strategy_advice)
     if dry_run:
         return "Install plan valid; no files changed"
 
