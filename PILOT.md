@@ -1,3 +1,7 @@
+## VCR331 — Frozen invoice-plan criteria
+
+Prepared [invoice plan expected evidence](tests/evaluation/invoice_plan_expected.md) before generating plans. Criteria distinguish the incomplete half-up aggregation contract from the explicit source/golden disagreement and require clarification before a conditional repair. Verified CLI metadata `coding`, `existing_symbol`, `behavior_change`, `contract_evidence=conflicting` returns local `define_contract_then_implement` with null usage. This is a local-advisor control, not a remote Jev comparison; no plans generated or scored. Plan-only runner implementation remains pending.
+
 ## VCR329 — Plan-quality assessment protocol
 
 Prepared [plan quality protocol](tests/evaluation/plan_quality_protocol.md): equal task evidence, predeclared task-specific scoring, critical mandatory-check failures, blinded assessment, separate implementation validation and explicit timing scopes. A concrete task design is still pending; no plan-quality comparison or benefit is claimed. This documentation does not start or repeat any trial.
