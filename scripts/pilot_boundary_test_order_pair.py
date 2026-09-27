@@ -88,7 +88,8 @@ def _event_receipts(lines, event_times, started):
             if result["first_useful_error_ms"] is None:
                 result["first_useful_error_ms"] = elapsed
                 result["first_useful_error_status"] = "observed"
-        elif code == 0 and marker in output and re.search(r"^OK\s*$", output, re.MULTILINE):
+        elif (code == 0 and (marker in output or re.search(r"^Ran 2 tests in ", output, re.MULTILINE))
+              and re.search(r"^OK\s*$", output, re.MULTILINE)):
             if result["first_successful_relevant_check_ms"] is None:
                 result["first_successful_relevant_check_ms"] = elapsed
     return result
