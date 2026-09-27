@@ -1023,3 +1023,15 @@ The historical VCR-249-S2 retry pair remains a negative result, not a newly scor
 Before any new retry comparison, freeze independent checks for 499/500/599/600, HTTP exhaustion response identity, ConnectionError exhaustion, immediate propagation of other exceptions, Retry-After handling, maximum attempt count, and no final sleep. Freeze scoring before calls and score final artifacts independently of agent-reported success. Preserve deliberately incomplete starter tests rather than silently rewriting historical fixtures or scores. Record first-step evidence, full validation, time, usage and available cost; include preparation latency.
 
 Next: establish which verified metadata remains genuinely ambiguous, then implement that contract and its negative tests before a new paired run. No speed or quality gain is established by this audit.
+
+
+## VCR-258-B — prospective independent retry validation
+
+The independent supervisor gate executes a copied, trusted synthetic retry implementation in a separate Python process with a timeout. It is not an operating-system security sandbox. It evaluates fixed contract assertions independently of the agent's reported test results, and exposes only aggregate JSON status/counts/exit information. Raw implementation text, filesystem paths and captured test logs are not published.
+
+Checks must include HTTP 429 and the 499/500/599/600 boundary, response identity on exhausted HTTP retries, ConnectionError identity on exhaustion, immediate propagation of other exceptions, numeric Retry-After and fallback delay, attempt limits, invalid attempt counts, and absence of sleep after the last attempt. Correct synthetic implementation and targeted mutants establish verifier coverage; they do not establish coding-agent or Jev efficacy.
+
+This gate is prospective. The historical retry fixture and VCR-249 scores remain unchanged. A future randomized paired runner must apply the same frozen gate to both final artifacts, retain mandatory agent validation separately, and withhold benefit claims when correctness fails. Live paired integration and host acceptance remain pending.
+
+
+Verification: seven verifier tests and the full 447-test suite pass. Correct synthetic implementation is accepted; the original fixture, upper-bound mutant, wrong exhausted-response mutant, missing fixture and hanging fixture are rejected. Invalid CLI argument values produce aggregate JSON without printing the supplied value. Parent review caught and corrected an initial verifier expectation that wrongly retried HTTP 600; the correct/mutant tests now distinguish this boundary. Graph refresh completed (1772 nodes, 3455 edges). No live model requests or new paired scores were produced.
