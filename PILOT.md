@@ -1,3 +1,7 @@
+## VCR272-A — Observation diagnostics for future test-order trials
+
+Future cross-layer receipts distinguish canonical declared commands from unmatched unittest/pytest aliases, combined or unknown shapes, and unavailable/nonzero/zero exit status through bounded counters only. Duplicate completion IDs count once. Commands, paths, test names, and output are not retained. Counters do not satisfy required validation gates. Valid rank receipts may retain the seven known decision-reason identifiers; unknown values and invalid receipts omit them. Twenty-three focused tests pass. No historical reason, timing, or missing validation is inferred, and this measurement improvement is not evidence of coding benefit.
+
 ## VCR271-B — Completed condition-timeout local triage comparison
 
 Run `3e2bb8664e7b43c59912be2d0a7636d3` used seed 271, source after PR #201, baseline arm-a first and treatment arm-b second. Both acknowledged before tools, reproduced the focused failure (exit 1), repaired the allowed source, passed focused and required full checks (exit 0), preserved frozen files, and passed independent focused/full validation (5 tests each). Protocol status is completed; advice usefulness remains unscored.

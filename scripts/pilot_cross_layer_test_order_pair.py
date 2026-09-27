@@ -88,6 +88,15 @@ EXPECTED_CHOICES = {
     "unit": UNIT_COMMAND,
     "integration": INTEGRATION_COMMAND,
 }
+DECISION_REASONS = frozenset({
+    "no_choice_needed",
+    "local_resolution",
+    "invalid_response",
+    "unknown_choice",
+    "insufficient_confidence",
+    "provider_error",
+    "accepted",
+})
 
 
 def _item(event: dict[str, Any]) -> dict[str, Any] | None:
@@ -178,9 +187,14 @@ def _validated_choice(payload: str | None) -> dict[str, Any]:
                 or candidate.get("kind") != identifier or identifier in seen):
             return {"status": "unscored", "candidate_ids": []}
         seen.add(identifier)
-    return engine.parse_choice_receipt(
+    receipt = engine.parse_choice_receipt(
         value, choice_type="test_order", candidate_ids=CHOICE_IDS
     )
+    reason = value.get("decision_reason")
+    if (receipt.get("status") in {"remote-choice", "no-remote-choice"}
+            and isinstance(reason, str) and reason in DECISION_REASONS):
+        receipt["decision_reason"] = reason
+    return receipt
 
 
 engine._test_kind = _test_kind
@@ -227,6 +241,79 @@ def _native_file_change_shape(
     return valid, target_matches
 
 
+def _test_invocation_kind(item: dict[str, Any]) -> str | None:
+    """Classify test-runner invocation metadata without retaining raw command text."""
+    raw = item.get("command")
+    if isinstance(raw, str):
+        raw_text = raw
+    elif isinstance(raw, list) and all(isinstance(part, str) for part in raw):
+        raw_text = " ".join(raw)
+    else:
+        raw_text = ""
+    if len(raw_text) > 8192:
+        return "unknown" if re.search(r"(?i)\b(?:pytest|unittest)\b", raw_text) else None
+
+    argv = engine._command_argv(item)
+    if argv is None:
+        return "unknown" if re.search(r"(?i)\b(?:pytest|unittest)\b", raw_text) else None
+    if sum(len(token) for token in argv) > 8192:
+        return "unknown" if re.search(r"(?i)\b(?:pytest|unittest)\b", raw_text) else None
+
+    segments: list[list[str]] = [[]]
+    for token in argv:
+        if token in {"&&", "||", ";", "|", "&"}:
+            if segments[-1]:
+                segments.append([])
+        else:
+            segments[-1].append(token)
+
+    invocations: list[str] = []
+    python_name = re.compile(r"(?:python(?:[0-9.]+)?|pypy(?:[0-9.]+)?|py)$", re.I)
+    pytest_name = re.compile(r"pytest(?:-[0-9]+(?:\.[0-9]+)*)?$", re.I)
+    for segment in segments:
+        if not segment:
+            continue
+        module_hits = [
+            segment[index + 1]
+            for index in range(len(segment) - 1)
+            if segment[index] == "-m"
+            and segment[index + 1] in {"unittest", "pytest"}
+            and any(python_name.fullmatch(PurePosixPath(
+                token.replace("\\", "/")
+            ).name) for token in segment[:index])
+        ]
+        invocations.extend(module_hits)
+        command_index = 0
+        while command_index < len(segment):
+            token = segment[command_index]
+            if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", token):
+                command_index += 1
+                continue
+            basename = PurePosixPath(token.replace("\\", "/")).name
+            if basename == "env":
+                command_index += 1
+                continue
+            if basename in {"uv", "poetry", "pipenv", "coverage"} and command_index + 1 < len(segment):
+                if segment[command_index + 1] in {"run", "exec"}:
+                    command_index += 2
+                    continue
+            if pytest_name.fullmatch(basename):
+                # A module invocation is already counted from its -m pair.
+                if not any(invocation == "pytest" for invocation in module_hits):
+                    invocations.append("pytest")
+            break
+
+    if len(invocations) > 1:
+        return "combined"
+    if invocations:
+        return invocations[0]
+    return None
+
+
+def _bounded_increment(counter: dict[str, int], key: str, limit: int = 999999) -> None:
+    counter[key] = min(limit, counter.get(key, 0) + 1)
+
+
 def _event_receipts(
     lines: Iterable[str], event_times: list[float], started: float,
     *, expected_source: Path | None = None,
@@ -266,6 +353,19 @@ def _event_receipts(
     file_change_accepted_count = 0
     file_change_rejected_count = 0
     file_change_duplicate_count = 0
+    seen_completed_test_invocation_ids: set[str] = set()
+    test_invocation_duplicate_count = 0
+    declared_test_invocation_count = 0
+    declared_test_invocation_kind_counts = {
+        "unit": 0, "integration": 0, "required": 0,
+    }
+    unmatched_test_invocation_count = 0
+    unmatched_test_invocation_kind_counts = {
+        "unittest": 0, "pytest": 0, "combined": 0, "unknown": 0,
+    }
+    unmatched_test_invocation_exit_status_counts = {
+        "zero": 0, "nonzero": 0, "unavailable": 0,
+    }
 
     def elapsed(index: int) -> float | None:
         if index >= len(event_times):
@@ -296,6 +396,36 @@ def _event_receipts(
         command_kind = _test_kind(item)
         is_rank = engine._rank_invocation(item)
         is_edit = _source_edit_event(item)
+        if event_type == "item.completed" and item.get("type") == "command_execution":
+            declared_kind = _test_kind(item)
+            invocation_kind = (
+                declared_kind if declared_kind is not None
+                else _test_invocation_kind(item)
+            )
+            if invocation_kind is not None:
+                if identifier in seen_completed_test_invocation_ids:
+                    test_invocation_duplicate_count = min(
+                        999999, test_invocation_duplicate_count + 1
+                    )
+                    continue
+                seen_completed_test_invocation_ids.add(identifier)
+                if declared_kind is not None:
+                    declared_test_invocation_count = min(
+                        999999, declared_test_invocation_count + 1
+                    )
+                    _bounded_increment(declared_test_invocation_kind_counts, declared_kind)
+                else:
+                    unmatched_test_invocation_count = min(
+                        999999, unmatched_test_invocation_count + 1
+                    )
+                    _bounded_increment(unmatched_test_invocation_kind_counts, invocation_kind)
+                    exit_code = item.get("exit_code")
+                    exit_kind = (
+                        "unavailable" if isinstance(exit_code, bool)
+                        or not isinstance(exit_code, int) else
+                        "zero" if exit_code == 0 else "nonzero"
+                    )
+                    _bounded_increment(unmatched_test_invocation_exit_status_counts, exit_kind)
         is_native_file_change = item.get("type") == "file_change"
         if is_native_file_change:
             file_change_event_count += 1
@@ -467,6 +597,12 @@ def _event_receipts(
         "native_file_change_completed_seen": file_change_completed_count > 0,
         "native_file_change_completed_status_seen": file_change_status_completed_count > 0,
         "native_file_change_target_path_matched": file_change_target_match_count > 0,
+        "completed_declared_test_invocation_count": declared_test_invocation_count,
+        "completed_declared_test_invocation_kind_counts": declared_test_invocation_kind_counts,
+        "unmatched_test_invocation_count": unmatched_test_invocation_count,
+        "unmatched_test_invocation_kind_counts": unmatched_test_invocation_kind_counts,
+        "unmatched_test_invocation_exit_status_counts": unmatched_test_invocation_exit_status_counts,
+        "test_invocation_duplicate_completion_count": test_invocation_duplicate_count,
     })
     return base
 
