@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-267-B — focused failure recovery guidance
+
+Bundled focused-tests guidance now explicitly requires investigating a failed focus, repairing within authorized scope and rerunning the affected check; a failure does not cancel required validation. VCR-265-A exposed incomplete agent validation despite a correct final artifact. This is a process clarification, not proof that this guidance caused or will prevent that outcome. Existing required tests remain unchanged; fresh-agent adoption and measured utility require a separate comparison.
+
 ### VCR-266-A — cross-layer live outcome retained
 
 One keyless pair completed, run `3e06de6cd7af48579c94f84133b6e4cd`. Both focused/full and independent validations pass; treatment source snapshot changed at rank and ranking preceded focused testing, but edit-event compatibility leaves post-change phase unscored and acceptance failed. Treatment30,275.94ms versus baseline21,271.37ms; same unit-first choice, no useful failure observed, provider usage incomplete, billing unknown. Preserve failed result without rerun or retrospective rescoring. Separate native event compatibility repair remains open; no efficacy claim.
