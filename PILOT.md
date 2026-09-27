@@ -1,3 +1,7 @@
+## VCR298 — Coordinator verification
+
+The prospective coordinator freezes schedules, source instructions and independent validators, runs each pair in an isolated subprocess and retains failures without retry. Seven tests now execute under unittest after parent corrected initially skipped pytest-style functions. The full worktree suite passes 659 tests, including concurrent bridge work. Remote pretask and test-order routes are explicit; timeout remote integration is still separate. No new paired task has run and no benefit is established.
+
 ## VCR296 — Local-only timeout triage comparison
 
 Added a prospective nonbinding timeout runner with identical complete diagnostics and mandatory focused/full validation in both arms. Thirteen targeted tests pass; parent corrected literal newline escapes in shared instructions. The agent receives no advisor API key and network access is disabled: this profile measures local fallback only, not remote Jev advice. No live pair ran. A trusted remote route remains a separate prerequisite.

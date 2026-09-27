@@ -1,3 +1,7 @@
+## VCR298 — Frozen cohort coordinator
+
+Added isolated per-pair execution, fixed 6+20 schedules, source/prompt/validator hashes and bounded runtime/token monitoring. Explicit remote routes distinguish supervisor-only pretask selection from equal-environment test-order CLI calls; remote timeout triage remains unavailable pending its separate integration. Parent corrected unittest discovery so all seven coordinator cases run in CI. Full worktree suite: 659 tests pass. No live cohort or efficacy result yet.
+
 ## VCR296 — Local-only timeout triage comparison
 
 Added a prospective nonbinding timeout runner with identical complete diagnostics and mandatory focused/full validation in both arms. Thirteen targeted tests pass; parent corrected literal newline escapes in shared instructions. The agent receives no advisor API key and network access is disabled: this profile measures local fallback only, not remote Jev advice. No live pair ran. A trusted remote route remains a separate prerequisite.
