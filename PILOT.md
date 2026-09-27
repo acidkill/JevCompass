@@ -1,3 +1,7 @@
+## VCR297 — Actual timeout route smoke
+
+The installed development CLI was called with exit 124, timeout kind and only timeout_contention / timeout_nonterminating. It completed in approximately 521 ms, returned no-remote-choice with two local steps, preserved test_failed true and executed false. Provider-reported usage was 376 input / 44 output tokens and USD 0.000015792. This proves a request and safe abstention, not accepted remote advice, delivery to an agent, or improved completion time. It is separate from paired efficacy evidence.
+
 ## VCR294 — Token monitoring prerequisite
 
 The optional event collector budget sums valid completed-turn input and output counters and stops on token_budget_exceeded, retaining evidence when requested. Cached input is already included; default collection remains unchanged. Six budget cases and 58 existing collector tests passed. Enforcement happens after completed usage appears, not inside a provider request; missing or invalid usage cannot establish a token bound. A runtime deadline remains necessary. No live benchmark was started.
