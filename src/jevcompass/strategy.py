@@ -113,6 +113,10 @@ _CATALOG = (
 
 _CONFIDENCE_THRESHOLD = 0.65
 _SIMILAR_EVIDENCE_GAP = 1
+_DEPENDENCY_MIGRATION_GUIDANCE = (
+    "Dependency migration checklist: verify the new API and signature; preserve "
+    "the callers' public contract; validate exception propagation and resource ownership."
+)
 
 
 def _enum_value(enum_type: type[Enum], value: object) -> Enum | None:
@@ -228,6 +232,18 @@ class _MeteredAnswers:
         return response.answers
 
 
+def _recommendation(
+    strategy: _Strategy, signals: frozenset[TaskSignal],
+) -> StrategyRecommendation:
+    rationale = strategy.rationale
+    if (
+        strategy.id is StrategyId.INSPECT_DEPENDENCY_OR_SYMBOL_USE
+        and TaskSignal.DEPENDENCY_CHANGE in signals
+    ):
+        rationale = f"{rationale} {_DEPENDENCY_MIGRATION_GUIDANCE}"
+    return StrategyRecommendation(id=strategy.id, rationale=rationale)
+
+
 def choose_strategies(
     task_kind: TaskKind | str,
     signals: Iterable[TaskSignal | str],
@@ -287,7 +303,7 @@ def choose_strategies(
         for strategy, _score in ranked:
             if strategy.id == resolved_id:
                 return StrategyResult(
-                    (StrategyRecommendation(id=strategy.id, rationale=strategy.rationale),),
+                    (_recommendation(strategy, signal_set),),
                     "no-remote-choice",
                 )
         return StrategyResult((), "no-remote-choice")
@@ -307,7 +323,7 @@ def choose_strategies(
             status = "remote-choice"
 
     recommendations = tuple(
-        StrategyRecommendation(id=strategy.id, rationale=strategy.rationale)
+        _recommendation(strategy, signal_set)
         for strategy, _score in ranked[:2]
     )
     return StrategyResult(recommendations, status, usage)
