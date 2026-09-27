@@ -46,6 +46,7 @@ _BASELINE_FIRST_CANDIDATES = {
     "unit": frozenset({"unit"}),
     "either": frozenset(CHOICE_IDS),
 }
+_ADVICE_POLICIES = frozenset({"required-order", "nonbinding"})
 BASE_PROMPT = (
     "Implement the documented two-percent half-up checkout service fee. Read "
     "README.md, CONTRACT.md, TESTING.md, and test-options.json. Change only "
@@ -842,6 +843,9 @@ def run_pair(**kwargs: Any) -> dict[str, Any]:
     if (not isinstance(baseline_policy, str)
             or baseline_policy not in _BASELINE_FIRST_CANDIDATES):
         raise ValueError("invalid baseline first-candidate policy")
+    advice_policy = kwargs.pop("advice_policy", "required-order")
+    if not isinstance(advice_policy, str) or advice_policy not in _ADVICE_POLICIES:
+        raise ValueError("invalid advice policy")
     kwargs.setdefault("fixture_source", FIXTURE)
     receipt = _original_pair(**kwargs)
     arms = receipt.get("arms")
@@ -864,25 +868,69 @@ def run_pair(**kwargs: Any) -> dict[str, Any]:
     treatment = arms.get(treatment_label, {}) if treatment_label else {}
     baseline = arms.get(baseline_label, {}) if baseline_label else {}
     gates: list[str] = []
+    task_failures: list[str] = []
     for label, result in arms.items():
-        if result.get("cli_status") != "completed":
-            gates.append(f"{label}_cli_incomplete")
-        if result.get("required_suite_exit") != 0 or not result.get("required_suite_invocation_observed"):
-            gates.append(f"{label}_required_suite_unverified")
-        if not result.get("focused_test_exits") or not any(
-            item.get("exit_code") == 0 for item in result.get("focused_test_exits", [])
-        ):
-            gates.append(f"{label}_focused_suite_unverified")
-        if result.get("independent_final_validation_status") != "passed":
-            gates.append(f"{label}_independent_final_validation_failed")
-        if not result.get("changed_source_observed"):
-            gates.append(f"{label}_source_change_unverified")
-        if not result.get("immutable_files_preserved"):
-            gates.append(f"{label}_immutable_files_changed")
-    if treatment.get("post_change_rank_phase_status") != "verified":
+        checks = (
+            (result.get("cli_status") == "completed", f"{label}_cli_incomplete"),
+            (result.get("required_suite_exit") == 0
+             and bool(result.get("required_suite_invocation_observed")),
+             f"{label}_required_suite_unverified"),
+            (bool(result.get("focused_test_exits")) and any(
+                item.get("exit_code") == 0
+                for item in result.get("focused_test_exits", [])
+             ), f"{label}_focused_suite_unverified"),
+            (result.get("independent_final_validation_status") == "passed",
+             f"{label}_independent_final_validation_failed"),
+            (bool(result.get("changed_source_observed")),
+             f"{label}_source_change_unverified"),
+            (bool(result.get("immutable_files_preserved")),
+             f"{label}_immutable_files_changed"),
+        )
+        for passed, reason in checks:
+            if not passed:
+                gates.append(reason)
+                task_failures.append(reason)
+
+    treatment_phase_verified = (
+        treatment.get("post_change_rank_phase_status") == "verified"
+    )
+    if not treatment_phase_verified:
         gates.append("treatment_post_change_rank_phase_unverified")
-    if treatment.get("choice_follow_status") != "followed":
-        gates.append("treatment_choice_not_followed")
+
+    choice = treatment.get("choice")
+    if not isinstance(choice, dict):
+        choice = {}
+    choice_status = choice.get("status")
+    candidate_ids = choice.get("candidate_ids")
+    valid_ids = (
+        isinstance(candidate_ids, list)
+        and len(candidate_ids) == len(CHOICE_IDS)
+        and all(isinstance(identifier, str) and identifier in CHOICE_IDS
+                for identifier in candidate_ids)
+        and set(candidate_ids) == set(CHOICE_IDS)
+    )
+    valid_rank_delivery = (
+        treatment_phase_verified
+        and treatment.get("rank_invocation_count") == 1
+        and isinstance(choice_status, str)
+        and choice_status in {"remote-choice", "no-remote-choice"}
+        and valid_ids
+    )
+    if not treatment_phase_verified:
+        protocol_delivery_status = "phase_unverified"
+    elif not valid_rank_delivery:
+        protocol_delivery_status = "delivery_failed"
+    elif choice_status == "remote-choice":
+        protocol_delivery_status = "choice_delivered"
+    else:
+        protocol_delivery_status = "abstained"
+
+    if advice_policy == "required-order":
+        if treatment.get("choice_follow_status") != "followed":
+            gates.append("treatment_choice_not_followed")
+    elif protocol_delivery_status in {"phase_unverified", "delivery_failed"}:
+        gates.append("treatment_advice_delivery_failed")
+
     if baseline.get("first_focused_candidate") not in _BASELINE_FIRST_CANDIDATES[baseline_policy]:
         gates.append(
             "baseline_unit_first_policy_not_observed" if baseline_policy == "unit"
@@ -890,6 +938,36 @@ def run_pair(**kwargs: Any) -> dict[str, Any]:
         )
 
     receipt["baseline_first_candidate_policy"] = baseline_policy
+    if advice_policy == "nonbinding":
+        selected = treatment.get("first_focused_candidate")
+        if protocol_delivery_status == "abstained":
+            adoption_status = "not_applicable"
+            effect_scope = "no_accepted_choice"
+            # Keep the old ordering diagnostic meaningful only for an accepted
+            # choice in this profile.
+            treatment["choice_follow_status"] = "not_applicable"
+        elif protocol_delivery_status == "choice_delivered":
+            if selected not in CHOICE_IDS:
+                adoption_status = "unscored"
+                treatment["choice_follow_status"] = "unscored"
+            else:
+                adopted = selected == candidate_ids[0]
+                adoption_status = "adopted" if adopted else "not_adopted"
+                treatment["choice_follow_status"] = "followed" if adopted else "mismatch"
+            effect_scope = "accepted_choice"
+        else:
+            adoption_status = "unscored"
+            effect_scope = "unscored"
+            treatment["choice_follow_status"] = "unscored"
+
+        receipt["advice_policy"] = advice_policy
+        receipt["task_correctness_status"] = (
+            "passed" if not task_failures else "failed"
+        )
+        receipt["protocol_delivery_status"] = protocol_delivery_status
+        receipt["adoption_status"] = adoption_status
+        receipt["effect_scope"] = effect_scope
+
     receipt["quality_gate_status"] = "passed" if not gates else "failed"
     receipt["quality_gate_failures"] = sorted(set(gates))
     receipt["status"] = "completed" if not gates else "failed"

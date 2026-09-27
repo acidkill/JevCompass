@@ -1,3 +1,8 @@
+## VCR279-B — Separate optional advice from task correctness
+
+- Prospective enriched profiles will report task correctness, rank delivery, advice adoption, and effect scope separately. Abstention permits autonomous test selection; nonadoption does not invalidate a correct task. Missing or malformed rank delivery and all mandatory validation failures remain failures.
+- Legacy required-order profiles and VCR277 receipts remain unchanged. Rank delivery rejects unknown, duplicate, nested and incomplete candidate IDs, and non-string statuses. Focused cross-layer and enriched-profile verification: 35 tests passed. No new live efficacy result.
+
 ## VCR277-A — Autonomous enriched pair failed adherence gate
 
 - Run `bb4555c0fa4f45158cffb60dc6db87ba`: treatment first, autonomous baseline second. Both source artifacts and focused/full/independent checks pass; immutable files preserved. Treatment post-edit rank phase verified, but agent ran integration first despite returned unit-first order. Pair failed `treatment_choice_not_followed`.
