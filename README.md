@@ -146,6 +146,8 @@ On a fresh isolated Linux profile using the published 0.1.16 package with no Ope
 Local unranked fallback; Jev did not select these candidates.
 - tool `exec_command`: Codex built-in exec_command for bounded local shell commands
 - skill `jevcompass-focused-tests`: Choose focused tests after a change and complete required repository validation
+
+When verified timings show the complete required suite is already cheap and covers the change, the workflow can run it directly without ranking or repeating its subsets. Separately required focused checks and frozen benchmark gates remain mandatory.
 ```
 
 The skill is available locally after installation; read its `SKILL.md` and use it only when its condition fits. The recommendation does not prove the agent read or followed it, and installing a skill does not guarantee faster or better work. If you want no added skills, leave the profile unchanged; `doctor` and `recommend` will explain or demonstrate when JevCompass has enough of your existing candidates to advise. Hook installation is separate: `jevcompass install --dry-run`, then `jevcompass install`, review `/hooks`, and start a fresh session. Optional OpenRouter ranking uses coarse metadata only and may incur charges.
