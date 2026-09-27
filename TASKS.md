@@ -1,3 +1,8 @@
+## VCR289 — Five installed workflow skills verified
+
+- Installed clean source wheel from 00b87ba, SHA-256 134c000afbe2b4e07db0d638e82e499dd11d0ba54a94f2d95eec0a3b21fb88b7. Explicit refresh installed three new skills and refreshed one recognized old skill; all five files match the wheel. The old focused-tests backup matches a045c63304fac3ff220dd0aa69a35590807e425d5d56d5eebfdd7d60ea85b781.
+- Repeat dry-run: zero new, zero refreshable, five unchanged. Config, hooks and smem fingerprints preserved. This Desktop session discovers all five skill entries and the primary agent read coding-workflow. This is discovery evidence, not fresh-session hook advisory delivery, agent adoption or efficacy. Installed source predates the separate catalog integration in 6d148ba.
+
 ## VCR288 — Coding workflow catalog integration
 
 - Curated the phase-aware workflow for coding, debugging and testing; availability requires discovering the installed skill rather than finding its bundled source. Documentation, unrelated work and planner-only selection remain excluded. Absence of a failure disables triage only.
