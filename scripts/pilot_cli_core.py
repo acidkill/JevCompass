@@ -26,7 +26,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 from pilot_receipts import ACTION_TYPES, parse_codex_json_events
 
@@ -818,6 +818,7 @@ def _isolated_environment(
 def _collect_events(
     process: subprocess.Popen[bytes], *, started: float, timeout: int,
     preserve_on_failure: bool = True, max_tokens: int | None = None,
+    event_observer: Callable[[dict[str, Any]], None] | None = None,
 ) -> tuple[list[str], list[float], str | None]:
     """Collect bounded JSONL, optionally stopping after a completed turn exceeds a token budget.
 
@@ -849,13 +850,21 @@ def _collect_events(
         line = raw.decode("utf-8", errors="replace")
         lines.append(line)
         times.append(time.monotonic())
-        if max_tokens is None:
+        if max_tokens is None and event_observer is None:
             return
         try:
             event = json.loads(line)
         except (TypeError, json.JSONDecodeError):
             return
-        if not isinstance(event, dict) or event.get("type") != "turn.completed":
+        if not isinstance(event, dict):
+            return
+        if event_observer is not None:
+            try:
+                event_observer(event)
+            except Exception:
+                failure = "event_observer_error"
+                return
+        if max_tokens is None or event.get("type") != "turn.completed":
             return
         usage_status, usage = _safe_turn_usage(event)
         if usage_status != "available" or usage is None:
@@ -887,7 +896,7 @@ def _collect_events(
                     raw_line = bytes(pending[:newline])
                     del pending[:newline + 1]
                     append_line(raw_line)
-                    if failure == "token_budget_exceeded":
+                    if failure:
                         break
             if failure:
                 break

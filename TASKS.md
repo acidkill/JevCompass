@@ -1155,3 +1155,7 @@ A valid diagnostic next step is now scored separately from complete causal order
 Added a reusable one-shot supervisor bridge for validated enum-only profile triage. The child receives no OpenRouter key. Accepted requests persist a private typed receipt before returning catalog-authored advice, with diagnostic choice, causal order, usage and actual provider transport calls recorded separately. Nine offline tests cover isolation, complete/incomplete ranking, local abstention, fallback and invalid requests.
 
 The module is not yet integrated into the profile runner and proves neither native delivery nor benefit. Supplying the observed client disables internal typed decision caching. Broader child network egress is not restricted by this module; equivalent egress configuration is required for paired trials.
+
+## VCR397 — Bounded live event observer
+
+The shared collector supports an optional event observer without changing default collection. Callback failures retain collected events and return a generic failure status. Three real-subprocess tests verify malformed-line retention, callback-failure preservation and compatibility with the observed token cap without double-counting cached input. The existing 63 collector tests remain green. This is an integration prerequisite, not a live agent comparison.
