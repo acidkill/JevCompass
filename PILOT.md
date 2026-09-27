@@ -1,3 +1,18 @@
+## VCR271-B — Completed condition-timeout local triage comparison
+
+Run `3e2bb8664e7b43c59912be2d0a7636d3` used seed 271, source after PR #201, baseline arm-a first and treatment arm-b second. Both acknowledged before tools, reproduced the focused failure (exit 1), repaired the allowed source, passed focused and required full checks (exit 0), preserved frozen files, and passed independent focused/full validation (5 tests each). Protocol status is completed; advice usefulness remains unscored.
+
+| Metric | Baseline | Local triage guidance |
+| --- | ---: | ---: |
+| Agent completion (ms) | 25,354.19 | 28,099.82 |
+| Including shared preparation, 304.19 ms | 25,658.38 | 28,404.01 |
+| First useful error (ms) | 12,280.54 | 6,956.44 |
+| First successful focused check (ms) | 19,199.88 | 21,564.34 |
+| Input / cached input / output tokens | 112,825 / 101,632 / 837 | 118,014 / 107,776 / 936 |
+| Uncached-input proxy | 11,193 | 10,238 |
+
+The guidance arm exposed the useful error 5,324.10 ms earlier but completed 2,745.63 ms later. This is one ordered mixed result, not repeatable speed or quality evidence. Zero remote triage calls; Codex billing is unknown. Source hashes differ but both independently validate; this does not establish a quality advantage. Private receipt is retained locally; no prompts, source, raw commands, or backend text are published. Historical VCR270 remains incomplete, and native Desktop delivery is not established by this CLI run.
+
 ## VCR271-A — Protocol correction before a fresh triage comparison
 
 The condition-timeout runner now explicitly requires initial focused reproduction before editing for both arms. Equal acknowledgement instructions use fixed baseline `none` and treatment `timeout_nonterminating` tokens; both must precede the first tool. Existing reproduction, focused/full validation, immutable-fixture, and independent-validation gates remain intact. Eleven targeted tests pass. This is a protocol correction, not efficacy evidence; the historical VCR270 incomplete result is unchanged. A new live pair is pending delivery checks.
