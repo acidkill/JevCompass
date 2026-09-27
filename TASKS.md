@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-257-C — first live explicit-strategy pair
+
+Run `3c3d5a44aeb049839b2f3384293295e0`: baseline 24.230s, treatment 25.719s, identical starting fixture hash. Both observed focused unit and required full tests exit 0. Treatment consulted Jev once (1.229s; 368 input/44 output tokens; provider USD0.000015456), choosing symbol inspection before contract definition. Treatment was 1.489s slower; no speed or quality benefit established. Pre-edit delivery and blind quality remain unscored. Confirmed smem checkpoint `bc217b50-f59a-4edd-97d0-31bfcdf5f37c`. See PILOT for counters and evidence limits.
+
 ### VCR-257-B — matched explicit-strategy runner
 
 Added isolated randomized strategy experiment for the existing behavior-change coding task. Both arms retain identical fixtures and focused/full gates; treatment may consult strategy choice before editing. Numeric usage and known IDs only are captured, with legacy ranking disabled. Two offline tests pass. Actual pre-edit ordering and independent blind quality are not scored by this runner; no live outcome yet. Full suite/graph verification before merge.

@@ -905,3 +905,23 @@ The trial had two containment defects: a treatment shell listing briefly crossed
 ## VCR-192 fresh Desktop explorer abstention on current host (2026-09-25)
 
 After the active pipx installation was refreshed to public JevCompass 0.1.15, a new native Desktop `explorer` child received a read-only codebase question and was instructed to report its initial JevCompass advice status **before its first tool**. It reported `NO JEVCOMPASS ADVISORY`, then correctly located the local `_context` implementation and its ID validation. The most recent local `SubagentStart` metric after that probe was `codebase / low-signal-skip / 90.3 ms`. The skip has no advice ID for exact child-to-log correlation, so this supports intentional abstention under insufficient role-only candidates, not a delivered recommendation or proof of host ordering. No key or paid request was used. A prior named-role Desktop positive smoke in a different candidate setting remains separate; fresh Desktop prompt-hook delivery and broad subagent usefulness are not established.
+
+
+## VCR-257-C — live explicit strategy comparison (2026-09-27)
+
+Run `3c3d5a44aeb049839b2f3384293295e0`, seed257, Codex gpt-6-luna/low, randomized baseline then treatment. Both started from SHA256 `db47b815d401bf3e05809215c993532254e80d2f18013c72c660b6a07b7cff13`. This tests explicit CLI consultation, not native Desktop hook delivery.
+
+| Measure | Baseline | Treatment |
+| --- | ---: | ---: |
+| Completion ms | 24229.67 | 25718.84 |
+| Agent input tokens | 107279 | 107866 |
+| Cached input tokens | 94464 | 97536 |
+| Agent output tokens | 654 | 750 |
+| Focused unit exit | 0 | 0 |
+| Observed required full-suite exit | 0 | 0 |
+
+Treatment returned `remote-choice`: `inspect_dependency_or_symbol_use`, then `define_contract_then_implement`. One consultation took1228.99ms, with368input/44output provider tokens and USD0.000015456 reported provider cost. Agent billing remains unknown. Baseline did not invoke the selector; its provider cost is unmeasured, not an inferred zero receipt.
+
+Treatment completed1489.17ms slower. No repeatable speed or quality benefit is established. Required invocation receipts are observed agent results, not independent hidden validation. First useful error is null because no qualifying failure was observed. Before-edit ordering and blind quality remain unscored; successful CLI output does not prove either. Final changed-file artifacts were captured locally; raw event streams were not retained. Local receipts: `/tmp/jev-strategy-vcr257-20260927-01/receipt.json` and `arm-map.json`.
+
+Next: verify pre-edit event ordering and independent quality before another efficacy claim. Smem checkpoint confirmed: `bc217b50-f59a-4edd-97d0-31bfcdf5f37c`.
