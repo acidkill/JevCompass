@@ -17,8 +17,9 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "pilot_condition_timeout_pair.py"
 sys.path.insert(0, str(ROOT / "scripts"))
 SPEC = importlib.util.spec_from_file_location("pilot_condition_timeout_pair", SCRIPT)
+if SPEC is None or SPEC.loader is None:
+    raise RuntimeError("cannot load the condition-timeout pilot runner")
 runner = importlib.util.module_from_spec(SPEC)
-assert SPEC and SPEC.loader
 SPEC.loader.exec_module(runner)
 
 
@@ -31,20 +32,21 @@ def event(kind: str, event_id: str, command: str | None = None, **extra) -> str:
 
 def arm_events(
     *,
-    treatment: bool,
+    acknowledgement_token: str | None,
     useful_error: bool = True,
     focused_success: bool = True,
     full_success: bool = True,
     ack_before_tools: bool = True,
-):
+) -> tuple[list[str], list[float], None]:
     events = []
-    if treatment and ack_before_tools:
+    if acknowledgement_token is not None and ack_before_tools:
         events.append(json.dumps({
             "type": "item.completed",
             "item": {
                 "id": "initial-message",
                 "type": "agent_message",
-                "text": runner.PRETASK_ACK + " I will check the source and test.",
+                "text": runner._acknowledgement_text(acknowledgement_token)
+                + " I will inspect the local test and contract.",
             },
         }))
     failure_output = (
@@ -138,9 +140,15 @@ class ConditionTimeoutPilotTests(unittest.TestCase):
                     runner._review_fixture(copied)
 
     def test_event_receipts_require_expected_initial_failure_markers(self):
-        lines, times, _ = arm_events(treatment=True, useful_error=False)
+        lines, times, _ = arm_events(
+            acknowledgement_token=runner.TREATMENT_ACK_TOKEN,
+            useful_error=False,
+        )
         started = times[0] - 0.001
-        result = runner._event_receipts(lines, times, started, treatment=True)
+        result = runner._event_receipts(
+            lines, times, started,
+            acknowledgement_token=runner.TREATMENT_ACK_TOKEN,
+        )
         self.assertEqual(result["initial_focused_exit"], 1)
         self.assertEqual(result["initial_useful_error_status"], "unscored")
         self.assertIsNone(result["first_useful_error_ms"])
@@ -148,8 +156,80 @@ class ConditionTimeoutPilotTests(unittest.TestCase):
         self.assertTrue(result["full_suite_pass_after_focused_pass"])
         self.assertTrue(result["initial_ack_before_tools"])
 
-    def test_treatment_ack_after_first_tool_is_not_accepted(self):
-        lines, times, _ = arm_events(treatment=False)
+    def test_both_arm_acknowledgements_are_required_before_first_tool(self):
+        for token in (runner.BASELINE_ACK_TOKEN, runner.TREATMENT_ACK_TOKEN):
+            with self.subTest(token=token):
+                lines, times, _ = arm_events(acknowledgement_token=token)
+                started = times[0] - 0.001
+                on_time = runner._event_receipts(
+                    lines, times, started, acknowledgement_token=token,
+                )
+                self.assertTrue(on_time["initial_ack_before_tools"])
+
+                missing_lines, missing_times, _ = arm_events(
+                    acknowledgement_token=token, ack_before_tools=False,
+                )
+                missing = runner._event_receipts(
+                    missing_lines, missing_times, missing_times[0] - 0.001,
+                    acknowledgement_token=token,
+                )
+                self.assertFalse(missing["initial_ack_before_tools"])
+
+                late_lines, late_times, _ = arm_events(acknowledgement_token=None)
+                late_lines.insert(0, event("item.started", "first-tool", "pwd"))
+                late_times.insert(0, late_times[0] - 0.001)
+                late_lines.insert(1, json.dumps({
+                    "type": "item.completed",
+                    "item": {
+                        "id": "late-ack",
+                        "type": "agent_message",
+                        "text": runner._acknowledgement_text(token),
+                    },
+                }))
+                late_times.insert(1, late_times[0] + 0.0001)
+                late = runner._event_receipts(
+                    late_lines, late_times, late_times[0] - 0.002,
+                    acknowledgement_token=token,
+                )
+                self.assertFalse(late["initial_ack_before_tools"])
+
+    def test_required_initial_reproduction_workflow_is_shared_by_both_prompts(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            receipt, calls, _output, _validation_launches = self._run_pair(temporary)
+            prompts = {
+                Path(call["cwd"]).name: call["prompt"] for call in calls
+            }
+            baseline_prompt = prompts["baseline-fixture"]
+            treatment_prompt = prompts["treatment-fixture"]
+            for prompt in (baseline_prompt, treatment_prompt):
+                self.assertIn(runner.INITIAL_WORKFLOW_INSTRUCTION, prompt)
+                workflow = runner.INITIAL_WORKFLOW_INSTRUCTION
+                self.assertIn("Do not edit before the initial focused reproduction.", workflow)
+                self.assertLess(
+                    workflow.index("separate initial diagnostic command"),
+                    workflow.index("Do not edit before the initial focused reproduction."),
+                )
+                self.assertLess(
+                    workflow.index("Do not edit before the initial focused reproduction."),
+                    workflow.index("rerun the focused test"),
+                )
+                self.assertLess(
+                    workflow.index("rerun the focused test"),
+                    workflow.index("run the required full suite"),
+                )
+            self.assertIn(
+                runner._acknowledgement_text(runner.BASELINE_ACK_TOKEN), baseline_prompt,
+            )
+            self.assertIn(
+                runner._acknowledgement_text(runner.TREATMENT_ACK_TOKEN), treatment_prompt,
+            )
+            self.assertTrue(receipt["prompt_hashes"]["same_required_workflow"])
+            self.assertTrue(
+                receipt["prompt_hashes"]["arm_specific_ack_and_treatment_next_check"],
+            )
+
+    def test_legacy_treatment_ack_after_first_tool_is_not_accepted(self):
+        lines, times, _ = arm_events(acknowledgement_token=None)
         lines.insert(0, event("item.started", "first-tool", "pwd"))
         times.insert(0, times[0] - 0.001)
         lines.insert(1, json.dumps({
@@ -157,11 +237,14 @@ class ConditionTimeoutPilotTests(unittest.TestCase):
             "item": {
                 "id": "late-ack",
                 "type": "agent_message",
-                "text": runner.PRETASK_ACK,
+                "text": runner._acknowledgement_text(runner.TREATMENT_ACK_TOKEN),
             },
         }))
         times.insert(1, times[0] + 0.0001)
-        result = runner._event_receipts(lines, times, times[0] - 0.002, treatment=True)
+        result = runner._event_receipts(
+            lines, times, times[0] - 0.002,
+            acknowledgement_token=runner.TREATMENT_ACK_TOKEN,
+        )
         self.assertFalse(result["initial_ack_before_tools"])
 
     def _run_pair(
@@ -171,6 +254,7 @@ class ConditionTimeoutPilotTests(unittest.TestCase):
         useful_error: bool = True,
         full_success: bool = True,
         tamper_immutable: bool = False,
+        omit_ack_token: str | None = None,
     ):
         temp_root = Path(temporary)
         auth_home = temp_root / "auth-home"
@@ -185,6 +269,7 @@ class ConditionTimeoutPilotTests(unittest.TestCase):
         real_collect = runner.core._collect_events
 
         def fake_popen(command, *, cwd=None, env=None, **kwargs):
+            assert cwd is not None and env is not None
             if command[0] != "/fake/codex":
                 validation_launches.append(Path(cwd).name)
                 return real_popen(command, cwd=cwd, env=env, **kwargs)
@@ -205,14 +290,24 @@ class ConditionTimeoutPilotTests(unittest.TestCase):
                 "cwd": str(cwd),
                 "env": dict(env),
                 "auth": (Path(env["CODEX_HOME"]) / "auth.json").read_bytes(),
+                "prompt": command[-1],
             })
             return FakeProcess(command)
 
         def collect(process, *, started, timeout, preserve_on_failure=False):
             if isinstance(process, FakeProcess):
-                is_treatment = runner.PRETASK_ACK in process.prompt
+                is_treatment = runner._acknowledgement_text(
+                    runner.TREATMENT_ACK_TOKEN,
+                ) in process.prompt
+                acknowledgement_token = (
+                    runner.TREATMENT_ACK_TOKEN if is_treatment
+                    else runner.BASELINE_ACK_TOKEN
+                )
                 return arm_events(
-                    treatment=is_treatment,
+                    acknowledgement_token=(
+                        None if acknowledgement_token == omit_ack_token
+                        else acknowledgement_token
+                    ),
                     useful_error=useful_error,
                     full_success=full_success,
                 )
@@ -250,7 +345,10 @@ class ConditionTimeoutPilotTests(unittest.TestCase):
             self.assertEqual(receipt["remote_triage_invocations"], 0)
             self.assertGreater(receipt["preparation_ms"], 0)
             self.assertTrue(receipt["prompt_hashes"]["same_shared_evidence"])
-            self.assertTrue(receipt["prompt_hashes"]["only_preset_next_check_added"])
+            self.assertTrue(receipt["prompt_hashes"]["same_required_workflow"])
+            self.assertTrue(
+                receipt["prompt_hashes"]["arm_specific_ack_and_treatment_next_check"],
+            )
             self.assertEqual(len(calls), 2)
             self.assertEqual(calls[0]["auth"], calls[1]["auth"])
             for call in calls:
@@ -278,6 +376,7 @@ class ConditionTimeoutPilotTests(unittest.TestCase):
                     arm["total_including_preparation_ms"],
                     receipt["preparation_ms"],
                 )
+            self.assertTrue(receipt["baseline_ack_before_tools"])
             self.assertTrue(receipt["treatment_ack_before_tools"])
             self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o700)
             for path in output.iterdir():
@@ -288,23 +387,37 @@ class ConditionTimeoutPilotTests(unittest.TestCase):
                 "OPENROUTER_SECRET_MARKER",
                 "PRIVATE_FINAL_RESPONSE_MARKER",
                 "lambda: bool(self._items)",
-                runner.PRETASK_ACK,
+                runner._acknowledgement_text(runner.TREATMENT_ACK_TOKEN),
             ):
                 self.assertNotIn(marker, serialized)
 
     def test_missing_failure_markers_or_full_success_keeps_pair_incomplete(self):
-        for options in (
-            {"useful_error": False, "full_success": True},
-            {"useful_error": True, "full_success": False},
-        ):
-            with self.subTest(options=options), tempfile.TemporaryDirectory() as temporary:
-                receipt, _calls, _output, _validation_launches = self._run_pair(temporary, **options)
+        for useful_error, full_success in ((False, True), (True, False)):
+            with self.subTest(useful_error=useful_error, full_success=full_success), tempfile.TemporaryDirectory() as temporary:
+                receipt, _calls, _output, _validation_launches = self._run_pair(
+                    temporary, useful_error=useful_error, full_success=full_success,
+                )
                 self.assertEqual(receipt["status"], "incomplete")
                 self.assertEqual(receipt["advice_utility_status"], "unscored")
                 arms = receipt["arms"].values()
                 self.assertTrue(all(arm["initial_useful_error_status"] == (
-                    "unscored" if not options["useful_error"] else "observed"
+                    "unscored" if not useful_error else "observed"
                 ) for arm in arms))
+
+    def test_pair_gate_requires_acknowledgement_from_both_arms(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            receipt, _calls, _output, _validation_launches = self._run_pair(
+                temporary, omit_ack_token=runner.BASELINE_ACK_TOKEN,
+            )
+
+            self.assertEqual(receipt["status"], "incomplete")
+            mapping = json.loads((_output / "arm-map.json").read_text(encoding="utf-8"))
+            baseline_label = next(label for label, arm in mapping.items() if arm == "baseline")
+            treatment_label = next(label for label, arm in mapping.items() if arm == "treatment")
+            self.assertFalse(receipt["baseline_ack_before_tools"])
+            self.assertTrue(receipt["treatment_ack_before_tools"])
+            self.assertFalse(receipt["arm_gates"][baseline_label])
+            self.assertTrue(receipt["arms"][treatment_label]["initial_ack_before_tools"])
 
     def test_immutable_fixture_tampering_skips_independent_test_execution(self):
         with tempfile.TemporaryDirectory() as temporary:
