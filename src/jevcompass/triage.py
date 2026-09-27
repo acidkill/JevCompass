@@ -87,6 +87,15 @@ class TimeoutObservation(str, Enum):
     WAIT_CONDITION_UNSATISFIABLE = "wait_condition_unsatisfiable"
 
 
+class DiagnosticCost(str, Enum):
+    """Caller-verified relative effort for a diagnostic check."""
+
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    UNKNOWN = "unknown"
+
+
 @dataclass(frozen=True)
 class DiagnosticStep:
     """A locally authored next diagnostic action."""
@@ -393,6 +402,7 @@ def triage_failure(
     assertion_observations: Sequence[AssertionObservation] | None = None,
     timeout_observations: Sequence[TimeoutObservation] | None = None,
     rank_hypotheses: bool = False,
+    diagnostic_costs: Mapping[HypothesisId, DiagnosticCost] | None = None,
 ) -> TriageResult:
     """Return up to two diagnostic steps from allowlisted failure metadata.
 
@@ -403,7 +413,10 @@ def triage_failure(
     confirmation step; contradictory contract observations abstain. A legacy
     fixture conflict may be ranked remotely using only its enum token. Raw names,
     paths, output, prompts, commands, and free-form descriptions are never accepted.
-    The optional decision reason is a fixed safe enum and retains no exception text.
+    Optional diagnostic costs are caller-verified relative effort enums keyed by
+    supplied hypothesis IDs. They can guide the order of diagnostic checks, but
+    are never evidence of causal likelihood. The optional decision reason is a
+    fixed safe enum and retains no exception text.
     """
     if isinstance(observed_exit_status, bool) or not isinstance(observed_exit_status, int):
         raise TypeError("observed-exit-status-must-be-int")
@@ -417,6 +430,21 @@ def triage_failure(
         raise TypeError("hypotheses-must-be-enums")
     if not isinstance(rank_hypotheses, bool):
         raise TypeError("rank-hypotheses-must-be-bool")
+    if diagnostic_costs is None:
+        cost_facts: dict[HypothesisId, DiagnosticCost] = {}
+    else:
+        if not isinstance(diagnostic_costs, Mapping):
+            raise TypeError("diagnostic-costs-must-be-mapping")
+        provided_hypotheses = set(hypotheses)
+        cost_facts = {}
+        for hypothesis, cost in diagnostic_costs.items():
+            if not isinstance(hypothesis, HypothesisId):
+                raise TypeError("diagnostic-cost-keys-must-be-hypothesis-enums")
+            if hypothesis not in provided_hypotheses:
+                raise ValueError("diagnostic-cost-hypothesis-not-provided")
+            if not isinstance(cost, DiagnosticCost):
+                raise TypeError("diagnostic-cost-values-must-be-enums")
+            cost_facts[hypothesis] = cost
     observations = _normalize_import_observations(import_observations)
     assertion_facts = _normalize_assertion_observations(assertion_observations)
     timeout_facts = _normalize_timeout_observations(timeout_observations)
@@ -514,17 +542,36 @@ def triage_failure(
         "failure_kinds": [kind.value for kind in FailureKind if kind in allowed_kinds],
         "hypotheses": causal_ids,
     }
+    cost_tokens = {
+        entry.step.id.value: cost_facts[entry.step.id].value
+        for entry in plausible if entry.step.id in cost_facts
+    }
+    if cost_tokens:
+        state["diagnostic_costs"] = cost_tokens
     if import_evidence_applies:
         state["import_observations"] = [item.value for item in observations]
     if assertion_evidence_applies:
         state["assertion_observations"] = [item.value for item in assertion_facts]
     if timeout_evidence_applies:
         state["timeout_observations"] = [item.value for item in timeout_facts]
+    diagnostic_criteria = {
+        entry.step.id.value: entry.descriptor for entry in plausible
+    }
+    for hypothesis_id, cost in cost_tokens.items():
+        diagnostic_criteria[hypothesis_id] += (
+            f"; caller-verified relative diagnostic cost: {cost}"
+        )
+    diagnostic_instructions = "Choose the most useful next diagnostic step."
+    if cost_tokens:
+        diagnostic_instructions = (
+            "Choose the most useful next diagnostic step, considering relative "
+            "diagnostic cost when ordering checks. Cost is not evidence of causal likelihood."
+        )
     questions = {
         "diagnostic": {
             "type": "choice",
-            "instructions": "Choose the most useful next diagnostic step.",
-            "criteria": {entry.step.id.value: entry.descriptor for entry in plausible},
+            "instructions": diagnostic_instructions,
+            "criteria": diagnostic_criteria,
         }
     }
     rank_questions: dict[str, dict[str, Any]] = {}
