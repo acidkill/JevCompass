@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""Run one bounded, randomized, keyless local timeout-triage matched pair.
+"""Run one bounded matched timeout-triage pair with an optional supervisor bridge.
 
-Both arms receive identical synthetic timeout files and the full test error.
-Treatment alone receives a neutral, optional instruction to request allowlisted
-triage immediately after an observed timeout, before local source inspection.
-The receipt keeps task correctness separate from consultation/adoption and
-contains only bounded, redacted metadata.
+The default profile is keyless and local-only. With explicit supervisor opt-in,
+both arms receive identical loopback bridge access; the key stays in this
+process and the bridge accepts one enum-only request after the parent observes
+the actual focused timeout. Treatment alone receives optional triage guidance.
+Receipts separate task correctness from consultation/adoption and contain only
+bounded, redacted metadata.
 """
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
 import math
@@ -22,6 +24,10 @@ import stat
 import subprocess
 import sys
 import tempfile
+import selectors
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.request import Request, urlopen
 import time
 from typing import Any, Iterable
 import uuid
@@ -72,6 +78,394 @@ TREATMENT_GUIDANCE = (
     "the call. In either case, inspect the full error and contract before editing, "
     "then rerun the focused and required full checks."
 )
+
+
+class _SupervisorBridge:
+    """One-shot local HTTP bridge that keeps the advisor credential in this process."""
+
+    MAX_REQUEST_BYTES = 1024
+    MAX_RESPONSE_BYTES = MAX_TRIAGE_OUTPUT_BYTES
+
+    def __init__(self) -> None:
+        self.observed_exit: int | None = None
+        self._focused_event_seen = False
+        self._lock = threading.Lock()
+        self._requests = 0
+        self._state = "not_requested"
+        self._triage_status = "not_attempted"
+        self._server = self._make_server()
+        self._thread = threading.Thread(
+            target=self._server.serve_forever, kwargs={"poll_interval": 0.05},
+            daemon=True,
+        )
+
+    def _make_server(self) -> ThreadingHTTPServer:
+        bridge = self
+
+        class Handler(BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.0"
+            server_version = "JevTriageBridge"
+            sys_version = ""
+
+            def log_message(self, _format: str, *_args: Any) -> None:
+                return
+
+            def do_POST(self) -> None:
+                bridge._handle(self)
+
+            def do_GET(self) -> None:
+                bridge._handle(self)
+
+            def do_PUT(self) -> None:
+                bridge._handle(self)
+
+            def do_DELETE(self) -> None:
+                bridge._handle(self)
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        server.daemon_threads = True
+        server.block_on_close = False
+        return server
+
+    @property
+    def url(self) -> str:
+        host, port = self._server.server_address
+        return f"http://{host}:{port}/triage"
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def close(self) -> None:
+        if self._thread.is_alive():
+            self._server.shutdown()
+            self._thread.join(timeout=2.0)
+        self._server.server_close()
+
+    def __enter__(self) -> "_SupervisorBridge":
+        self.start()
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        self.close()
+
+    def observe_line(self, line: str) -> None:
+        """Enable the one request only after the parent sees the first focused result."""
+        try:
+            event = json.loads(line)
+        except (TypeError, json.JSONDecodeError):
+            return
+        if not isinstance(event, dict) or event.get("type") != "item.completed":
+            return
+        item = common._item(event)
+        if item is None or not _is_focused(item):
+            return
+        with self._lock:
+            if self._focused_event_seen:
+                return
+            self._focused_event_seen = True
+            code = item.get("exit_code")
+            output = item.get("aggregated_output")
+            if not isinstance(output, str):
+                output = item.get("output")
+            if (isinstance(code, int) and not isinstance(code, bool) and code != 0
+                    and _matches_timeout_error(output)):
+                self.observed_exit = code
+
+    def _handle(self, handler: BaseHTTPRequestHandler) -> None:
+        if handler.client_address[0] != "127.0.0.1":
+            self._send(handler, 403, {"status": "unavailable"})
+            return
+        with self._lock:
+            self._requests += 1
+            request_number = self._requests
+            observed_exit = self.observed_exit
+            if request_number > 1:
+                self._state = "duplicate"
+            elif observed_exit is None:
+                self._state = "premature"
+        if request_number > 1:
+            self._send(handler, 429, {"status": "unavailable"})
+            return
+        if observed_exit is None:
+            self._send(handler, 409, {"status": "unavailable"})
+            return
+        if handler.command != "POST" or handler.path != "/triage":
+            self._reject(handler, "invalid_request")
+            return
+        if handler.headers.get("Transfer-Encoding") is not None:
+            self._reject(handler, "invalid_request")
+            return
+        lengths = handler.headers.get_all("Content-Length", [])
+        if len(lengths) != 1 or handler.headers.get_content_type() != "application/json":
+            self._reject(handler, "invalid_request")
+            return
+        try:
+            length = int(lengths[0])
+        except (TypeError, ValueError):
+            self._reject(handler, "invalid_request")
+            return
+        if length < 1 or length > self.MAX_REQUEST_BYTES:
+            self._reject(handler, "invalid_request")
+            return
+        try:
+            raw = handler.rfile.read(length)
+            if len(raw) != length:
+                raise ValueError("short request")
+            request = _strict_json(raw.decode("utf-8"))
+        except (UnicodeDecodeError, ValueError, TypeError, json.JSONDecodeError):
+            self._reject(handler, "invalid_request")
+            return
+        if not isinstance(request, dict) or set(request) != {
+            "observed_exit_status", "failure_kind", "hypothesis_ids",
+        }:
+            self._reject(handler, "invalid_request")
+            return
+        status = request.get("observed_exit_status")
+        hypotheses = request.get("hypothesis_ids")
+        if (
+            isinstance(status, bool) or not isinstance(status, int) or status != observed_exit
+            or status == 0 or request.get("failure_kind") != "timeout"
+            or hypotheses != list(TIMEOUT_CANDIDATES)
+        ):
+            self._reject(handler, "invalid_request")
+            return
+        with self._lock:
+            self._state = "accepted"
+        payload = _production_timeout_payload(status)
+        if payload is None:
+            with self._lock:
+                self._state = "fallback"
+                self._triage_status = "local_fallback"
+            payload = _local_timeout_payload(status)
+        else:
+            parsed = _validated_triage(json.dumps(payload), status)
+            with self._lock:
+                self._triage_status = (
+                    "remote_choice" if parsed["status"] == "remote-choice"
+                    else "local_fallback"
+                )
+        self._send(handler, 200, payload)
+
+    def _reject(self, handler: BaseHTTPRequestHandler, state: str) -> None:
+        with self._lock:
+            if self._state not in {"duplicate", "premature"}:
+                self._state = state
+        self._send(handler, 400, {"status": "unavailable"})
+
+    def _send(self, handler: BaseHTTPRequestHandler, code: int, payload: dict[str, Any]) -> None:
+        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+        if len(encoded) > self.MAX_RESPONSE_BYTES:
+            code = 502
+            encoded = b'{"status":"unavailable"}'
+        try:
+            handler.send_response(code)
+            handler.send_header("Content-Type", "application/json")
+            handler.send_header("Content-Length", str(len(encoded)))
+            handler.send_header("Connection", "close")
+            handler.end_headers()
+            handler.wfile.write(encoded)
+            handler.close_connection = True
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            return
+
+    def receipt(self) -> dict[str, Any]:
+        with self._lock:
+            return {
+                "enabled": True,
+                "request_count": min(self._requests, 2),
+                "state": self._state,
+                "advisor_result": self._triage_status,
+                "observed_timeout_exit": self.observed_exit is not None,
+            }
+
+
+def _local_timeout_payload(exit_code: int) -> dict[str, Any]:
+    from jevcompass.triage import CATALOG, HypothesisId
+    steps = [
+        CATALOG[HypothesisId(candidate)].step
+        for candidate in TIMEOUT_CANDIDATES
+    ]
+    return {
+        "observed_exit_status": exit_code,
+        "test_failed": True,
+        "status": "no-remote-choice",
+        "steps": [{"id": step.id.value, "title": step.title, "instruction": step.instruction}
+                  for step in steps],
+        "executed": False,
+        "decision_usage": None,
+    }
+
+
+def _production_timeout_payload(exit_code: int) -> dict[str, Any] | None:
+    """Call JevCompass' actual enum-only triage function in the supervisor."""
+    try:
+        from jevcompass.triage import (
+            CATALOG, FailureKind, HypothesisId, REMOTE_CHOICE,
+            TriageResult, triage_failure,
+        )
+        result = triage_failure(
+            (FailureKind.TIMEOUT,),
+            tuple(HypothesisId(candidate) for candidate in TIMEOUT_CANDIDATES),
+            exit_code,
+        )
+        if not isinstance(result, TriageResult) or result.observed_exit_status != exit_code:
+            return None
+        if result.status not in {"remote-choice", "no-remote-choice"}:
+            return None
+        ids = [step.id.value for step in result.steps]
+        if len(ids) > 2 or len(set(ids)) != len(ids) or any(i not in TIMEOUT_CANDIDATES for i in ids):
+            return None
+        if result.status == REMOTE_CHOICE and not ids:
+            return None
+        usage = result.decision_usage
+        safe_usage = None
+        if usage is not None:
+            if (isinstance(usage.input_tokens, bool) or not isinstance(usage.input_tokens, int)
+                    or not 0 <= usage.input_tokens <= 10**12
+                    or isinstance(usage.output_tokens, bool) or not isinstance(usage.output_tokens, int)
+                    or not 0 <= usage.output_tokens <= 10**12):
+                return None
+            cost = usage.cost_usd
+            if cost is not None and (
+                isinstance(cost, bool) or not isinstance(cost, (int, float))
+                or not math.isfinite(float(cost)) or not 0 <= cost <= 10**12
+            ):
+                return None
+            safe_usage = {
+                "input_tokens": usage.input_tokens, "output_tokens": usage.output_tokens,
+                "cost_usd": float(cost) if cost is not None else None,
+            }
+        return {
+            "observed_exit_status": exit_code,
+            "test_failed": True,
+            "status": result.status,
+            "steps": [{"id": CATALOG[HypothesisId(identifier)].step.id.value,
+                       "title": CATALOG[HypothesisId(identifier)].step.title,
+                       "instruction": CATALOG[HypothesisId(identifier)].step.instruction}
+                      for identifier in ids],
+            "executed": False,
+            "decision_usage": safe_usage,
+        }
+    except Exception:
+        return None
+
+
+def _write_python_shim(home: Path, bridge_url: str) -> Path:
+    """Install a private wrapper for only the exact fixed triage CLI invocation."""
+    bindir = home / "bin"
+    bindir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    shim = bindir / "python"
+    real_python = sys.executable
+    source = f"""#!/usr/bin/env python3
+import json, os, subprocess, sys
+from urllib.request import Request, urlopen
+REAL = {real_python!r}
+URL = os.environ.get("JEVCOMPASS_TRIAGE_BRIDGE_URL", "")
+ARGS = sys.argv[1:]
+def fallback():
+    os.execv(REAL, [REAL, *ARGS])
+expected = ["-m", "jevcompass", "triage", "--exit-code"]
+if len(ARGS) == 12 and ARGS[:4] == expected:
+    try:
+        code = int(ARGS[4])
+        if ARGS[5:] == ["--kind", "timeout", "--hypothesis", "timeout_contention",
+                        "--hypothesis", "timeout_nonterminating", "--json"] and code != 0:
+            body = json.dumps({{"observed_exit_status": code, "failure_kind": "timeout",
+                               "hypothesis_ids": ["timeout_contention", "timeout_nonterminating"]}},
+                              separators=(",", ":")).encode()
+            req = Request(URL, data=body, headers={{"Content-Type": "application/json"}}, method="POST")
+            with urlopen(req, timeout=2.0) as response:
+                data = response.read({MAX_TRIAGE_OUTPUT_BYTES + 1})
+            if len(data) <= {MAX_TRIAGE_OUTPUT_BYTES}:
+                sys.stdout.buffer.write(data + (b"\\n" if not data.endswith(b"\\n") else b""))
+                raise SystemExit(0)
+    except SystemExit:
+        raise
+    except Exception:
+        pass
+fallback()
+"""
+    fd = os.open(shim, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o700)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            stream.write(source)
+            stream.flush()
+            os.fsync(stream.fileno())
+    except BaseException:
+        try:
+            shim.unlink()
+        except OSError:
+            pass
+        raise
+    return bindir
+
+
+def _collect_events_with_observer(
+    process: subprocess.Popen[bytes], *, started: float, timeout: int,
+    observer: Any, preserve_on_failure: bool = True,
+) -> tuple[list[str], list[float], str | None]:
+    """Collect the same bounded JSONL stream while letting the parent observe one fact."""
+    if process.stdout is None:
+        return [], [], "codex_unavailable"
+    selector = selectors.DefaultSelector()
+    selector.register(process.stdout, selectors.EVENT_READ)
+    pending = bytearray()
+    lines: list[str] = []
+    times: list[float] = []
+    total = 0
+    failure = None
+    deadline = started + timeout
+
+    def append_line(raw: bytes) -> None:
+        line = raw.decode("utf-8", errors="replace")
+        lines.append(line)
+        times.append(time.monotonic())
+        try:
+            observer(line)
+        except Exception:
+            return
+
+    try:
+        while selector.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                failure = "timeout"
+                break
+            for key, _ in selector.select(min(remaining, 0.25)):
+                chunk = os.read(key.fd, 65536)
+                if not chunk:
+                    selector.unregister(key.fileobj)
+                    continue
+                total += len(chunk)
+                if total > core.MAX_EVENT_BYTES:
+                    failure = "event_output_limit"
+                    break
+                pending.extend(chunk)
+                while True:
+                    newline = pending.find(b"\n")
+                    if newline < 0:
+                        break
+                    raw_line = bytes(pending[:newline])
+                    del pending[:newline + 1]
+                    append_line(raw_line)
+            if failure:
+                break
+        if pending and failure is None:
+            append_line(bytes(pending))
+    finally:
+        selector.close()
+        process.stdout.close()
+    if failure:
+        process.kill()
+        process.wait()
+        return (lines, times, failure) if preserve_on_failure else ([], [], failure)
+    try:
+        process.wait(timeout=max(0.01, deadline - time.monotonic()))
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+        return (lines, times, "timeout") if preserve_on_failure else ([], [], "timeout")
+    return lines, times, None
 
 
 def _sha256(data: bytes) -> str:
@@ -354,7 +748,7 @@ def _empty_arm(status: str) -> dict[str, Any]:
 
 def _run_arm(
     *, codex: str, model: str, reasoning_effort: str, prompt: str,
-    fixture: Path, home: Path, timeout: int,
+    fixture: Path, home: Path, timeout: int, allow_supervisor_bridge: bool = False,
 ) -> dict[str, Any]:
     home.joinpath(".codex").mkdir(mode=0o700, parents=True, exist_ok=True)
     env = core._isolated_environment(
@@ -363,34 +757,56 @@ def _run_arm(
     )
     env.pop("OPENROUTER_API_KEY", None)
     env["PYTHONDONTWRITEBYTECODE"] = "1"
+    bridge_context = _SupervisorBridge() if allow_supervisor_bridge else contextlib.nullcontext(None)
     started = time.monotonic()
-    try:
-        process = subprocess.Popen(
-            common._cli_command(codex, model, reasoning_effort, prompt,
-                                allow_network=False),
-            cwd=fixture, env=env, stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+    with bridge_context as bridge:
+        try:
+            if bridge is not None:
+                shim_path = _write_python_shim(home, bridge.url)
+                env["PATH"] = str(shim_path) + os.pathsep + env.get("PATH", "")
+                env["JEVCOMPASS_TRIAGE_BRIDGE_URL"] = bridge.url
+            process = subprocess.Popen(
+                common._cli_command(
+                    codex, model, reasoning_effort, prompt,
+                    allow_network=allow_supervisor_bridge,
+                ),
+                cwd=fixture, env=env, stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            )
+            collect = _collect_events_with_observer if bridge is not None else core._collect_events
+            kwargs = {"started": started, "timeout": timeout, "preserve_on_failure": True}
+            if bridge is not None:
+                kwargs["observer"] = bridge.observe_line
+            lines, times, failure = collect(process, **kwargs)
+        except OSError:
+            result = _empty_arm("failed")
+            result["supervisor_bridge"] = (
+                bridge.receipt() if bridge is not None
+                else {"enabled": False, "request_count": 0, "state": "disabled",
+                      "advisor_result": "not_attempted", "observed_timeout_exit": False}
+            )
+            return result
+        completion_ms = round((time.monotonic() - started) * 1000, 2)
+        parsed = _event_receipts(lines, times, started)
+        usage = parse_codex_json_events(
+            lines, started_at=started, ended_at=time.monotonic(), event_times=times,
         )
-        lines, times, failure = core._collect_events(
-            process, started=started, timeout=timeout, preserve_on_failure=True,
+        result = {
+            "cli_status": "completed" if failure is None and process.returncode == 0 else "failed",
+            "cli_exit_code": process.returncode if failure is None else None,
+            "failure": failure,
+            "completion_ms": completion_ms if completion_ms <= MAX_TIMEOUT * 1000 else None,
+            "codex_token_usage_status": usage["usage_status"],
+            "codex_token_usage": usage["token_usage"],
+            "codex_billing_estimate": None,
+            **parsed,
+        }
+        result["supervisor_bridge"] = (
+            bridge.receipt() if bridge is not None
+            else {"enabled": False, "request_count": 0, "state": "disabled",
+                  "advisor_result": "not_attempted", "observed_timeout_exit": False}
         )
-    except OSError:
-        return _empty_arm("failed")
-    completion_ms = round((time.monotonic() - started) * 1000, 2)
-    parsed = _event_receipts(lines, times, started)
-    usage = parse_codex_json_events(
-        lines, started_at=started, ended_at=time.monotonic(), event_times=times,
-    )
-    return {
-        "cli_status": "completed" if failure is None and process.returncode == 0 else "failed",
-        "cli_exit_code": process.returncode if failure is None else None,
-        "failure": failure,
-        "completion_ms": completion_ms if completion_ms <= MAX_TIMEOUT * 1000 else None,
-        "codex_token_usage_status": usage["usage_status"],
-        "codex_token_usage": usage["token_usage"],
-        "codex_billing_estimate": None,
-        **parsed,
-    }
+        return result
 
 
 def _file_hash(path: Path) -> str | None:
@@ -446,7 +862,12 @@ def _verify_fixture(root: Path) -> str:
 def run_pair(
     *, codex: str, model: str, reasoning_effort: str, timeout: int = DEFAULT_TIMEOUT,
     seed: int | None = None, output_dir: Path,
+    allow_supervisor_triage: bool = False,
 ) -> dict[str, Any]:
+    if not isinstance(allow_supervisor_triage, bool):
+        raise ValueError("supervisor triage opt-in must be boolean")
+    if allow_supervisor_triage and not os.environ.get("OPENROUTER_API_KEY"):
+        raise ValueError("supervisor triage requires an existing parent-process API key")
     if not 1 <= timeout <= MAX_TIMEOUT:
         raise ValueError(f"timeout must be between 1 and {MAX_TIMEOUT} seconds")
     if not common.SAFE_MODEL.fullmatch(model) or not common.SAFE_ID.fullmatch(reasoning_effort):
@@ -507,7 +928,7 @@ def run_pair(
             arms[labels[true_arm]] = _run_arm(
                 codex=codex, model=model, reasoning_effort=reasoning_effort,
                 prompt=prompt, fixture=fixtures[true_arm], home=homes[true_arm],
-                timeout=timeout,
+                timeout=timeout, allow_supervisor_bridge=allow_supervisor_triage,
             )
             final_hash = _file_hash(fixtures[true_arm] / SOURCE_FILE)
             initial_hash = _file_hash(FIXTURE / SOURCE_FILE)
@@ -554,6 +975,26 @@ def run_pair(
         protocol_status = treatment_arm["triage_status"]
     else:
         protocol_status = "invalid_or_late"
+    bridge_requests = sum(
+        int(arm.get("supervisor_bridge", {}).get("request_count", 0))
+        for arm in arms.values()
+    )
+    bridge_remote_choice = any(
+        arm.get("supervisor_bridge", {}).get("advisor_result") == "remote_choice"
+        for arm in arms.values()
+    )
+    if not allow_supervisor_triage:
+        remote_advice_status = "not_attempted_keyless_profile"
+    elif bridge_requests == 0:
+        remote_advice_status = "enabled_but_not_invoked"
+    elif bridge_remote_choice:
+        remote_advice_status = "remote_choice_returned"
+    else:
+        remote_advice_status = "local_fallback_returned"
+    provider_cost_available = any(
+        arm.get("triage_usage", {}).get("jev_provider_cost_usd") is not None
+        for arm in arms.values()
+    )
     receipt = {
         "schema_version": 1,
         "run_id": run_id,
@@ -561,11 +1002,16 @@ def run_pair(
         "task_correctness": task_correctness,
         "advice_protocol_status": protocol_status,
         "advice_adoption_status": "not_scored_nonbinding",
-        "advice_effect_scope": "prospective_optional_local_guidance_only",
-        "triage_execution_profile": "keyless_local_fallback_only",
-        "remote_advice_status": "not_attempted_keyless_profile",
+        "advice_effect_scope": "prospective_optional_supervisor_triage" if allow_supervisor_triage
+        else "prospective_optional_local_guidance_only",
+        "triage_execution_profile": "supervisor_loopback_enum_bridge" if allow_supervisor_triage
+        else "keyless_local_fallback_only",
+        "remote_advice_status": remote_advice_status,
+        "supervisor_bridge_request_count": bridge_requests,
+        "supervisor_bridge_payload_scope": "fixed timeout kind, fixed two hypothesis ids, observed nonzero exit only",
         "agent_api_key_exposed": False,
-        "agent_network_access": False,
+        "agent_network_access": allow_supervisor_triage,
+        "external_egress_restriction": "not_enforced" if allow_supervisor_triage else "disabled",
         "pair_order": [labels[arm] for arm in order],
         "timeout_seconds_per_arm": timeout,
         "fixture_sha256": fixture_hash,
@@ -583,7 +1029,7 @@ def run_pair(
         "arms": arms,
         "independent_validation": independents,
         "pair_wall_ms": round((time.monotonic() - started_pair) * 1000, 2),
-        "provider_cost_available": False,
+        "provider_cost_available": provider_cost_available,
         "billing_estimate": None,
         "receipt_scope": "redacted metadata only; no prompts, source, paths, tool output, or credentials",
     }
@@ -600,6 +1046,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
     parser.add_argument("--seed", type=int)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument(
+        "--allow-supervisor-triage", action="store_true",
+        help="authorize one parent-process triage request using fixed enum metadata; key is never passed to the agent",
+    )
     args = parser.parse_args(argv)
     if not args.live:
         parser.error("pass --live to run model-backed CLI arms")
@@ -611,6 +1061,7 @@ def main(argv: list[str] | None = None) -> int:
         receipt = run_pair(
             codex=codex, model=args.model, reasoning_effort=args.reasoning_effort,
             timeout=args.timeout, seed=args.seed, output_dir=args.output_dir,
+            allow_supervisor_triage=args.allow_supervisor_triage,
         )
     except (OSError, ValueError, RuntimeError, TypeError):
         print(json.dumps({"status": "failed", "failure": "runner_setup_failed"}))

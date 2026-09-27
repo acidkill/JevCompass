@@ -1,3 +1,7 @@
+## VCR299 — Supervisor-only timeout triage route
+
+Added opt-in one-shot loopback bridge for the timeout comparison. The supervisor holds the API key and permits only the observed nonzero focused timeout plus two fixed hypothesis IDs; the child receives locally composed production triage JSON. Both arms use the same network setup. Network access is enabled and external egress is not independently restricted; this limitation is recorded. Twenty-one focused tests pass, including actual child-shim HTTP requests with a fake backend. No live advisor comparison or benefit claim yet; coordinator integration is a separate step.
+
 ## VCR298 — Coordinator verification
 
 The prospective coordinator freezes schedules, source instructions and independent validators, runs each pair in an isolated subprocess and retains failures without retry. Seven tests now execute under unittest after parent corrected initially skipped pytest-style functions. The full worktree suite passes 659 tests, including concurrent bridge work. Remote pretask and test-order routes are explicit; timeout remote integration is still separate. No new paired task has run and no benefit is established.

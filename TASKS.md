@@ -1,3 +1,7 @@
+## VCR299 — Supervisor-only timeout triage route
+
+Added opt-in one-shot loopback bridge for the timeout comparison. The supervisor holds the API key and permits only the observed nonzero focused timeout plus two fixed hypothesis IDs; the child receives locally composed production triage JSON. Both arms use the same network setup. Network access is enabled and external egress is not independently restricted; this limitation is recorded. Twenty-one focused tests pass, including actual child-shim HTTP requests with a fake backend. No live advisor comparison or benefit claim yet; coordinator integration is a separate step.
+
 ## VCR298 — Frozen cohort coordinator
 
 Added isolated per-pair execution, fixed 6+20 schedules, source/prompt/validator hashes and bounded runtime/token monitoring. Explicit remote routes distinguish supervisor-only pretask selection from equal-environment test-order CLI calls; remote timeout triage remains unavailable pending its separate integration. Parent corrected unittest discovery so all seven coordinator cases run in CI. Full worktree suite: 659 tests pass. No live cohort or efficacy result yet.
