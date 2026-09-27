@@ -426,7 +426,12 @@ def main(argv: list[str] | None = None) -> int:
         result = choose_strategies(args.kind, args.signal)
         payload = {"status": result.status,
                    "strategies": [{"id": item.id.value, "rationale": item.rationale}
-                                  for item in result.recommendations]}
+                                  for item in result.recommendations],
+                   "usage": None if result.usage is None else {
+                       "input_tokens": result.usage.input_tokens,
+                       "output_tokens": result.usage.output_tokens,
+                       "cost_usd": result.usage.cost_usd,
+                   }}
         if args.json:
             print(json.dumps(payload))
         else:
