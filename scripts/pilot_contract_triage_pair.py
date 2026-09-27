@@ -28,7 +28,9 @@ import uuid
 
 import pilot_cli_core as core
 import pilot_test_order_pair as common
-from pilot_receipts import parse_codex_json_events, parse_choice_receipt
+from pilot_receipts import (
+    build_agent_measurement_receipt, parse_codex_json_events, parse_choice_receipt,
+)
 import pilot_triage_pair as triage_common
 
 
@@ -410,6 +412,7 @@ def _empty_arm(failure: str) -> dict[str, Any]:
     return {
         "cli_status": "failed", "failure": failure, "cli_exit_code": None,
         "completion_ms": None, "event_count": 0,
+        "agent_measurement": None,
         "initial_focused_exit": None, "focused_exit_codes": [],
         "full_suite_exit": None, "full_suite_invocation_observed": False,
         "first_useful_failure_observed": False, "first_useful_failure_ms": None,
@@ -428,9 +431,11 @@ def _empty_arm(failure: str) -> dict[str, Any]:
 def _run_arm(
     *, codex: str, model: str, reasoning_effort: str, prompt: str,
     fixture: Path, home: Path, timeout: int, treatment: bool,
+    measurement_path: Path | None = None,
     advice_policy: str = "legacy-required-step",
 ) -> tuple[dict[str, Any], str | None]:
     (home / ".codex").mkdir(mode=0o700, parents=True, exist_ok=True)
+    measurement_path = measurement_path or (home / ".codex" / "agent-measurement.json")
     env = core._isolated_environment(
         home=home, isolated_python=home / "python", allow_openrouter_key=False,
     )
@@ -447,11 +452,27 @@ def _run_arm(
         )
     except OSError:
         return _empty_arm("codex_unavailable"), None
-    wall_ms = round((time.monotonic() - started) * 1000, 2)
+
+    ended = time.monotonic()
+    wall_ms = round((ended - started) * 1000, 2)
+    measurement = build_agent_measurement_receipt(
+        lines, times, started, ended, process.returncode, failure,
+    )
+    # Write this bounded, redacted record before the optional task-specific
+    # event interpretation so a parser error cannot erase early measurements.
+    common._private_write(
+        measurement_path,
+        (json.dumps(measurement, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8"),
+    )
+
     if failure is not None:
         failed = _empty_arm(failure)
         failed["completion_ms"] = wall_ms if wall_ms <= MAX_TIMEOUT * 1000 else None
+        failed["cli_exit_code"] = process.returncode
+        failed["agent_measurement"] = measurement
+        failed["event_count"] = len(lines)
         return failed, None
+
     observed, answer = _event_receipts(
         lines, times, started, advice_policy=advice_policy,
     )
@@ -460,6 +481,7 @@ def _run_arm(
         "failure": None if process.returncode == 0 else "cli_exit_nonzero",
         "cli_exit_code": process.returncode,
         "completion_ms": wall_ms if wall_ms <= MAX_TIMEOUT * 1000 else None,
+        "agent_measurement": measurement,
         **observed,
     }
     return result, answer
@@ -609,6 +631,7 @@ def run_pair(
                 timeout=timeout, treatment=true_arm == "treatment",
                 advice_policy=(advice_policy if true_arm == "treatment"
                                else "legacy-required-step"),
+                measurement_path=output_dir / f"{label}-agent-measurement.json",
             )
             arms[label]["fixture_sha256_before"] = digests[true_arm]
 
@@ -744,6 +767,9 @@ def run_pair(
                 label: {
                     "source_captured": (output_dir / f"{label}-source.py").is_file(),
                     "final_captured": (output_dir / f"{label}-final.txt").is_file(),
+                    "agent_measurement_captured": (
+                        output_dir / f"{label}-agent-measurement.json"
+                    ).is_file(),
                 }
                 for label in ("arm-a", "arm-b")
             },

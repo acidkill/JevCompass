@@ -1110,4 +1110,8 @@ Evidence: treatment raw JSONL /tmp/jevcompass-vcr373/live-run-01/treatment/event
 
 ## VCR381 — Shared agent measurement receipt helper
 
-Added `build_agent_measurement_receipt()` to combine the existing redacted event parser with execution/collector status. Five new offline tests cover successful command events with usage, missing usage remaining unknown, timeout/partial events and nonzero exit, and JSON serialization; any non-`None` collector failure marker forces failed execution status even on exit 0. The contract retains `first_tool_start` and unknown billing. Completed status describes process and collector completion only, not task acceptance. This prospective helper is not yet wired into a runner; no historical receipt was changed or rescored.
+Added `build_agent_measurement_receipt()` to combine the existing redacted event parser with execution/collector status. Five new offline tests cover successful command events with usage, missing usage remaining unknown, timeout/partial events and nonzero exit, and JSON serialization; any non-`None` collector failure marker forces failed execution status even on exit 0. The contract retains `first_tool_start` and unknown billing. Completed status describes process and collector completion only, not task acceptance. At VCR382, wired it prospectively into contract-triage arm execution; see the next entry. No historical receipt was changed or rescored.
+
+## VCR382 — Contract-triage arm measurement integration
+
+The runner now writes the bounded redacted measurement to its private output directory immediately after collection and before optional task-event parsing. Collector failures retain observed usage/first-tool metadata while the arm remains failed; empty streams preserve unknown values and do not satisfy acceptance. Focused offline coverage verifies timeout, empty events, parser-exception persistence, secret exclusion, and mode 0600. No live run, historical rescore, or efficacy claim.
