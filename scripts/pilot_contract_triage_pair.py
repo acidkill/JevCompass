@@ -414,7 +414,11 @@ def _triage_argv(exit_code: int, profile: CaseProfile | None = None) -> list[str
         suffix = []
         for kind in profile.triage_kinds:
             suffix.extend(("--kind", kind))
-        for hypothesis in profile.triage_hypotheses:
+        candidates = list(profile.triage_hypotheses)
+        if ("confirm_behavior_contract" in profile.triage_accepted_ids
+                and "confirm_behavior_contract" not in candidates):
+            candidates.append("confirm_behavior_contract")
+        for hypothesis in candidates:
             suffix.extend(("--hypothesis", hypothesis))
         if profile.rank_hypotheses:
             suffix.append("--rank-hypotheses")
@@ -499,20 +503,28 @@ def _validated_triage(payload: Any, focused_exit: int,
         or value.get("test_failed") is not True
     ):
         return {"status": "unscored", "candidate_ids": []}
+    parsed["hypothesis_order"] = []
+    parsed["hypothesis_ranking_status"] = "not_established"
     if profile is not None and profile.rank_hypotheses:
         order = value.get("hypothesis_order")
-        if (value.get("hypothesis_ranking_status") != "complete"
-                or not isinstance(order, list)
-                or len(order) != len(profile.triage_hypotheses)
-                or any(not isinstance(item, str) for item in order)
-                or set(order) != set(profile.triage_hypotheses)
-                or len(set(order)) != len(order)):
-            return {"status": "unscored", "candidate_ids": []}
-        parsed["hypothesis_ranking_status"] = "complete"
-        parsed["hypothesis_order"] = list(order)
-    else:
-        parsed["hypothesis_ranking_status"] = "not_established"
-        parsed["hypothesis_order"] = []
+        status = value.get("hypothesis_ranking_status")
+        causal_ids = {
+            item for item in profile.triage_hypotheses
+            if item != "confirm_behavior_contract"
+        }
+        if (status == "complete" and isinstance(order, list)
+                and all(isinstance(item, str) for item in order)
+                and len(order) == len(causal_ids)
+                and len(set(order)) == len(order)
+                and set(order) == causal_ids and len(causal_ids) >= 2):
+            parsed["hypothesis_ranking_status"] = "complete"
+            parsed["hypothesis_order"] = list(order)
+        elif status == "not_established" and order == []:
+            parsed["hypothesis_ranking_status"] = "not_established"
+        else:
+            # A valid next step remains valid independently of an incomplete
+            # or malformed causal ordering; never promote that order to success.
+            parsed["hypothesis_ranking_status"] = "incomplete"
     return parsed
 
 

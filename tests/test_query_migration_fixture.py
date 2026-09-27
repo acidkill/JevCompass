@@ -48,7 +48,8 @@ class QueryMigrationFixtureProfileTests(unittest.TestCase):
         argv = pair._triage_argv(1, profile)
         self.assertIn("assertion_behavior_regression", argv)
         self.assertIn("assertion_expectation_drift", argv)
-        self.assertNotIn("confirm_behavior_contract", argv)
+        self.assertIn("confirm_behavior_contract", argv)
+        self.assertNotIn("confirm_behavior_contract", profile.triage_hypotheses)
         self.assertTrue(profile.rank_hypotheses)
         self.assertEqual(profile.triage_accepted_statuses, ("no-remote-choice",))
 
