@@ -1145,3 +1145,7 @@ Repair-profile arms now receive isolated Git baselines before execution. Setup f
 Staged a new synthetic URL query migration task with versioned contracts, historical evidence, immutable tests, and an external hash-pinned oracle. Offline checks establish the expected initial failure, a source-only reference repair, and rejection of protected-file tampering or unexpected files. The oracle independently runs focused/full checks and checks the source patch.
 
 This is preparation, not a launched pair or efficacy evidence. Launch remains gated on symmetric arm Git initialization and observed agent diff validation. The accepted diagnostic metadata includes contract confirmation, but the current runner does not yet request that candidate; causal ranking and diagnostic selection require separate integration.
+
+## VCR394 — Independent diagnostic and causal ranking receipts
+
+A valid diagnostic next step is now scored separately from complete causal ordering. Unestablished, partial or malformed rankings remain explicitly non-complete without erasing valid diagnostic delivery. Complete ranking requires a unique full causal permutation; contract confirmation remains a requested diagnostic candidate only. Three offline tests cover these boundaries. No live delivery or efficacy claim.
