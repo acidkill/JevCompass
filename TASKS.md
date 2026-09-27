@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-266-B — condition-timeout comparison runner
+
+Added a keyless equal-information timeout repair comparison with pinned reviewed fixture file set/hashes, observed frozen initial failure, local enum triage guidance and counted preparation. Only inbox.py is editable; both arms retain focused repair/retest and required full validation. Changed immutable files or nonregular source skip trusted independent execution and fail the pair. Eight focused tests pass including the no-execution tamper spy. Advice utility stays unscored until a live paired outcome; this is local guidance, not remote efficacy. No live pair yet.
+
 ### VCR-268-B — bounded test-order decision diagnostics
 
 TestOrderResult and CLI expose optional allowlisted decision_reason values distinguishing local resolution, unnecessary choice, malformed/unknown response, insufficient confidence, provider error and accepted choice. Thresholds, eligibility, ordering, required checks and usage behavior stay intact; no backend prose or private exception text is rendered. Older positional construction remains compatible. The reason missing in VCR-268-A cannot be reconstructed retrospectively. Source diagnostics do not establish efficacy.

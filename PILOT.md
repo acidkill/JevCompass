@@ -12,6 +12,10 @@ Overall acceptance remains **not established**. Source delivery, transport and g
 
 Agent billing remains unknown in these comparisons; provider-reported Jev cost, when present, is only one cost component. Native fresh Desktop delivery and the broader cross-host acceptance gates remain open. The local retry pair is complete and retained, including its failed baseline quality gate. The dependency-guidance runner produced the failed VCR-265-A comparison below; the post-change cross-layer runner remains under preparation. No new pair should be inferred from fixture tests or timing metadata.
 
+### VCR-266-B condition-timeout comparison preparation (2026-09-27)
+
+`scripts/pilot_condition_timeout_pair.py` gives both arms the same reviewed fixture, contract, observed initial failure and focused/full commands. Treatment receives one locally composed next check from verified enum evidence; no remote request is forced for the locally resolvable wait condition. Exact frozen file-set/hash preflight rejects marker-preserving contradictions. Final changed immutable files or nonregular source prevent trusted independent-suite execution and fail acceptance. Repair/retest/full order and immutable validation remain mandatory; preparation and independent validation time are counted. Eight focused guards pass; no live outcome or measured benefit yet. This fixture is a local triage-guidance utility comparison, not ambiguous remote-decision efficacy or an OS security sandbox.
+
 ### VCR-268-B bounded fallback diagnostics (2026-09-27)
 
 Test-order API and CLI now expose an optional allowlisted decision_reason. It distinguishes no choice needed, local resolution, malformed response, unknown selection, insufficient confidence, provider error and accepted selection. Unknown manually supplied text is not rendered. Required validation, remote eligibility and confidence thresholds are unchanged. This enables prospective diagnosis without retaining backend prose; it cannot recover the missing reason for VCR-268-A or convert a fallback into an accepted decision. No new live outcome or benefit follows from offline diagnostics.
