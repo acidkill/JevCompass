@@ -1202,3 +1202,9 @@ The current contract resolves the apparent legacy conflict on ordinary inspectio
 The shared event reducer now ignores assistant item.started/item.updated draft lifecycle events when measuring message delivery. A completed assistant message remains eligible; a tool executed before completion still makes subsequent acknowledgment late. Two synthetic lifecycle tests and 63 existing collector tests pass. This prevents an unfinished message from poisoning or prematurely satisfying a delivery gate.
 
 The missing VCR396 acknowledgment cannot be attributed to this issue without its raw events. Historical outcomes remain unchanged. This correction concerns prospective measurement, not advisor efficacy or native Desktop delivery.
+
+## VCR400 — Optional triage before exhaustive evidence review
+
+The prospective runner adds an explicit initial-failure triage stage for nonbinding validated repair profiles. After a confirmed focused failure and one verified local discriminator, the agent may request enum-only diagnostic advice if competing hypotheses remain. Configured observation flags are omitted from the early command and bridge contract because they have not necessarily been verified. The default evidence-reviewed stage remains strict.
+
+Complete configured evidence review and every mandatory repair check remain required before acceptance. Early advice eligibility, final evidence completeness, diagnostic selection and causal ranking are measured separately; missing failure, unknown identifiers and late acknowledgment cannot pass delivery gates. Local resolution must skip remote advice. Eight targeted stage tests and the full local suite of 831 tests pass (37.595 seconds). Hosted CI remains the merge gate. Historical receipts are unchanged.
