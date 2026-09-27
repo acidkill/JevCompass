@@ -2,6 +2,16 @@
 
 ## Status
 
+Overall acceptance remains **not established**. Source delivery, transport and green CI are not evidence of repeatable task benefit.
+
+| Use case | Current matched evidence | Outcome and remaining gap |
+| --- | --- | --- |
+| Pretask strategy | VCR-257-H, supervised CLI injection with independent frozen checks | Treatment completed 753.72 ms later, with identical final code; one pair does not prove token savings. Verified contract routing in VCR-259-A still needs task outcome evidence. |
+| Post-change test order | VCR-256-G/H opposite-order remote pairs; VCR-256-O local repeat | Remote selections matched baseline; the two-pair treatment mean was slower. Local repeat completed 1647.64 ms later. No repeatable speed benefit; broader genuine coverage/runtime tradeoffs remain unverified. |
+| Ambiguous failure triage | VCR-255-D unresolved-contract pair with preserved failing tests | Observable diagnosis quality tied; treatment completed 2501 ms later and observed the first failure later. Appropriate local deferral does not prove remote selection benefit. |
+
+Agent billing remains unknown in these comparisons; provider-reported Jev cost, when present, is only one cost component. Native fresh Desktop delivery and the broader cross-host acceptance gates remain open. The next retry pair is explicitly local-routing evidence with an independent contract gate, not a remote Jev efficacy trial.
+
 ### VCR-257-B explicit strategy comparison runner (2026-09-27)
 
 The new `scripts/pilot_strategy_pair.py` reuses an independent isolated coding-pair engine with the existing equal-fixture started-kilogram task. Safe signals existing_symbol and behavior_change leave inspect-symbol-use and define-contract alternatives. Treatment consultation is optional and nonbinding; no hidden repair information is supplied. Known strategy IDs, numeric provider usage and command latency are retained without backend prose. Mandatory focused/full gates remain. An instruction to consult before editing is not execution proof: edit-order remains explicitly unscored, and blind artifact quality remains separate. This is runner preparation, not acceptance or efficacy evidence.
@@ -1047,3 +1057,15 @@ Validation must cover client-construction suppression, conflicting explicit inpu
 
 
 Validation: 11 dedicated tests and all 458 repository tests pass. Tests patch client construction to fail for deterministic/invalid inputs, inspect exact mocked partial/unknown request state, and preserve ambiguous routing without contract metadata outside the reviewed scope. A source CLI conflicting-contract smoke returned contract-first, no-remote-choice and null usage. Graph refresh completed (1791 nodes, 3500 edges). This establishes routing and privacy behavior, not task-time benefit, caller evidence accuracy or native host delivery.
+
+
+## VCR-259-B — frozen local-contract-route retry comparison
+
+Preparation precedes live agent calls. Both arms receive identical copies of the historical synthetic retry fixture, the same written contract and explicit focused/full validation obligations. The written contract and existing examples are consistent, although examples are incomplete. The treatment supervisor supplies that checked enum to the local strategy route; neither agent nor the supervisor needs an OpenRouter key for this experiment. This comparison evaluates local routing, not a remote Jev choice.
+
+Freeze the following acceptance gates before calls: change only retry.py while retaining the public API; preserve immutable files; agent focused and full suites must pass; independent supervisor contract verifier must pass all ten checks on both final artifacts. A passing existing suite cannot override independent contract failure. Report completion and first useful action/check with preparation latency included; retain tokens and available usage/cost, and leave unavailable agent billing unknown. No benefit inference when quality or receipt gates fail. Advice acknowledgment must precede the first observed tool for delivery credit; supervisor injection does not verify native Desktop hooks.
+
+Retain both wins and losses and distinguish one-pair observations from repeatable improvements. Record agent completion plus preparation separately from validated completion including supervisor checks, so correctness verification is not hidden from the task-time metric. Freeze a rubric identifier/hash and the verifier source hash before calls; reject changes to the gate during the run. Retain the independent verifier's actual ten-check result and accept success only for ten passes with zero failures. Withhold validated completion when any required execution, order or quality gate fails. Task-specific useful-error timing remains unscored unless retry-specific execution evidence supports it. Do not alter the historical VCR-249 scores. Next live run is pending reviewed runner tests, repository validation and green hosted CI.
+
+
+Runner verification: all 16 dedicated tests and 474 repository tests pass; graph refreshed (1832 nodes, 3579 edges). Tests reject contradictory gate summaries, altered verifier/immutable files, wrong local strategy ID, missing focused/full evidence and late acknowledgment; duplicate events do not inflate counts. Validated completion is withheld when any required gate fails. Retry-specific useful-error timing remains null rather than reusing ParcelQuote markers. Actual local preparation returned exactly inspect_dependency_or_symbol_use/no-remote-choice/null usage. No live pair has run in this task.

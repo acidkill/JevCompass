@@ -476,5 +476,15 @@ Important limits: the Codex event has no reliable task objective; the article th
 - [x] Resolve consistent/conflicting/absent evidence locally only for the reviewed coding signal pair; retain conservative eligibility outside that scope.
 - [x] Preserve partial/unknown fallback, reject conflicting explicit resolution and invalid metadata, and test request privacy.
 - [x] Run 458 Python tests and graph refresh (1791 nodes, 3500 edges).
-- [ ] Merge after green hosted CI.
+- [x] Merged PR #177 after green hosted CI (44 seconds); main daa70b3.
 - [ ] Measure this behavior on frozen equivalent paired tasks; unit tests do not prove agent efficiency.
+
+
+## VCR-259-B — frozen retry strategy pair preparation
+
+- [x] Prepare randomized equal-settings baseline/treatment runner using immutable retry fixture and locally verified consistent-contract routing.
+- [x] Apply independent ten-check contract verification to both final artifacts; retain focused/full agent validation separately.
+- [x] Include supervisor preparation in elapsed time, capture advice before first tool and retain safe usage/quality receipts.
+- [x] Validate runner offline (16 dedicated tests), run all 474 repository tests and graph refresh (1832 nodes, 3579 edges).
+- [ ] Merge after green hosted CI.
+- [ ] Run the frozen live pair and report time, tokens, available cost and quality without treating local routing as remote Jev efficacy.
