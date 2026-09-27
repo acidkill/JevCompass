@@ -1735,3 +1735,9 @@ The profile event parser now observes acknowledgment after both legacy and confi
 ## VCR392 — Symmetric repair-arm Git validation
 
 Repair-profile arms now receive isolated Git baselines before execution. Setup failure prevents launch. The runner records the agent’s exact diff-check invocation and exit codes; missing or unsuccessful checks prevent task acceptance in both arms. Protected fixture digests exclude only internal Git metadata. Four offline tests cover setup failure, metadata handling, whitespace errors and missing/nonzero checks; existing profile tests remain green. No live delivery or efficacy result is established.
+
+## VCR389 — Prospective query migration repair fixture
+
+Staged a new synthetic URL query migration task with versioned contracts, historical evidence, immutable tests, and an external hash-pinned oracle. Offline checks establish the expected initial failure, a source-only reference repair, and rejection of protected-file tampering or unexpected files. The oracle independently runs focused/full checks and checks the source patch.
+
+This is preparation, not a launched pair or efficacy evidence. Launch remains gated on symmetric arm Git initialization and observed agent diff validation. The accepted diagnostic metadata includes contract confirmation, but the current runner does not yet request that candidate; causal ranking and diagnostic selection require separate integration.
