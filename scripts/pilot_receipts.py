@@ -44,6 +44,51 @@ def _timestamp(value: Any) -> bool:
         return False
 
 
+def parse_decision_command_output(text: str) -> dict[str, Any] | None:
+    """Parse a strict JSON object occupying the whole output or its final suffix.
+
+    Command chatter before the object is tolerated, but trailing non-whitespace,
+    duplicate object keys, non-finite numbers, and non-object JSON are rejected.
+    The original text is never returned or logged.
+    """
+    if not isinstance(text, str) or not text:
+        return None
+
+    def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate JSON key")
+            result[key] = value
+        return result
+
+    def finite_float(value: str) -> float:
+        number = float(value)
+        if not math.isfinite(number):
+            raise ValueError("non-finite JSON number")
+        return number
+
+    def reject_constant(_value: str) -> None:
+        raise ValueError("non-finite JSON number")
+
+    start = text.find("{")
+    if start < 0:
+        return None
+    decoder = json.JSONDecoder(
+        object_pairs_hook=unique_object,
+        parse_float=finite_float,
+        parse_constant=reject_constant,
+    )
+    try:
+        value, end = decoder.raw_decode(text, start)
+    except (json.JSONDecodeError, ValueError, RecursionError):
+        return None
+    if (not isinstance(value, dict)
+            or any(character not in " \t\r\n" for character in text[end:])):
+        return None
+    return value
+
+
 def parse_codex_json_events(
     lines: Iterable[str],
     *,

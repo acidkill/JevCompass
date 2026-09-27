@@ -1693,3 +1693,7 @@ Three offline tests exercise `evaluate()` through the real strategy selector wit
 Raw shell-wrapped command observations, recorded without rescoring: both arms' seeded-failure test exited 1; focused unit test, full suite, and `git diff --check` exited 0. Treatment's `python -m jevcompass tests rank --input test-options.json --json` exited 0. Each raw capture contains a completed-turn usage object, but this entry does not report token totals or infer acceptance.
 
 Frozen evidence SHA-256: preregistration `df0682712651e2f5016931a55c6c9ee13f163ea36167edfe22e9db92dc844d81`; baseline raw events `a31e17393882da2a32583314b8ff871eab05d65e92fef188412da5224a02c299`; treatment raw events `a968cb74952d87fdf1bc4c55abc458834ba9ca1a17341abc1b3300f07a98753b`; measurement-error receipt `3908b9068691b5fa7b4187909980b531622ac01a6cb86cd599d3cf1ff8115b56`. No retry or rescore; no efficacy conclusion.
+
+### VCR380 — Prospective strict JSON helper
+
+The new receipt helper accepts a complete JSON object or command output ending in one, while rejecting malformed/nested salvage, duplicate keys, non-finite values (including `1e309`), and trailing prose. Four focused helper tests pass. It does not rewrite or rescore historical receipts and was not used to reinterpret VCR374; no API call or efficacy claim.

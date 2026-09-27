@@ -1095,3 +1095,7 @@ The frozen matched pair is **not assessable as a pair**. The baseline terminal r
 Raw event command/exit observations (not rescored): both arms ran the seeded-failure test (exit 1), focused unit test (exit 0), full suite (exit 0), and `git diff --check` (exit 0). Treatment also ran `python -m jevcompass tests rank --input test-options.json --json` (exit 0). Each raw capture contains a completed-turn usage object; no token totals or cost are asserted here.
 
 Evidence hashes: preregistration `df0682712651e2f5016931a55c6c9ee13f163ea36167edfe22e9db92dc844d81`; baseline raw events `a31e17393882da2a32583314b8ff871eab05d65e92fef188412da5224a02c299`; treatment raw events `a968cb74952d87fdf1bc4c55abc458834ba9ca1a17341abc1b3300f07a98753b`; measurement-error receipt `3908b9068691b5fa7b4187909980b531622ac01a6cb86cd599d3cf1ff8115b56`. No retry/rescore; no efficacy claim.
+
+## VCR380 — Prospective strict decision-output parser
+
+Added `parse_decision_command_output()` as a reusable helper for future receipts. It accepts a complete JSON object, including pretty output or leading command chatter; rejects malformed/non-object payloads, duplicate keys, non-finite values including exponent overflow, and trailing prose. Four focused helper tests pass (11 including existing receipt tests). The helper is not wired into historical receipts; no historical reconstruction/rescore, API call, or quality claim.
