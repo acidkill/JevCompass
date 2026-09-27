@@ -18,6 +18,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 SPEC = importlib.util.spec_from_file_location("pilot_contract_triage_pair", SCRIPT)
 runner = importlib.util.module_from_spec(SPEC)
 assert SPEC and SPEC.loader
+sys.modules[SPEC.name] = runner
 SPEC.loader.exec_module(runner)
 
 

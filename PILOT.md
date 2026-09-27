@@ -1719,3 +1719,11 @@ The next trial requires a tested explicit case-profile interface, a genuinely ne
 ## VCR387 — Causal ranking contract correction
 
 The source audit found that the diagnostic action `confirm_behavior_contract` could enter the pairwise hypothesis ranking. Prospective rankings must contain causal candidates only; confirming a contract can still be selected as the next diagnostic action. Diagnostic selection and complete causal ordering are validated separately, including malformed or partial provider answers. Historical trial receipts are unchanged. This correction is not agent-delivery or efficacy evidence.
+
+## VCR384 — Prospective coding-repair profile contract
+
+`pilot_contract_triage_pair.py --case-profile PROFILE.json` now supports a new synthetic repair task without copying the runner. The profile selects repository-local fixture/evidence files and an external supervisor oracle whose content hash is checked before and after validation. Both blinded arms use the same repair criteria and oracle; the oracle receives no arm identity.
+
+Per-arm task correctness and validated completion time are independent of optional advisory delivery. Changed tests, protected fixture files, an incorrect repair, unavailable validation, or an incomplete agent run prevent acceptance. The original failed focused result remains recorded even after a successful repair. Existing invoice trial data are unchanged.
+
+This integration is an offline measurement capability, not delivery or efficacy evidence. Provider access remains disabled for these profiles; no receipt may label local fallback or abstention as accepted remote ranking. A subsequent remote trial requires verified credential isolation and typed ranking receipts before preregistration.
