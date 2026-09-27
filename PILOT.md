@@ -1,3 +1,7 @@
+## VCR334 — Grounded planning skill guidance
+
+The bundled implementation-planning skill now asks for local contract/implementation/test evidence, an explicit unresolved precedence question, conditional repairs and a discriminating regression with preserved mandatory validation. Observed failures retain reproduction and actual exit status; no failure is invented for a feature-only task. This is prospective guidance, not measured benefit, a historical rescore or an installed-skill refresh. All 12 existing skill/package checks passed; hosted CI remains the merge gate.
+
 ## VCR332 — Retained invalid plan comparison and prospective digest gate
 
 One preregistered plan-only pair completed from source 40552ef. Both assessed plans scored 7/10 with no critical failures; the assessor flagged a neutral arm label exposed by a source path, without inferring treatment identity. Before unblinding, assessment SHA-256 was 879494b3e505dd31130dfcc5c55e200b68e9035595fe932bd6515c2f542a0522. Integrity audit failed: registered fixture d8352b1c9de13c16e36847ae0f552a7faab8c56302d2f456c673e5ef623fa8f3 included three local bytecode files absent from the archived fixture abc62aac674630a3a16d58c78c79892b81db7637deb216c1ae102f51828aece5. The trial is excluded from efficacy comparisons; no retry or rescore.
