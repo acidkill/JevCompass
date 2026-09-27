@@ -182,6 +182,44 @@ def parse_codex_json_events(
     }
 
 
+def build_agent_measurement_receipt(
+    lines: Iterable[str],
+    timestamps: Iterable[float] | None,
+    started_at: float | None,
+    ended_at: float | None,
+    exit_code: int | None,
+    collector_failure: Any = None,
+) -> dict[str, Any]:
+    """Build one JSON-safe, privacy-reduced CLI measurement receipt.
+
+    The status reports process/collector completion, not task acceptance.
+    Any collector failure marker, including an empty value, fails execution
+    status even if the subprocess returned zero. Failure details and raw event
+    content are never retained. Missing or invalid usage remains unscored.
+    """
+    parsed = parse_codex_json_events(
+        lines,
+        started_at=started_at,
+        ended_at=ended_at,
+        event_times=timestamps,
+    )
+    valid_exit_code = (
+        exit_code if isinstance(exit_code, int) and not isinstance(exit_code, bool)
+        and -255 <= exit_code <= 255 else None
+    )
+    collector_failed = collector_failure is not None
+    return {
+        "status": (
+            "completed"
+            if valid_exit_code == 0 and not collector_failed
+            else "failed"
+        ),
+        "exit_code": valid_exit_code,
+        "collector_failed": collector_failed,
+        **parsed,
+    }
+
+
 def parse_choice_receipt(
     payload: str | Mapping[str, Any],
     *,
