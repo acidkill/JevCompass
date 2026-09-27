@@ -148,6 +148,7 @@ class ContractTriagePairTests(unittest.TestCase):
         advice_policy: str = "legacy-required-step", include_triage: bool = True,
         acknowledgment: str = "before_first_tool",
         triage_acknowledgment: str = "before_next_tool", full_exit: int = 1,
+        empty_events: bool = False,
     ):
         root = Path(temp)
         auth = root / "auth"
@@ -178,6 +179,8 @@ class ContractTriagePairTests(unittest.TestCase):
                 triage_acknowledgment=triage_acknowledgment,
                 full_exit=full_exit,
             )
+            if empty_events:
+                return [], [], failure
             return lines, times, failure
 
         with (
@@ -232,6 +235,19 @@ class ContractTriagePairTests(unittest.TestCase):
                           + (output / "arm-b-final.txt").read_text())
             self.assertTrue((output / "arm-a-source.py").is_file())
             self.assertTrue((output / "arm-b-source.py").is_file())
+            for label, arm in receipt["arms"].items():
+                measurement = arm["agent_measurement"]
+                self.assertEqual(measurement["status"], "completed")
+                self.assertEqual(measurement["usage_status"], "available")
+                self.assertEqual(measurement["token_usage"]["input_tokens"], 34)
+                self.assertEqual(measurement["billing_estimate"], None)
+                self.assertEqual(measurement["first_tool_start"]["type"], "command_execution")
+                stored = json.loads((output / f"{label}-agent-measurement.json").read_text())
+                self.assertEqual(stored, measurement)
+                self.assertTrue(receipt["blind_artifacts"][label]["agent_measurement_captured"])
+                self.assertEqual(stat.S_IMODE((output / f"{label}-agent-measurement.json").stat().st_mode), 0o600)
+                for secret in ("PRIVATE_DIAGNOSTIC_MARKER", "PRIVATE_FULL_MARKER", "python -m unittest"):
+                    self.assertNotIn(secret, json.dumps(stored))
 
     def test_treatment_triage_without_all_verified_reads_is_not_accepted(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -263,7 +279,7 @@ class ContractTriagePairTests(unittest.TestCase):
 
     def test_timeout_is_recorded_as_runner_failure_not_a_test_result(self):
         with tempfile.TemporaryDirectory() as temp:
-            receipt, _calls, _output = self._run_pair(temp, failure="timeout")
+            receipt, _calls, output = self._run_pair(temp, failure="timeout")
             self.assertEqual(receipt["status"], "incomplete")
             self.assertTrue(all(
                 arm["failure"] == "timeout" for arm in receipt["arms"].values()
@@ -271,6 +287,54 @@ class ContractTriagePairTests(unittest.TestCase):
             self.assertTrue(all(
                 arm["initial_focused_exit"] is None for arm in receipt["arms"].values()
             ))
+            for label, arm in receipt["arms"].items():
+                self.assertEqual(arm["cli_status"], "failed")
+                measurement = arm["agent_measurement"]
+                self.assertEqual(measurement["status"], "failed")
+                self.assertTrue(measurement["collector_failed"])
+                self.assertEqual(measurement["token_usage"]["input_tokens"], 34)
+                self.assertEqual(measurement["first_tool_start"]["type"], "command_execution")
+                stored_path = output / f"{label}-agent-measurement.json"
+                stored = json.loads(stored_path.read_text(encoding="utf-8"))
+                self.assertEqual(stored, measurement)
+                self.assertEqual(stat.S_IMODE(stored_path.stat().st_mode), 0o600)
+                for secret in ("PRIVATE_DIAGNOSTIC_MARKER", "PRIVATE_FULL_MARKER",
+                               "AUTH_SECRET_MARKER", "python -m unittest"):
+                    self.assertNotIn(secret, json.dumps(stored))
+
+    def test_empty_event_stream_keeps_optional_measurements_unknown(self):
+        with tempfile.TemporaryDirectory() as temp:
+            receipt, _calls, output = self._run_pair(temp, empty_events=True)
+            self.assertEqual(receipt["status"], "incomplete")
+            for label, arm in receipt["arms"].items():
+                measurement = arm["agent_measurement"]
+                self.assertEqual(measurement["status"], "completed")
+                self.assertEqual(measurement["usage_status"], "unscored")
+                self.assertIsNone(measurement["token_usage"])
+                self.assertIsNone(measurement["first_tool_start"])
+                stored_path = output / f"{label}-agent-measurement.json"
+                self.assertEqual(json.loads(stored_path.read_text()), measurement)
+                self.assertEqual(stat.S_IMODE(stored_path.stat().st_mode), 0o600)
+
+    def test_measurement_snapshot_survives_optional_receipt_parser_failure(self):
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / "private-receipts"
+            with mock.patch.object(
+                runner, "_event_receipts", side_effect=KeyError("synthetic optional parser"),
+            ):
+                with self.assertRaisesRegex(KeyError, "synthetic optional parser"):
+                    self._run_pair(temp)
+            snapshot = output / "arm-a-agent-measurement.json"
+            self.assertTrue(snapshot.is_file())
+            self.assertEqual(stat.S_IMODE(snapshot.stat().st_mode), 0o600)
+            stored = json.loads(snapshot.read_text(encoding="utf-8"))
+            self.assertEqual(stored["token_usage"]["input_tokens"], 34)
+            serialized = json.dumps(stored)
+            for secret in (
+                "PRIVATE_DIAGNOSTIC_MARKER", "PRIVATE_FULL_MARKER",
+                "AUTH_SECRET_MARKER", "OPENROUTER_SECRET", "python -m unittest",
+            ):
+                self.assertNotIn(secret, serialized)
 
     def test_version_and_timeout_gates(self):
         with tempfile.TemporaryDirectory() as temp:
