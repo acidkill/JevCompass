@@ -233,6 +233,14 @@ class CrossLayerRunnerTests(unittest.TestCase):
         self.assertEqual(result["unmatched_test_invocation_exit_status_counts"], {
             "zero": 1, "nonzero": 2, "unavailable": 1,
         })
+        self.assertEqual(
+            result["unmatched_test_invocation_required_component_status_counts"],
+            {
+                "exact_required_component_present": 0,
+                "no_exact_required_component": 3,
+                "unparseable": 1,
+            },
+        )
         self.assertEqual(result["focused_invocation_count"], 0)
         self.assertFalse(result["required_suite_invocation_observed"])
         serialized = json.dumps(result)
@@ -242,6 +250,70 @@ class CrossLayerRunnerTests(unittest.TestCase):
         ):
             self.assertNotIn(private_value, serialized)
         self.assertNotIn('"exit_code": 23', serialized)
+
+    def test_required_suite_component_diagnostic_is_private_and_never_gate_credit(self):
+        rows = [
+            event(
+                "item.completed", "combined-with-required",
+                runner.REQUIRED_COMMAND + " && pytest tests/test_private_case",
+                exit_code=0,
+                aggregated_output="PRIVATE_DIAGNOSTIC_SENTINEL",
+            ),
+            event(
+                "item.completed", "required-after-or",
+                "pytest tests/test_private_case || " + runner.REQUIRED_COMMAND,
+                exit_code=0,
+            ),
+            event(
+                "item.completed", "required-in-bash-wrapper",
+                'bash -lc "pytest tests/test_private_case && '
+                + runner.REQUIRED_COMMAND + '"',
+                exit_code=0,
+            ),
+            event(
+                "item.completed", "combined-without-required",
+                "python -m unittest tests.test_private_case && pytest tests/test_private_case",
+                exit_code=1,
+            ),
+            event(
+                "item.completed", "newline-test-command",
+                runner.REQUIRED_COMMAND + "\n&& pytest tests/test_private_case",
+                exit_code=1,
+            ),
+            event(
+                "item.completed", "unparseable-test-command",
+                "python -m unittest 'unterminated",
+                exit_code=1,
+            ),
+        ]
+        start = time.monotonic()
+        result = runner._event_receipts(
+            rows, [start + index / 1000 for index in range(len(rows))], start
+        )
+
+        self.assertEqual(result["unmatched_test_invocation_count"], 6)
+        self.assertEqual(
+            result["unmatched_test_invocation_required_component_status_counts"],
+            {
+                "exact_required_component_present": 3,
+                "no_exact_required_component": 1,
+                "unparseable": 2,
+            },
+        )
+        self.assertEqual(result["unmatched_test_invocation_kind_counts"]["combined"], 5)
+        self.assertFalse(result["required_suite_invocation_observed"])
+        self.assertIsNone(result["required_suite_exit"])
+        self.assertEqual(result["focused_invocation_count"], 0)
+
+        serialized = json.dumps(result)
+        for private_value in (
+            runner.REQUIRED_COMMAND,
+            "tests.test_private_case",
+            "PRIVATE_DIAGNOSTIC_SENTINEL",
+            "unterminated",
+            "newline-test-command",
+        ):
+            self.assertNotIn(private_value, serialized)
 
     def test_unmatched_test_command_duplicate_id_counts_once(self):
         command = "pytest tests/test_private_case"

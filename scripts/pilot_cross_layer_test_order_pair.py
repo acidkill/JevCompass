@@ -254,6 +254,90 @@ def _native_file_change_shape(
     return valid, target_matches
 
 
+def _required_component_status(item: dict[str, Any], invocation_kind: str) -> str:
+    """Describe exact required-suite presence in safely parsed shell segments only."""
+    if invocation_kind == "unknown":
+        return "unparseable"
+    raw = item.get("command")
+    if isinstance(raw, list) and all(isinstance(part, str) for part in raw):
+        if any(part in {"&&", "||", ";", "|", "&"} for part in raw):
+            # An argv list is not sufficient evidence that these tokens are shell syntax.
+            return "unparseable"
+        segments = [raw]
+    elif isinstance(raw, str) and len(raw) <= 8192:
+        try:
+            outer_argv = shlex.split(raw)
+        except ValueError:
+            return "unparseable"
+        command_text = raw
+        if (len(outer_argv) == 3
+                and outer_argv[0] in {"bash", "/bin/bash", "/usr/bin/bash"}
+                and outer_argv[1] == "-lc"):
+            command_text = outer_argv[2]
+
+        segments_text: list[str] = []
+        start = 0
+        quote: str | None = None
+        escaped = False
+        index = 0
+        while index < len(command_text):
+            char = command_text[index]
+            if escaped:
+                escaped = False
+                index += 1
+                continue
+            if char == "\\" and quote != "'":
+                escaped = True
+                index += 1
+                continue
+            if quote is not None:
+                if char == quote:
+                    quote = None
+                index += 1
+                continue
+            if char in {"'", '"'}:
+                quote = char
+                index += 1
+                continue
+            if char in {"$", "`", "(", ")", "<", ">", "\n", "\r", "#"}:
+                return "unparseable"
+            if char in {"&", "|", ";"}:
+                separator_start = index
+                separator_width = (
+                    2 if char in {"&", "|"} and index + 1 < len(command_text)
+                    and command_text[index + 1] == char else 1
+                )
+                after_separator = separator_start + separator_width
+                if (after_separator < len(command_text)
+                        and command_text[after_separator] in {"&", "|", ";"}):
+                    return "unparseable"
+                if not command_text[start:separator_start].strip():
+                    return "unparseable"
+                segments_text.append(command_text[start:separator_start])
+                index = after_separator
+                start = index
+                continue
+            index += 1
+        if quote is not None or escaped:
+            return "unparseable"
+        if not command_text[start:].strip():
+            return "unparseable"
+        segments_text.append(command_text[start:])
+        try:
+            segments = [shlex.split(segment) for segment in segments_text if segment.strip()]
+        except ValueError:
+            return "unparseable"
+    else:
+        return "unparseable"
+
+    required_argv = shlex.split(REQUIRED_COMMAND)
+    return (
+        "exact_required_component_present"
+        if any(segment == required_argv for segment in segments)
+        else "no_exact_required_component"
+    )
+
+
 def _test_invocation_kind(item: dict[str, Any]) -> str | None:
     """Classify test-runner invocation metadata without retaining raw command text."""
     raw = item.get("command")
@@ -379,6 +463,11 @@ def _event_receipts(
     unmatched_test_invocation_exit_status_counts = {
         "zero": 0, "nonzero": 0, "unavailable": 0,
     }
+    unmatched_test_invocation_required_component_status_counts = {
+        "exact_required_component_present": 0,
+        "no_exact_required_component": 0,
+        "unparseable": 0,
+    }
 
     def elapsed(index: int) -> float | None:
         if index >= len(event_times):
@@ -439,6 +528,11 @@ def _event_receipts(
                         "zero" if exit_code == 0 else "nonzero"
                     )
                     _bounded_increment(unmatched_test_invocation_exit_status_counts, exit_kind)
+                    component_status = _required_component_status(item, invocation_kind)
+                    _bounded_increment(
+                        unmatched_test_invocation_required_component_status_counts,
+                        component_status,
+                    )
         is_native_file_change = item.get("type") == "file_change"
         if is_native_file_change:
             file_change_event_count += 1
@@ -615,6 +709,9 @@ def _event_receipts(
         "unmatched_test_invocation_count": unmatched_test_invocation_count,
         "unmatched_test_invocation_kind_counts": unmatched_test_invocation_kind_counts,
         "unmatched_test_invocation_exit_status_counts": unmatched_test_invocation_exit_status_counts,
+        "unmatched_test_invocation_required_component_status_counts": (
+            unmatched_test_invocation_required_component_status_counts
+        ),
         "test_invocation_duplicate_completion_count": test_invocation_duplicate_count,
     })
     return base
