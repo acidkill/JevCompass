@@ -1248,3 +1248,8 @@ This is prospective instrumentation hardening, not a retrospective explanation o
 The triage API and CLI accept optional fixed-enum relative diagnostic costs for supplied candidate IDs. Only locally verified low/medium/high/unknown tokens may reach Jev. Costs guide next-check ordering and are explicitly not causal likelihood evidence. Default requests, local resolution, original failing exits, non-execution and mandatory validation remain unchanged. CLI rejects unknown values, duplicate costs and costs for unsupplied candidates before backend use.
 
 Six API tests, including changed-cost cache invalidation, three new CLI integration tests, ten existing triage CLI tests and the full 848-test suite pass (40.532 s). Graph refreshed (3465 nodes, 7016 edges, 235 communities). Hosted CI remains required before merge. README documents source-only scope; the published version is unchanged. No real-trial speed or quality benefit is claimed.
+
+
+## VCR407 — Coding-skill guidance for diagnostic costs
+
+The bundled English coding workflow explains optional caller-verified relative check costs, omission of unverified estimates, direct execution of decisive local checks and separation from causal ranking. It preserves required test execution and local fallback. This documents the merged API/CLI without claiming measured benefit or changing the published release. Nine skill-pack tests and three coding-workflow tests pass. Hosted CI remains required before merge.

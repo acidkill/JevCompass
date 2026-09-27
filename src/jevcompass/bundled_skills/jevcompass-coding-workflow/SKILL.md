@@ -79,3 +79,7 @@ jevcompass triage --exit-code 1 --kind import \
 ```
 
 The CLI accepts enum values, not the failure text, code, path, or log. Add an observation flag only when that exact enum fact was checked locally. Use the returned locally authored step to guide your next investigation. A suggested step is not a confirmed cause or an automatic fix, and the original test failure remains a failure until the test is rerun and passes. If local inspection leaves only one plausible explanation, investigate it directly and skip triage.
+
+When relative check effort has been established locally and competing diagnostics remain useful, you may add repeatable `--diagnostic-cost HYPOTHESIS=COST` options for supplied hypothesis IDs. Costs are `low`, `medium`, `high`, or `unknown`. Omit unverified estimates; do not fabricate costs to steer the result. For example, append `--diagnostic-cost import_module_missing=low` only if the missing-package check is verified to be low effort in this task. Cost guides diagnostic order, not causal likelihood. A cheap decisive local check should be performed directly rather than requesting remote confirmation.
+
+If you opt into `--rank-hypotheses`, assess the complete causal order separately from the selected next diagnostic step. An inexpensive check is not evidence that its associated cause is more likely. Unknown costs, incomplete rankings or backend failure do not remove any required tests; continue with the normal local investigation.
