@@ -1,0 +1,83 @@
+{
+  "case_id": "ambiguous_cache_triage",
+  "evidence_files": {
+    "changelog": "CHANGELOG.md",
+    "contract_current": "CONTRACT_v2.md",
+    "contract_legacy": "CONTRACT_v1.md",
+    "focused_test": "tests/test_profile_service.py",
+    "implementation": "profile_cache.py",
+    "legacy_golden": "legacy_profile_golden.json",
+    "service_consumer": "profile_service.py"
+  },
+  "evidence_markers": {
+    "changelog": [
+      "Contract v2 is authoritative for current requests"
+    ],
+    "contract_current": [
+      "case-folded profile identifier",
+      "must never be returned for another tenant"
+    ],
+    "contract_legacy": [
+      "shared across the service process"
+    ],
+    "focused_test": [
+      "test_identical_profile_ids_are_isolated_between_tenants"
+    ],
+    "implementation": [
+      "return profile_id.casefold()"
+    ],
+    "legacy_golden": [
+      "\"expected_legacy_cache_entries\": 1"
+    ],
+    "service_consumer": [
+      "return cached_profile(cache, tenant_id, profile_id, provider)"
+    ]
+  },
+  "failure_markers": [
+    "test_identical_profile_ids_are_isolated_between_tenants",
+    "AssertionError",
+    "Ran 3 tests"
+  ],
+  "fixture_source": "tests/fixtures/ambiguous_cache_triage",
+  "focused_command": [
+    "python",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_profile_service.py",
+    "-v"
+  ],
+  "focused_test_file": "tests/test_profile_service.py",
+  "oracle_script": "scripts/pilot_oracles/ambiguous_cache.py",
+  "oracle_sha256": "212bd0339054ed8af8017adfca84f3154ae019b11138638317a3865accd99e78",
+  "outcome_mode": "repair",
+  "schema_version": 1,
+  "source_file": "profile_cache.py",
+  "task_prompt_file": "README.md",
+  "triage": {
+    "accepted_ids": [
+      "assertion_behavior_regression",
+      "assertion_expectation_drift",
+      "confirm_behavior_contract"
+    ],
+    "accepted_statuses": [
+      "no-remote-choice"
+    ],
+    "hypotheses": [
+      "assertion_behavior_regression",
+      "assertion_expectation_drift"
+    ],
+    "kinds": [
+      "assertion"
+    ],
+    "observations": {
+      "assertion": [
+        "legacy_fixture_conflict"
+      ]
+    },
+    "rank_hypotheses": true
+  }
+}
