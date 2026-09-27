@@ -294,7 +294,10 @@ def _context(
     return {"hookSpecificOutput": {"hookEventName": event, "additionalContext": context}}
 
 
-def _metric(event: str, category: str, status: str, started: float, trace: str | None = None) -> None:
+def _metric(
+    event: str, category: str, status: str, started: float, trace: str | None = None,
+    *, strategy_outcome: str | None = None, strategy_source: str | None = None,
+) -> None:
     # No prompt, model response, paths, or memory content are ever logged.
     try:
         LOG_PATH.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -305,6 +308,10 @@ def _metric(event: str, category: str, status: str, started: float, trace: str |
                       "duration_ms": round((time.monotonic() - started) * 1000, 2)}
             if trace:
                 record["trace"] = trace
+            if strategy_outcome in {"disabled", "not-eligible", "no-signals", "selector-error", "abstained", "accepted", "local-fallback"}:
+                record["strategy_outcome"] = strategy_outcome
+            if strategy_source in {"none", "local", "remote", "cached"}:
+                record["strategy_source"] = strategy_source
             stream.write(json.dumps(record) + "\n")
     except OSError:
         pass
@@ -496,7 +503,10 @@ def _spawn_intent(event: dict[str, Any]) -> tuple[str, str, str] | None:
     return category, domain, role if role in {"explorer", "worker"} else "subagent"
 
 
-def evaluate(event: dict[str, Any], trace: str | None = None, *, strategy_advice: bool = False) -> dict[str, Any] | None:
+def evaluate(
+    event: dict[str, Any], trace: str | None = None, *, strategy_advice: bool = False,
+    _diagnostic: dict[str, str] | None = None,
+) -> dict[str, Any] | None:
     name = event.get("hook_event_name")
     started = time.monotonic()
     security_relevant = False
@@ -505,6 +515,9 @@ def evaluate(event: dict[str, Any], trace: str | None = None, *, strategy_advice
     plan_focus = None
     strategy_result = None
     strategy_attempted = False
+    diagnostic_category = "none"
+    diagnostic_outcome = "not-eligible"
+    diagnostic_source = "none"
     if name == "UserPromptSubmit":
         prompt = event.get("prompt")
         parsed = classify_task(prompt)
@@ -513,16 +526,24 @@ def evaluate(event: dict[str, Any], trace: str | None = None, *, strategy_advice
         test_command_supplied = (isinstance(prompt, str) and bool(EXPLICIT_TEST_COMMAND.search(prompt))
                                  and not test_selection_requested)
         if parsed is None:
+            if strategy_advice:
+                diagnostic_outcome = "not-eligible"
+                if _diagnostic is not None:
+                    _diagnostic.update(category=diagnostic_category, outcome=diagnostic_outcome,
+                                       source=diagnostic_source)
             if trace:
                 _metric(name, "none", "classification-skip", started, trace)
             return None
         category, domain = parsed
+        diagnostic_category = category
         if category == "planning" and isinstance(prompt, str):
             plan_focus = "migration" if PLAN_MIGRATION_INTENT.search(prompt) else "implementation"
         if domain == "general" and category in {"coding", "debugging", "testing", "infrastructure", "codebase"}:
             domain = "software"
         role = "primary"
         signals = _prompt_strategy_signals(prompt) if strategy_advice and category == "coding" and isinstance(prompt, str) else ()
+        if strategy_advice and category == "coding":
+            diagnostic_outcome = "no-signals"
         if signals:
             strategy_attempted = True
             try:
@@ -530,6 +551,16 @@ def evaluate(event: dict[str, Any], trace: str | None = None, *, strategy_advice
                 strategy_result = choose_strategies(TaskKind.CODING, signals)
             except Exception:
                 strategy_result = None
+                diagnostic_outcome = "selector-error"
+            else:
+                recommendations = getattr(strategy_result, "recommendations", ())
+                if recommendations:
+                    diagnostic_source = "cached" if getattr(strategy_result, "cache_hit", False) is True else (
+                        "remote" if getattr(strategy_result, "status", None) == "remote-choice" else "local"
+                    )
+                    diagnostic_outcome = "accepted" if diagnostic_source in {"remote", "cached"} else "local-fallback"
+                else:
+                    diagnostic_outcome = "abstained"
     elif name == "SubagentStart":
         role = event.get("agent_type")
         if role not in ROLE_CATEGORIES:
@@ -553,6 +584,9 @@ def evaluate(event: dict[str, Any], trace: str | None = None, *, strategy_advice
             )
     else:
         return None
+    if _diagnostic is not None and strategy_advice and name == "UserPromptSubmit":
+        _diagnostic.update(category=diagnostic_category, outcome=diagnostic_outcome,
+                           source=diagnostic_source)
     advice_options = {
         "security_relevant": security_relevant,
         "test_command_supplied": test_command_supplied,
@@ -587,7 +621,18 @@ def hook_main(*, strategy_advice: bool = False) -> int:
                 _metric(name if name in {"UserPromptSubmit", "SubagentStart", "PreToolUse"} else "unknown",
                         mode if mode in {"default", "plan", "acceptEdits", "dontAsk", "bypassPermissions"} else "unknown",
                         "collab-plan" if collaboration == "plan" else "collab-unavailable", time.monotonic(), trace)
-            output = evaluate(event, trace, strategy_advice=strategy_advice)
+            strategy_diagnostic = {} if diagnostic and strategy_advice and name == "UserPromptSubmit" else None
+            evaluation_started = time.monotonic() if strategy_diagnostic is not None else 0.0
+            if strategy_diagnostic is None:
+                output = evaluate(event, trace, strategy_advice=strategy_advice)
+            else:
+                output = evaluate(event, trace, strategy_advice=strategy_advice,
+                                  _diagnostic=strategy_diagnostic)
+            if strategy_diagnostic is not None:
+                _metric("UserPromptSubmit", strategy_diagnostic.get("category", "none"),
+                        "strategy-hook-evaluation", evaluation_started, trace,
+                        strategy_outcome=strategy_diagnostic.get("outcome", "not-eligible"),
+                        strategy_source=strategy_diagnostic.get("source", "none"))
             if output:
                 print(json.dumps(output, ensure_ascii=False))
     except (OSError, ValueError, TypeError, KeyError):
