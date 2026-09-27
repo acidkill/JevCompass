@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-256-L — boundary useful-action timestamps
+
+Instrumented matched contract-test completion: a specific mapping failure marker scores first useful error; successful exit plus named mapping check and final OK scores first successful relevant check. Missing timestamps, unrelated failures and partial output remain unscored. Past pairs are not retroactively rescored. Targeted tests pass; full suite/graph gate before merge. New live comparison remains pending.
+
 ### VCR-256-K — avoid confirmation-only advisor commands
 
 Updated the bundled focused-tests skill to run an evidence-resolved check directly and skip confirmation-only advisor CLI calls. Boundary coverage example and genuinely unresolved optional ranking are distinguished; unknown metadata remains unknown and required gates retained. This follows negative live extra-command evidence; behavior/speed in fresh agents remains unverified.

@@ -2,6 +2,10 @@
 
 ## Status
 
+### VCR-256-L timing instrumentation (2026-09-27)
+
+Boundary runner now records first relevant contract failure and first successful relevant contract check only from matched completed execution events with observed timestamps and task-specific output. Partial/unrelated output and missing timestamps do not count. Timing marks process completion evidence, not semantic diagnosis quality. Previous runs remain unscored because their raw events were not retained. Offline instrumentation is not a new live outcome.
+
 ### VCR-256-K execution guidance (2026-09-27)
 
 Bundled focused-test guidance now explicitly avoids a separate ranking command when local coverage evidence already resolves the choice. Optional advice is reserved for materially different unresolved alternatives; mandatory validation remains required. The local-path pair showed that removing API alone did not remove extra agent work. Fresh-agent adoption and measurable benefit remain to be tested; no efficacy claim.
