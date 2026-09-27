@@ -1,0 +1,5 @@
+{
+  "contract_version": "v1",
+  "pairs": [["q", "blue sky"], ["tag", "a+b"]],
+  "query": "q=blue%20sky&tag=a%2Bb"
+}

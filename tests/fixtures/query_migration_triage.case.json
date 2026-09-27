@@ -1,0 +1,80 @@
+{
+  "case_id": "query_migration_triage",
+  "evidence_files": {
+    "changelog": "CHANGELOG.md",
+    "contract_v1": "CONTRACT_v1.md",
+    "contract_v2": "CONTRACT_v2.md",
+    "focused_test": "tests/test_query_encoder.py",
+    "implementation": "query_encoder.py",
+    "legacy_golden": "legacy_query_golden.json"
+  },
+  "evidence_markers": {
+    "changelog": [
+      "The v2 contract is authoritative for current requests"
+    ],
+    "contract_v1": [
+      "Effective through 2025-06-30"
+    ],
+    "contract_v2": [
+      "Effective 2025-07-01 and superseding v1",
+      "The v1 golden remains a historical record"
+    ],
+    "focused_test": [
+      "q=blue+sky"
+    ],
+    "implementation": [
+      "quote_via=quote"
+    ],
+    "legacy_golden": [
+      "\"contract_version\": \"v1\"",
+      "q=blue%20sky&tag=a%2Bb"
+    ]
+  },
+  "failure_markers": [
+    "test_v2_space_encoding",
+    "q=blue%20sky",
+    "q=blue+sky"
+  ],
+  "fixture_source": "tests/fixtures/query_migration_triage",
+  "focused_command": [
+    "python",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_query_encoder.py",
+    "-v"
+  ],
+  "focused_test_file": "tests/test_query_encoder.py",
+  "oracle_script": "scripts/pilot_oracles/query_migration.py",
+  "oracle_sha256": "da6110537d48a8bc497bf5e24d1dc9bd5584ff3950a6c3c8b6a650db0261b114",
+  "outcome_mode": "repair",
+  "schema_version": 1,
+  "source_file": "query_encoder.py",
+  "task_prompt_file": "README.md",
+  "triage": {
+    "accepted_ids": [
+      "assertion_behavior_regression",
+      "assertion_expectation_drift",
+      "confirm_behavior_contract"
+    ],
+    "accepted_statuses": [
+      "no-remote-choice"
+    ],
+    "hypotheses": [
+      "assertion_behavior_regression",
+      "assertion_expectation_drift"
+    ],
+    "kinds": [
+      "assertion"
+    ],
+    "observations": {
+      "assertion": [
+        "legacy_fixture_conflict"
+      ]
+    },
+    "rank_hypotheses": true
+  }
+}
