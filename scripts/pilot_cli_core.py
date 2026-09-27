@@ -817,7 +817,7 @@ def _isolated_environment(
 
 def _collect_events(
     process: subprocess.Popen[bytes], *, started: float, timeout: int,
-    preserve_on_failure: bool = False, max_tokens: int | None = None,
+    preserve_on_failure: bool = True, max_tokens: int | None = None,
 ) -> tuple[list[str], list[float], str | None]:
     """Collect bounded JSONL, optionally stopping after a completed turn exceeds a token budget.
 
@@ -949,16 +949,13 @@ def _run_arm(
             command, cwd=fixture, env=env, stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
         )
-        lines, event_times, failure = _collect_events(process, started=started, timeout=timeout)
+        lines, event_times, failure = _collect_events(
+            process, started=started, timeout=timeout, preserve_on_failure=True,
+        )
     except OSError:
         return {"status": "failed", "failure": "codex_unavailable"}
     observed_wall_time_ms = round((time.monotonic() - started) * 1000, 2)
     total_wall_time_ms = observed_wall_time_ms if observed_wall_time_ms <= MAX_TIMEOUT * 1000 else None
-    if failure:
-        return {
-            "status": "failed", "failure": failure,
-            "total_wall_time_ms": total_wall_time_ms,
-        }
     assistant_texts: list[str] = []
     parsed = parse_event_stream(
         lines, start_monotonic=started, event_times=event_times,
@@ -967,7 +964,7 @@ def _run_arm(
     final_assistant_text = assistant_texts[-1] if assistant_texts else None
     outcome_checks = _fixture_outcome_checks(case_id, fixture, final_assistant_text, parsed["events"])
     result: dict[str, Any] = {
-        "status": "completed" if process.returncode == 0 else "failed",
+        "status": "failed" if failure or process.returncode != 0 else "completed",
         "exit_code": process.returncode,
         "event_count": parsed["event_count"],
         "events": parsed["events"],
@@ -995,7 +992,9 @@ def _run_arm(
         result["advisor_metrics"] = metrics
         result["advice_metric"] = correlate_advice(parsed, metrics)
         result["_pilot_diagnostic"] = _pilot_hook_diagnostic(parsed, metrics)
-    if process.returncode != 0:
+    if failure:
+        result["failure"] = failure
+    elif process.returncode != 0:
         result["failure"] = "codex_nonzero_exit"
     return result
 

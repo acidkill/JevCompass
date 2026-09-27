@@ -1267,18 +1267,143 @@ class PilotCliCoreTests(unittest.TestCase):
         self.assertEqual((lines, times, failure), ([], [], "timeout"))
         self.assertIsNotNone(process.poll())
 
-    def test_event_collector_can_retain_bounded_partial_events_on_timeout(self):
+    def test_event_collector_preserves_partial_events_by_default_on_timeout(self):
         process = subprocess.Popen(
-            [sys.executable, "-c", "import sys,time; print('{\"type\":\"turn.started\"}', flush=True); time.sleep(2)"],
+            [sys.executable, "-c", '''import sys,time; print('{"type":"turn.started"}', flush=True); time.sleep(2)'''],
             stdout=subprocess.PIPE,
         )
         lines, times, failure = runner._collect_events(
-            process, started=time.monotonic(), timeout=1, preserve_on_failure=True,
+            process, started=time.monotonic(), timeout=1,
         )
         self.assertEqual(failure, "timeout")
         self.assertEqual(lines, ['{"type":"turn.started"}'])
         self.assertEqual(len(times), 1)
         self.assertIsNotNone(process.poll())
+
+    def test_event_collector_explicit_false_discards_partial_timeout_events(self):
+        process = subprocess.Popen(
+            [sys.executable, "-c", '''import sys,time; print('{"type":"turn.started"}', flush=True); time.sleep(2)'''],
+            stdout=subprocess.PIPE,
+        )
+        lines, times, failure = runner._collect_events(
+            process, started=time.monotonic(), timeout=1, preserve_on_failure=False,
+        )
+        self.assertEqual((lines, times, failure), ([], [], "timeout"))
+        self.assertIsNotNone(process.poll())
+
+    def test_event_collector_preserves_completed_turn_that_exceeds_token_budget(self):
+        event = {
+            "type": "turn.completed",
+            "usage": {
+                "input_tokens": 10, "cached_input_tokens": 0,
+                "cache_write_input_tokens": 0, "output_tokens": 2,
+                "reasoning_output_tokens": 0,
+            },
+        }
+        process = subprocess.Popen(
+            [sys.executable, "-c", "import json,time; print(json.dumps(" + repr(event) + "), flush=True); time.sleep(2)"],
+            stdout=subprocess.PIPE,
+        )
+        lines, times, failure = runner._collect_events(
+            process, started=time.monotonic(), timeout=2, max_tokens=1,
+        )
+        self.assertEqual(failure, "token_budget_exceeded")
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(json.loads(lines[0]), event)
+        self.assertEqual(len(times), 1)
+        self.assertIsNotNone(process.poll())
+
+    def test_run_arm_failure_keeps_partial_usage_and_first_action(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            codex = root / "fake-codex"
+            events = [
+                {"type": "item.completed", "item": {
+                    "type": "agent_message", "text": "Synthetic partial response.",
+                }},
+                {"type": "item.started", "item": {
+                    "type": "command_execution", "name": "exec_command",
+                    "command": "python -m unittest discover -s tests -v",
+                }},
+                {"type": "turn.completed", "usage": {
+                    "input_tokens": 100, "cached_input_tokens": 20,
+                    "cache_write_input_tokens": 0, "output_tokens": 40,
+                    "reasoning_output_tokens": 5,
+                }},
+            ]
+            codex.write_text(
+                "#!" + sys.executable + "\n"
+                "import json,time\n"
+                + "".join("print(" + repr(json.dumps(event)) + ", flush=True)\n" for event in events)
+                + "time.sleep(2)\n",
+                encoding="utf-8",
+            )
+            codex.chmod(0o700)
+            result = runner._run_arm(
+                codex=str(codex), model="synthetic", reasoning_effort="low",
+                fixture=root, home=root / "home", case_id="R01", timeout=1,
+                treatment=False, require_auth=False,
+            )
+        self.assertEqual(result["status"], "failed")
+        self.assertEqual(result["failure"], "timeout")
+        self.assertGreaterEqual(result["event_count"], 3)
+        self.assertEqual(result["token_usage_status"], "available")
+        self.assertEqual(result["token_usage"]["input_tokens"], 100)
+        self.assertIsNotNone(result["first_action"])
+
+    def test_event_collector_preserves_partial_events_on_output_limit(self):
+        script = (
+            "import sys,time; "
+            "print('{\"type\":\"turn.started\"}', flush=True); "
+            "time.sleep(0.1); print('x' * 80, flush=True); time.sleep(2)"
+        )
+        process = subprocess.Popen(
+            [sys.executable, "-c", script], stdout=subprocess.PIPE,
+        )
+        with mock.patch.object(runner, "MAX_EVENT_BYTES", 32):
+            lines, times, failure = runner._collect_events(
+                process, started=time.monotonic(), timeout=2,
+            )
+        self.assertEqual(failure, "event_output_limit")
+        self.assertEqual(lines, ['{"type":"turn.started"}'])
+        self.assertEqual(len(times), 1)
+        self.assertIsNotNone(process.poll())
+
+    def test_run_arm_collector_failure_stays_failed_after_zero_exit(self):
+        usage = {
+            "input_tokens": 10, "cached_input_tokens": 0,
+            "cache_write_input_tokens": 0, "output_tokens": 2,
+            "reasoning_output_tokens": 0,
+        }
+        lines = [
+            json.dumps({"type": "item.started", "item": {
+                "type": "command_execution", "name": "exec_command",
+                "command": "python -m unittest discover -s tests -v",
+            }}),
+            json.dumps({"type": "turn.completed", "usage": usage}),
+        ]
+        process = mock.Mock(returncode=0)
+
+        def collect(_process, *, started, **_kwargs):
+            return lines, [started + 0.01, started + 0.02], "token_budget_exceeded"
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with (
+                mock.patch.object(runner.subprocess, "Popen", return_value=process),
+                mock.patch.object(runner, "_collect_events", side_effect=collect),
+            ):
+                result = runner._run_arm(
+                    codex="synthetic-codex", model="synthetic", reasoning_effort="low",
+                    fixture=root, home=root / "home", case_id="R01", timeout=1,
+                    treatment=False, require_auth=False,
+                )
+        self.assertEqual(result["status"], "failed")
+        self.assertEqual(result["exit_code"], 0)
+        self.assertEqual(result["failure"], "token_budget_exceeded")
+        self.assertEqual(result["token_usage_status"], "available")
+        self.assertEqual(result["token_usage"]["input_tokens"], 10)
+        self.assertIsNotNone(result["first_action"])
 
     def test_p08_cli_surrogate_exports_only_allowlisted_scaffold_files(self):
         self.assertEqual(runner.QUALITY_FILE_ALLOWLIST["P08"], (
