@@ -17,6 +17,7 @@ import signal
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from typing import Any, Callable
 
@@ -803,6 +804,7 @@ def run_cohort(
             "runtime_seconds_used": 0.0, "agent_tokens_used": 0,
             "pairs": {}, "terminal_status": "in_progress",
         }
+    _write_state(state_path, state)
     expected_state = "in_progress" if cohort == "feasibility" else "feasibility_complete"
     if state.get("terminal_status") != expected_state:
         raise ValueError("cohort phase is terminal or out of order; reruns are not allowed")
@@ -815,6 +817,7 @@ def run_cohort(
             if not all(item.get("status") == "completed" for item in prior):
                 # The slice is retained but stopped; unrelated slices may continue.
                 state.setdefault("stopped_cases", []).append(case)
+        _write_state(state_path, state)
         if any(pair_id in state["pairs"] for pair_id in
                [r["pair"] for r in manifest["schedules"]["main"]]):
             raise ValueError("main cohort already contains attempted pairs")
@@ -824,6 +827,12 @@ def run_cohort(
     for row in rows:
         pair_id, case = row["pair"], row["case"]
         if pair_id in state["pairs"]:
+            prior_status = state["pairs"][pair_id].get("status")
+            if prior_status in {
+                "not_run_case_stopped", "not_run_after_cohort_stop",
+                "not_run_total_runtime_cap", "not_run_total_token_cap", "unavailable_case",
+            }:
+                continue
             raise ValueError("scheduled pair already has a terminal record")
         if case in stopped_cases:
             status = "not_run_case_stopped"
@@ -831,12 +840,14 @@ def run_cohort(
                 "case": case, "seed": row["seed"], "first_arm": row["first_arm"],
                 "status": status, "receipt_path": None, "arm_map_path": None,
             }
+            _write_state(state_path, state)
             continue
         if manifest["cases"][case]["status"] not in ("ready", "ready_local_only"):
             state["pairs"][pair_id] = {
                 "case": case, "seed": row["seed"], "first_arm": row["first_arm"],
                 "status": "unavailable_case", "receipt_path": None, "arm_map_path": None,
             }
+            _write_state(state_path, state)
             continue
         if state["runtime_seconds_used"] >= settings["total_runtime_seconds"]:
             state["terminal_status"] = "stopped"
@@ -851,6 +862,7 @@ def run_cohort(
                         "first_arm": later["first_arm"], "status": "not_run_after_cohort_stop",
                         "receipt_path": None, "arm_map_path": None,
                     }
+            _write_state(state_path, state)
             break
         if state["agent_tokens_used"] >= settings["total_agent_token_budget"]:
             state["terminal_status"] = "stopped"
@@ -865,13 +877,35 @@ def run_cohort(
                         "first_arm": later["first_arm"], "status": "not_run_after_cohort_stop",
                         "receipt_path": None, "arm_map_path": None,
                     }
+            _write_state(state_path, state)
             break
         remaining_runtime = settings["total_runtime_seconds"] - state["runtime_seconds_used"]
         remaining_tokens = settings["total_agent_token_budget"] - state["agent_tokens_used"]
-        result, status, elapsed = launcher(
-            case, row, settings=settings, output_dir=output_dir,
-            remaining_runtime=remaining_runtime, remaining_tokens=remaining_tokens,
-        )
+        state["pairs"][pair_id] = {
+            "case": case, "seed": row["seed"], "first_arm": row["first_arm"],
+            "status": "pair_started", "receipt_path": None, "arm_map_path": None,
+        }
+        _write_state(state_path, state)
+        try:
+            result, status, elapsed = launcher(
+                case, row, settings=settings, output_dir=output_dir,
+                remaining_runtime=remaining_runtime, remaining_tokens=remaining_tokens,
+            )
+        except Exception:
+            state["pairs"][pair_id]["status"] = "runner_exception_stop"
+            state["terminal_status"] = "stopped"
+            state["last_cohort"] = cohort
+            state["last_cohort_status"] = "stopped"
+            for later in rows[rows.index(row) + 1:]:
+                if later["pair"] not in state["pairs"]:
+                    state["pairs"][later["pair"]] = {
+                        "case": later["case"], "seed": later["seed"],
+                        "first_arm": later["first_arm"],
+                        "status": "not_run_after_cohort_stop", "receipt_path": None,
+                        "arm_map_path": None,
+                    }
+            _write_state(state_path, state)
+            return state
         state["runtime_seconds_used"] += elapsed
         arm_receipt = result["receipt"] if isinstance(result, dict) else None
         arm_map = result.get("arm_map") if isinstance(result, dict) else None
@@ -910,6 +944,7 @@ def run_cohort(
                         "arm_map_path": None,
                     }
             state["terminal_status"] = "stopped"
+            _write_state(state_path, state)
             break
         if status != "completed":
             stopped_cases.add(case)
@@ -922,6 +957,7 @@ def run_cohort(
                         "status": "not_run_case_stopped", "receipt_path": None,
                         "arm_map_path": None,
                     }
+        _write_state(state_path, state)
     else:
         state["terminal_status"] = "feasibility_complete" if cohort == "feasibility" else "completed"
     state["last_cohort"] = cohort
@@ -932,13 +968,26 @@ def run_cohort(
 
 def _write_state(path: Path, state: dict[str, Any]) -> None:
     # Atomic private ledger update; safe for the two ordered phase invocations.
-    temp = path.with_name(path.name + ".tmp")
     data = (json.dumps(state, sort_keys=True, indent=2) + "\n").encode()
-    fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "wb") as stream:
-        stream.write(data)
-    os.replace(temp, path)
-    os.chmod(path, 0o600)
+    fd, temporary = tempfile.mkstemp(prefix=".cohort-ledger-", dir=path.parent)
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+        directory_fd = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    except BaseException:
+        try:
+            os.unlink(temporary)
+        except OSError:
+            pass
+        raise
 
 
 def _parser() -> argparse.ArgumentParser:
