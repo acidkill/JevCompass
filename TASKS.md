@@ -504,3 +504,12 @@ Important limits: the Codex event has no reliable task objective; the article th
 - [x] Preserve existing failure status and distinguish generic diagnostic prioritization from evidence-based cause discrimination.
 - [ ] Before a prospective timeout paired trial, review allowlisted locally verified observations and freeze a fixture/quality rubric that does not disclose the answer to treatment alone.
 - [ ] Merge audit after green hosted CI.
+
+
+## VCR-261-C — prospective decision experiment protocol
+
+- [x] Incorporate VCR-260-A/B read-only audits: existing fixtures do not justify another unresolved strategy/test-order comparison.
+- [x] Freeze eligibility, equal-information, baseline-policy and useful-error evidence requirements before new model calls.
+- [x] Keep candidate/runtime eligibility and final artifact acceptance distinct from any benefit claim.
+- [ ] Validate the new fixtures against this protocol; no live run authorized by fixture existence alone.
+- [ ] Merge protocol after green hosted CI.

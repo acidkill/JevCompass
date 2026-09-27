@@ -1098,3 +1098,10 @@ Read-only source inspection and a keyless injected-client capture confirm that t
 Both opposite root causes can therefore yield the same request. A remote ordering can reflect generic diagnostic priors, but cannot distinguish those cases from absent facts. Existing tests explicitly preserve this generic remote behavior; it must not be described as causal diagnosis. Before a new timeout trial, review bounded locally verified observations that can differentiate diagnostic value without sending logs or private state. If observations resolve the next step, use local routing; if they leave a real tradeoff, assess remote selection separately from a reasonable local heuristic. Both arms must receive equivalent task evidence, and treatment preparation/observation costs must count in completion time.
 
 Freeze expected outcome and mandatory checks before running, retain failure semantics, score next-step utility independently of backend confidence, and report unavailable useful-error timing/cost as unknown. No production behavior changed, no live API/model call occurred, and no acceptance result is inferred from this audit.
+
+
+## VCR-261-C — prospective experiment eligibility
+
+The VCR-260-A strategy audit found no justified new remote pair with existing metadata: task-specific contract/dependency distinctions are absent from coarse tied-strategy requests. VCR-260-B found no suitable existing test-order fixture: calculation candidates detect the same defect and boundary mapping is locally obvious. These findings reject repetition of those tasks to seek a favorable result.
+
+The new [cross-layer decision protocol](tests/evaluation/cross_layer_decision_protocol.md) requires distinct mutant coverage, truthful measured metadata and a reasonable frozen local baseline policy before a remote trial. It retains all mandatory tests, includes preparation cost and requires task-specific completed failure events for useful-error timing. New dependency/cross-layer fixtures remain under construction and must pass eligibility review; their existence will not establish a useful remote choice, quality benefit or native host coverage.
