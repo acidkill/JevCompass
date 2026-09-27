@@ -193,6 +193,9 @@ def extract_event(event: dict[str, Any]) -> tuple[str | None, str | None, str | 
     if normalized in {"error", "reasoning"}:
         return None, None, None
     if normalized in {"agent_message", "assistant_message", "message"}:
+        # Draft lifecycle events do not prove delivery of the final message.
+        if event_type in {"item.started", "item.updated"}:
+            return None, None, None
         return "assistant", text_value, None
     tool_types = {
         "command_execution", "function_call", "tool_call", "mcp_tool_call",
