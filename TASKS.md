@@ -532,3 +532,13 @@ Important limits: the Codex event has no reliable task objective; the article th
 - [x] Validate 42 strategy tests and 492 tests in combined worktree; refresh graph (1948 nodes, 3792 edges).
 - [ ] Merge after green hosted CI; cross-layer fixture is outside this commit.
 - [ ] Evaluate prospective dependency task quality/time before claiming benefit.
+
+
+## VCR-261-B — cross-layer test-order fixture
+
+- [x] Add one-module domain/JSON change and five guards proving distinct rounding and serialization mutant coverage.
+- [x] Reconcile and preserve historical runtime samples and summary-only confirmation without changing seeded behavior.
+- [x] Record a parent 12-run alternating measurement on final fixture hash 36e572088069b0947293f44cc7e2b0f3c4ddeb779219cc597a6dbfd60edefa84, unchanged afterward.
+- [x] Keep both direct candidates and mandatory full suite; local injected-client check confirms only enum/kind/coverage/runtime metadata reaches selector.
+- [x] Combined-tree validation: 492 tests and graph refresh (1948 nodes, 3792 edges).
+- [ ] Merge fixture after green hosted CI; no live pair or benefit established.
