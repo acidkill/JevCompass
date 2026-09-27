@@ -1,3 +1,7 @@
+## VCR329 — Plan-quality assessment protocol
+
+Prepared [plan quality protocol](tests/evaluation/plan_quality_protocol.md): equal task evidence, predeclared task-specific scoring, critical mandatory-check failures, blinded assessment, separate implementation validation and explicit timing scopes. A concrete task design is still pending; no plan-quality comparison or benefit is claimed. This documentation does not start or repeat any trial.
+
 ## VCR326 — Prospective preparation timing
 
 The upcoming receipt separates measured shared preparation from each arm's fixture/authentication preparation and complete runner call. Existing agent completion remains separate. Unknown independent-validation breakdowns stay null even when included in arm elapsed time. Base-runner elapsed time excludes outer wrapper postprocessing and serialization; it is not an invented end-to-end duration. Two mocked-clock timing tests passed; graphify refreshed (2860 nodes, 5724 edges). All 700 Python tests passed in 29.907 seconds; hosted CI remains the merge gate. VCR323 preparation remains unrecorded and its failed result is unchanged; no live trial has been restarted.
