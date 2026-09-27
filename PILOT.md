@@ -2,6 +2,10 @@
 
 ## Status
 
+### VCR-257-B explicit strategy comparison runner (2026-09-27)
+
+The new `scripts/pilot_strategy_pair.py` reuses an independent isolated coding-pair engine with the existing equal-fixture started-kilogram task. Safe signals existing_symbol and behavior_change leave inspect-symbol-use and define-contract alternatives. Treatment consultation is optional and nonbinding; no hidden repair information is supplied. Known strategy IDs, numeric provider usage and command latency are retained without backend prose. Mandatory focused/full gates remain. An instruction to consult before editing is not execution proof: edit-order remains explicitly unscored, and blind artifact quality remains separate. This is runner preparation, not acceptance or efficacy evidence.
+
 ### VCR-257-A strategy measurement gap (2026-09-27)
 
 Audit found strategy API usage was discarded although test-order and triage retained it. Strategy results/CLI now expose validated numeric-only input/output tokens and optional cost even on abstention. Local resolved cases make no request. This closes an accounting prerequisite; matched runner aggregation, useful-action scoring and Desktop comparison are not complete. Stop repeating the locally obvious boundary task to search for a favorable result.

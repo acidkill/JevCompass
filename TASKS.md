@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-257-B — matched explicit-strategy runner
+
+Added isolated randomized strategy experiment for the existing behavior-change coding task. Both arms retain identical fixtures and focused/full gates; treatment may consult strategy choice before editing. Numeric usage and known IDs only are captured, with legacy ranking disabled. Two offline tests pass. Actual pre-edit ordering and independent blind quality are not scored by this runner; no live outcome yet. Full suite/graph verification before merge.
+
 ### VCR-257-A — pretask strategy accounting
 
 Strategy results and CLI now retain validated provider usage, including uncertain paid responses. Local singleton choices never request API; unknown cost stays null and legacy answers-only clients remain supported. Offline accounting tests pass. Matched strategy receipts and genuinely unresolved outcome comparison remain pending; no benefit claim.
