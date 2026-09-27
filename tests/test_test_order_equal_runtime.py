@@ -46,3 +46,25 @@ class EqualRuntimeTests(unittest.TestCase):
                 client = Client()
                 rank_tests("python", rows, [], client, signals=signals)
                 self.assertEqual(client.calls, 1)
+
+    def test_dominance_does_not_ignore_competing_targets(self):
+        for runtime in ("fast", "unknown"):
+            with self.subTest(runtime=runtime):
+                rows = candidates(runtime)
+                if runtime == "fast":
+                    rows[0]["runtime"] = "slow"
+                rows[1]["coverage_targets"] = ["internal_logic_changed"]
+                rows[0]["coverage_targets"] = ["boundary_mapping_changed"]
+                client = Client()
+                result = rank_tests("python", rows, [{"command": "required"}], client,
+                                    signals=["boundary_mapping_changed"])
+                self.assertEqual(client.calls, 1)
+                self.assertEqual([x.command for x in result.required], ["required"])
+
+    def test_declared_targets_without_change_signal_are_not_dominance_evidence(self):
+        rows = candidates("fast")
+        rows[0]["runtime"] = "slow"
+        rows[1]["coverage_targets"] = ["internal_logic_changed"]
+        client = Client()
+        rank_tests("python", rows, [], client)
+        self.assertEqual(client.calls, 1)
