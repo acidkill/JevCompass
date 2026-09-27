@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-270-A — allowlisted candidate coverage targets
+
+Test candidates now optionally carry locally verified coverage_targets from the existing three ChangeSignal enums. Missing targets preserve prior request/output shape; supplied values are normalized/deduplicated, malformed or private unknown values abstain before transport. API and CLI retain required checks and current eligibility/confidence/order rules. This adds safe descriptive information, not proof of coverage correctness or improved decisions. Fresh VCR-269-B diagnostic returned insufficient_confidence with457/34tokens and USD0.000019194; no historical fallback reason is inferred. Six focused target/CLI tests pass; no enriched live pair yet.
+
 ### VCR-270-B — timeout guidance live outcome retained
 
 Completed once400f001ad8c04740a3d3f132488cfbab. Both repairs pass observed focused/full and independent frozen checks with immutable files intact. Treatment25,978.89ms including shared preparation vsbaseline26,981.61ms; one ordered difference is not repeatable benefit. Protocol incomplete: initial failure not observed, and prompt did not explicitly mandate pre-edit reproduction expected by scorer. Fix instruction/gate alignment and equal acknowledgment burden prospectively; do not blame task correctness or rescore oldrun. Zero remote requests, billing unknown, useful-error timing unscored.
