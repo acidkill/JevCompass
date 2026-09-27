@@ -75,6 +75,17 @@ class ImportObservation(str, Enum):
     REPLACEMENT_MODULE_ABSENT = "replacement_module_absent"
 
 
+class TimeoutObservation(str, Enum):
+    """Allowlisted timeout facts established by verified local review."""
+
+    PROGRESS_OBSERVED = "progress_observed"
+    NO_PROGRESS_OBSERVED = "no_progress_observed"
+    RESOURCE_CONTENTION_OBSERVED = "resource_contention_observed"
+    NO_RESOURCE_CONTENTION_OBSERVED = "no_resource_contention_observed"
+    WAIT_CONDITION_SATISFIABLE = "wait_condition_satisfiable"
+    WAIT_CONDITION_UNSATISFIABLE = "wait_condition_unsatisfiable"
+
+
 @dataclass(frozen=True)
 class DiagnosticStep:
     """A locally authored next diagnostic action."""
@@ -220,6 +231,32 @@ def _normalize_assertion_observations(
     return tuple(dict.fromkeys(observations))
 
 
+def _normalize_timeout_observations(
+    observations: Sequence[TimeoutObservation] | None,
+) -> tuple[TimeoutObservation, ...]:
+    if observations is None:
+        return ()
+    if (isinstance(observations, (str, bytes))
+            or not isinstance(observations, Sequence)
+            or any(not isinstance(item, TimeoutObservation) for item in observations)):
+        raise TypeError("timeout-observations-must-be-enums")
+    return tuple(dict.fromkeys(observations))
+
+
+def _contradictory_timeout_observations(
+    observations: Sequence[TimeoutObservation],
+) -> bool:
+    known = set(observations)
+    contradictions = (
+        (TimeoutObservation.PROGRESS_OBSERVED, TimeoutObservation.NO_PROGRESS_OBSERVED),
+        (TimeoutObservation.RESOURCE_CONTENTION_OBSERVED,
+         TimeoutObservation.NO_RESOURCE_CONTENTION_OBSERVED),
+        (TimeoutObservation.WAIT_CONDITION_SATISFIABLE,
+         TimeoutObservation.WAIT_CONDITION_UNSATISFIABLE),
+    )
+    return any(left in known and right in known for left, right in contradictions)
+
+
 def _contradictory_import_observations(
     observations: Sequence[ImportObservation],
 ) -> bool:
@@ -258,6 +295,7 @@ def triage_failure(
     *,
     import_observations: Sequence[ImportObservation] | None = None,
     assertion_observations: Sequence[AssertionObservation] | None = None,
+    timeout_observations: Sequence[TimeoutObservation] | None = None,
 ) -> TriageResult:
     """Return up to two diagnostic steps from allowlisted failure metadata.
 
@@ -281,11 +319,17 @@ def triage_failure(
         raise TypeError("hypotheses-must-be-enums")
     observations = _normalize_import_observations(import_observations)
     assertion_facts = _normalize_assertion_observations(assertion_observations)
+    timeout_facts = _normalize_timeout_observations(timeout_observations)
     if observed_exit_status == 0:
         return _empty_result(observed_exit_status)
 
     allowed_kinds = set(failure_kinds)
+    timeout_fact_set = set(timeout_facts)
+    timeout_evidence_applies = FailureKind.TIMEOUT in allowed_kinds and bool(timeout_facts)
     import_evidence_applies = FailureKind.IMPORT in allowed_kinds and bool(observations)
+    if (timeout_evidence_applies
+            and _contradictory_timeout_observations(timeout_facts)):
+        return TriageResult(observed_exit_status, (), NO_REMOTE_CHOICE)
     if import_evidence_applies and _contradictory_import_observations(observations):
         return TriageResult(observed_exit_status, (), NO_REMOTE_CHOICE)
 
@@ -323,6 +367,28 @@ def triage_failure(
             continue
         plausible.append(entry)
 
+    eligible_ids = {entry.step.id for entry in plausible}
+    if timeout_evidence_applies:
+        if (TimeoutObservation.WAIT_CONDITION_UNSATISFIABLE in timeout_fact_set
+                and HypothesisId.TIMEOUT_NONTERMINATING in eligible_ids):
+            return TriageResult(
+                observed_exit_status,
+                (CATALOG[HypothesisId.TIMEOUT_NONTERMINATING].step,),
+                NO_REMOTE_CHOICE,
+            )
+        contention_progress_wait = {
+            TimeoutObservation.RESOURCE_CONTENTION_OBSERVED,
+            TimeoutObservation.PROGRESS_OBSERVED,
+            TimeoutObservation.WAIT_CONDITION_SATISFIABLE,
+        }
+        if (contention_progress_wait.issubset(timeout_fact_set)
+                and HypothesisId.TIMEOUT_CONTENTION in eligible_ids):
+            return TriageResult(
+                observed_exit_status,
+                (CATALOG[HypothesisId.TIMEOUT_CONTENTION].step,),
+                NO_REMOTE_CHOICE,
+            )
+
     fallback = tuple(entry.step for entry in plausible[:2])
     if locally_confirmed_path or not failure_kinds or len(plausible) < 2:
         return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE)
@@ -337,6 +403,8 @@ def triage_failure(
         state["import_observations"] = [item.value for item in observations]
     if assertion_evidence_applies:
         state["assertion_observations"] = [item.value for item in assertion_facts]
+    if timeout_evidence_applies:
+        state["timeout_observations"] = [item.value for item in timeout_facts]
     questions = {
         "diagnostic": {
             "type": "choice",

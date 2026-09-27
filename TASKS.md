@@ -558,5 +558,15 @@ Important limits: the Codex event has no reliable task objective; the article th
 - [x] Verify five fixture guards: original defect, correct queue predicate, false payload, FIFO and consumption mutants.
 - [x] Check Python condition semantics against CPython documentation through Context7; use bounded real waits without sleeps.
 - [x] Validate exact archived committed scope: all 497 tests passed; graph refreshed in the shared source worktree.
-- [ ] Merge only after green hosted CI.
+- [x] Merge only after green hosted CI (PR #186, 35 s).
 - [ ] Freeze a future local triage comparison; this inspectable defect does not prove remote-choice value or benefit.
+
+
+## VCR-264-B — verified timeout observations
+
+- [x] Add strict enum facts, contradiction abstention and two narrow eligible local diagnostic rules, preserving observed exit status.
+- [x] Send partial facts only for existing timeout ambiguity; retain other failure kinds and no-fact behavior.
+- [x] Add repeatable CLI options and focused verification (35 tests, 31 subtests through pytest).
+- [x] Parent combined-tree 519 tests pass; graph refreshed (2071 nodes, 4061 edges); keyless CLI smoke retains failed exit 1 and local wait-condition step.
+- [ ] Merge after green hosted CI; dependency/cross-layer runners remain outside this commit.
+- [ ] Evaluate task outcomes before claiming better diagnosis or faster completion.
