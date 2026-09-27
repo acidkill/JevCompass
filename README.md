@@ -226,3 +226,11 @@ JevCompass is licensed under the [Apache License 2.0](LICENSE). Copyright 2026 T
 - [Open an issue](https://github.com/acidkill/JevCompass/issues)
 - [Propose a change](https://github.com/acidkill/JevCompass/pulls)
 - [Browse the source](https://github.com/acidkill/JevCompass)
+
+### Optional typed-decision cache
+
+Set `JEVCOMPASS_TYPED_DECISION_CACHE=1` to reuse validated strategy, test-order and triage choices across CLI processes for up to 24 hours. It is disabled by default. The cache is bounded to 128 records and uses private files under `~/.cache/jevcompass/typed-decisions-v1`; `JEVCOMPASS_TYPED_CACHE_DIR` can select a dedicated private directory. An existing directory with broader permissions is skipped, not modified.
+
+Keys cover the exact sanitized request, model, caller policy and confidence threshold. Records contain only fixed choice tokens, confidence and creation time: no prompts, commands, source, memory, credentials or backend prose. Every hit is validated again and mapped to the current local candidates. Local resolutions still take precedence; injected clients bypass this cache.
+
+CLI JSON exposes `cache_hit`. A hit reports no new provider usage; triage labels its preferred step `cached_preferred_next_step`. Original failures and mandatory validation remain unchanged. IO errors or invalid records silently fall through to ordinary advice. Cold and warm runs must be evaluated separately, including cache preparation costs. Cache reuse alone does not prove faster coding-task completion.

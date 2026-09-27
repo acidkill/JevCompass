@@ -12,6 +12,7 @@ import math
 from typing import Any, Mapping, Sequence
 
 from .decisions import DecisionsClient, DecisionResponse, DecisionUsage
+from ._typed_decision_cache import TypedDecisionCache
 
 
 NO_REMOTE_CHOICE = "no-remote-choice"
@@ -116,6 +117,7 @@ class TriageResult:
     status: str
     decision_usage: DecisionUsage | None = None
     decision_reason: TriageDecisionReason | None = None
+    cache_hit: bool = False
 
     @property
     def test_failed(self) -> bool:
@@ -455,7 +457,25 @@ def triage_failure(
     try:
         decision_client = client if client is not None else DecisionsClient(timeout=DECISION_TIMEOUT)
         usage = None
-        if isinstance(decision_client, _USAGE_CLIENT_TYPE):
+        cache = None
+        if client is None and isinstance(decision_client, _USAGE_CLIENT_TYPE):
+            try:
+                cache = TypedDecisionCache(
+                    scope="triage", model=decision_client.model,
+                    policy_version="triage-choice-v1", confidence_threshold=CONFIDENCE_THRESHOLD,
+                    request={"state": state, "questions": questions},
+                )
+            except Exception:
+                cache = None
+        try:
+            cached = cache.get(ids) if cache is not None else None
+        except Exception:
+            cached = None
+        cache_hit = cached is not None
+        if cached is not None:
+            answers = {"diagnostic": {"type": "choice", "choice": cached.tokens[0],
+                                      "confidence": cached.confidence}}
+        elif isinstance(decision_client, _USAGE_CLIENT_TYPE):
             response = decision_client.decide_with_usage(state, questions)
             if not isinstance(response, DecisionResponse):
                 return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE,
@@ -479,10 +499,15 @@ def triage_failure(
         reason = _confidence_reason(confidence)
         if reason is not None:
             return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE, usage, reason)
+        if cache is not None and not cache_hit:
+            try:
+                cache.put((selected_id,), confidence, eligible_tokens=ids)
+            except Exception:
+                pass
         selected = CATALOG[HypothesisId(selected_id)].step
         ordered = (selected,) + tuple(step for step in fallback if step.id != selected.id)
         return TriageResult(observed_exit_status, ordered[:2], REMOTE_CHOICE, usage,
-                            TriageDecisionReason.ACCEPTED)
+                            TriageDecisionReason.ACCEPTED, cache_hit)
     except TimeoutError:
         return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE,
                             decision_reason=TriageDecisionReason.PROVIDER_TIMEOUT)

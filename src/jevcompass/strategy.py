@@ -11,6 +11,7 @@ import math
 from typing import Iterable, Literal
 
 from .decisions import DecisionUsage, DecisionsClient, DecisionsError
+from ._typed_decision_cache import TypedDecisionCache
 
 _USAGE_CLIENT_TYPE = DecisionsClient
 
@@ -74,6 +75,7 @@ class StrategyResult:
     recommendations: tuple[StrategyRecommendation, ...]
     status: Literal["remote-choice", "no-remote-choice"]
     usage: DecisionUsage | None = None
+    cache_hit: bool = False
 
 
 _CATALOG = (
@@ -163,9 +165,10 @@ def _remote_choice(
     signals: frozenset[TaskSignal],
     client: DecisionsClient,
     contract_evidence: ContractEvidence | None = None,
-) -> StrategyId | None:
+    *, cache_model: str | None = None,
+) -> tuple[StrategyId | None, bool]:
     if len(ranked) < 2 or ranked[0][1] - ranked[1][1] > _SIMILAR_EVIDENCE_GAP:
-        return None
+        return None, False
 
     options = {
         strategy.id.value: strategy.rationale
@@ -184,39 +187,63 @@ def _remote_choice(
             "criteria": options,
         }
     }
+    cache = None
+    if cache_model is not None:
+        try:
+            cache = TypedDecisionCache(
+                scope="strategy", model=cache_model, policy_version="strategy-choice-v1",
+                confidence_threshold=_CONFIDENCE_THRESHOLD,
+                request={"state": state, "questions": questions},
+            )
+        except Exception:
+            cache = None
+    allowed_choice_ids = {strategy.id.value for strategy, _score in ranked}
     try:
-        answers = client.decide(state, questions)
+        cached = cache.get(allowed_choice_ids) if cache is not None else None
+    except Exception:
+        cached = None
+    cache_hit = cached is not None
+    try:
+        answers = ({"strategy": {"type": "choice", "choice": cached.tokens[0],
+                                  "confidence": cached.confidence}}
+                   if cached is not None else client.decide(state, questions))
     except (DecisionsError, TimeoutError, OSError, TypeError, ValueError):
-        return None
+        return None, False
 
     if not isinstance(answers, dict) or set(answers) != {"strategy"}:
-        return None
+        return None, False
     answer = answers.get("strategy")
     if not isinstance(answer, dict) or answer.get("type") != "choice":
-        return None
+        return None, False
     selected = answer.get("choice")
     confidence = answer.get("confidence")
     valid_ids = {strategy.id for strategy, _score in ranked}
     if not isinstance(selected, str):
-        return None
+        return None, False
     try:
         strategy_id = StrategyId(selected)
     except ValueError:
-        return None
+        return None, False
     if strategy_id not in valid_ids:
-        return None
+        return None, False
     if isinstance(confidence, bool) or not isinstance(confidence, (int, float)):
-        return None
+        return None, False
     try:
         confidence_is_valid = (
             math.isfinite(confidence)
             and _CONFIDENCE_THRESHOLD <= confidence <= 1
         )
     except OverflowError:
-        return None
+        return None, False
     if not confidence_is_valid:
-        return None
-    return strategy_id
+        return None, False
+    if cache is not None and not cache_hit:
+        try:
+            cache.put((strategy_id.value,), confidence,
+                      eligible_tokens=allowed_choice_ids)
+        except Exception:
+            pass
+    return strategy_id, cache_hit
 
 
 class _MeteredAnswers:
@@ -326,13 +353,16 @@ def choose_strategies(
         return StrategyResult((), "no-remote-choice")
 
     usage = None
+    cache_hit = False
     status: Literal["remote-choice", "no-remote-choice"] = "no-remote-choice"
     if len(ranked) >= 2 and ranked[0][1] - ranked[1][1] <= _SIMILAR_EVIDENCE_GAP:
         decision_client = client if client is not None else DecisionsClient()
         metered = _MeteredAnswers(decision_client) if isinstance(decision_client, _USAGE_CLIENT_TYPE) else None
-        selected = _remote_choice(
+        selected, cache_hit = _remote_choice(
             ranked, kind, signal_set, metered or decision_client,
             evidence_id if contract_scope and evidence_id is ContractEvidence.PARTIAL else None,
+            cache_model=(decision_client.model if client is None
+                         and isinstance(decision_client, _USAGE_CLIENT_TYPE) else None),
         )
         usage = metered.usage if metered is not None else None
         if selected is not None:
@@ -343,4 +373,4 @@ def choose_strategies(
         _recommendation(strategy, signal_set)
         for strategy, _score in ranked[:2]
     )
-    return StrategyResult(recommendations, status, usage)
+    return StrategyResult(recommendations, status, usage, cache_hit)

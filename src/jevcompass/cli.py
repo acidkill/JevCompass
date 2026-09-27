@@ -242,6 +242,7 @@ def _display_test_order(result: Any, as_json: bool) -> int:
         reason_value = None
     payload = {
         "status": result.status,
+        "cache_hit": getattr(result, "cache_hit", False) is True,
         "decision_reason": reason_value,
         "ordered": [{
             "id": item.candidate_id, "kind": item.kind.value,
@@ -434,7 +435,9 @@ def main(argv: list[str] | None = None) -> int:
         steps = []
         for index, step in enumerate(result.steps):
             if reason_value == TriageDecisionReason.ACCEPTED.value and index == 0:
-                selection_source = "remote_preferred_next_step"
+                selection_source = ("cached_preferred_next_step"
+                                    if getattr(result, "cache_hit", False) is True
+                                    else "remote_preferred_next_step")
             elif reason_value == TriageDecisionReason.LOCAL_RESOLUTION.value:
                 selection_source = "locally_resolved_guidance"
             else:
@@ -449,6 +452,7 @@ def main(argv: list[str] | None = None) -> int:
             "observed_exit_status": result.observed_exit_status,
             "test_failed": result.test_failed,
             "status": result.status,
+            "cache_hit": getattr(result, "cache_hit", False) is True,
             "decision_reason": reason_value,
             "hypothesis_ranking_status": "not_established",
             "steps": steps,
@@ -472,6 +476,7 @@ def main(argv: list[str] | None = None) -> int:
             for step in steps:
                 label = {
                     "remote_preferred_next_step": "Preferred next action",
+                    "cached_preferred_next_step": "Cached preferred next action",
                     "locally_resolved_guidance": "Locally resolved guidance",
                     "unranked_local_fallback": "Unranked fallback",
                 }[step["selection_source"]]
@@ -486,6 +491,7 @@ def main(argv: list[str] | None = None) -> int:
             contract_evidence=args.contract_evidence,
         )
         payload = {"status": result.status,
+                   "cache_hit": getattr(result, "cache_hit", False) is True,
                    "strategies": [{"id": item.id.value, "rationale": item.rationale}
                                   for item in result.recommendations],
                    "usage": None if result.usage is None else {

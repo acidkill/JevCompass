@@ -12,6 +12,7 @@ import math
 from typing import Any, Literal, Mapping, Sequence
 
 from .decisions import DecisionResponse, DecisionUsage, DecisionsClient
+from ._typed_decision_cache import TypedDecisionCache
 
 _USAGE_CLIENT_TYPE = DecisionsClient
 
@@ -114,6 +115,7 @@ class TestOrderResult:
     status: Literal["remote-choice", "no-remote-choice"]
     usage: DecisionUsage | None = None
     decision_reason: DecisionReason | None = None
+    cache_hit: bool = False
 
     @property
     def ordered_ids(self) -> tuple[str, ...]:
@@ -334,9 +336,29 @@ def rank_tests(
     }
 
     usage = None
+    cache_hit = False
     try:
         decision_client = client if client is not None else DecisionsClient()
-        if isinstance(decision_client, _USAGE_CLIENT_TYPE):
+        cache = None
+        if client is None and isinstance(decision_client, _USAGE_CLIENT_TYPE):
+            try:
+                cache = TypedDecisionCache(
+                    scope="test_order", model=decision_client.model,
+                    policy_version="test-order-v1", confidence_threshold=CONFIDENCE_THRESHOLD,
+                    request={"state": state, "questions": questions},
+                )
+            except Exception:
+                cache = None
+        eligible_tokens = set(opaque_ids)
+        try:
+            cached = cache.get(eligible_tokens) if cache is not None else None
+        except Exception:
+            cached = None
+        cache_hit = cached is not None
+        if cached is not None:
+            answers = {"first": {"type": "choice", "choice": cached.tokens[0],
+                                  "confidence": cached.confidence}}
+        elif isinstance(decision_client, _USAGE_CLIENT_TYPE):
             response = decision_client.decide_with_usage(state, questions)
             if not isinstance(response, DecisionResponse):
                 return TestOrderResult(
@@ -393,10 +415,15 @@ def rank_tests(
                 decision_reason=DecisionReason.INSUFFICIENT_CONFIDENCE,
             )
         selected = opaque_ids[selected_id]
+        if cache is not None and not cache_hit:
+            try:
+                cache.put((selected_id,), confidence_value, eligible_tokens=eligible_tokens)
+            except Exception:
+                pass
         ordered = (selected,) + tuple(candidate for candidate in fallback if candidate is not selected)
         return TestOrderResult(
             ordered, mandatory, REMOTE_CHOICE, usage,
-            decision_reason=DecisionReason.ACCEPTED,
+            decision_reason=DecisionReason.ACCEPTED, cache_hit=cache_hit,
         )
     except Exception:
         return TestOrderResult(
