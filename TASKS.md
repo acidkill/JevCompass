@@ -902,3 +902,9 @@ Important limits: the Codex event has no reliable task objective; the article th
 ## VCR342/VCR344 — Opt-in typed cache and CLI provenance
 
 Implemented a bounded private cross-process cache for validated strategy, test-order and triage choices, default off. Sanitized request/model/policy/threshold invalidation, hit revalidation, local-first selection, silent IO fallback and no usage replay preserve existing contracts. CLI distinguishes cached preferred triage guidance from a fresh remote choice. The final integrated documented suite passed 726 tests in 30.055 seconds, including 11 cache tests and 3 CLI presentation tests. Graphify was rebuilt (2,962 nodes, 5,957 edges, 185 communities). No paid call, release, native-host acceptance or coding-time benefit is claimed.
+
+## VCR345 — Actual provider and cross-process cache smoke
+
+Source `7d6fba4` (PR #260 merged after hosted CI run 36306725045 passed in 1m13s). One synthetic coding-strategy request with dependency-change and behavior-change enums produced an accepted remote choice; a second fresh Python process reused the same private cache. Cold advisor-call time: **525.01 ms**, one DecisionsClient usage call, 368 input tokens / 44 output tokens, provider-reported cost **USD 0.000015456**. Warm advisor-call time: **0.23 ms**, `cache_hit=true`, zero usage calls, `usage=null`; the local recommendation IDs matched.
+
+This is a single cold/warm functional smoke, not a randomized coding-task comparison, p95 estimate or quality assessment. Times exclude Python process startup and task execution. Cache preparation includes the cold paid request; provider-reported cost is not an independently verified billing statement. No raw request, credentials or backend prose was logged. The private receipt is local; native Desktop delivery and task-completion benefit remain unproven.
