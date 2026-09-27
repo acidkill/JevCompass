@@ -12,7 +12,7 @@ import importlib.util
 import json
 import math
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import shlex
 import selectors
@@ -188,8 +188,48 @@ engine._validated_choice = _validated_choice
 _original_event_receipts = engine._event_receipts
 
 
+def _native_file_change_shape(
+    item: dict[str, Any], expected_source: Path | None = None,
+) -> tuple[bool, int]:
+    """Validate bounded native change metadata without retaining paths or content."""
+    changes = item.get("changes")
+    if not isinstance(changes, list) or not changes or len(changes) > 128:
+        return False, 0
+    valid = True
+    target_matches = 0
+    for change in changes:
+        if not isinstance(change, dict):
+            valid = False
+            continue
+        path = change.get("path")
+        kind = change.get("kind")
+        if (not isinstance(path, str) or not path or len(path) > 2048
+                or not isinstance(kind, str)
+                or kind not in {"add", "delete", "update"}):
+            valid = False
+            continue
+        normalized = path.replace("\\", "/")
+        candidate = PurePosixPath(normalized)
+        parts = candidate.parts
+        if ".." in parts:
+            valid = False
+            continue
+        if candidate.is_absolute():
+            expected = (
+                PurePosixPath(expected_source.resolve().as_posix())
+                if expected_source is not None else None
+            )
+            matches_target = expected is not None and candidate == expected
+        else:
+            matches_target = candidate == PurePosixPath(CHANGED_FILE)
+        if matches_target:
+            target_matches += 1
+    return valid, target_matches
+
+
 def _event_receipts(
     lines: Iterable[str], event_times: list[float], started: float,
+    *, expected_source: Path | None = None,
 ) -> dict[str, Any]:
     raw_lines = list(lines)
     # The shared legacy accumulator names the third candidate kind "contract".
@@ -217,6 +257,14 @@ def _event_receipts(
     focused_start_orders: list[int] = []
     completed_focused_ids: set[str] = set()
     required_invocations: set[str] = set()
+    seen_file_change_ids: set[str] = set()
+    file_change_event_count = 0
+    file_change_completed_count = 0
+    file_change_status_completed_count = 0
+    file_change_target_match_count = 0
+    file_change_accepted_count = 0
+    file_change_rejected_count = 0
+    file_change_duplicate_count = 0
 
     def elapsed(index: int) -> float | None:
         if index >= len(event_times):
@@ -244,6 +292,28 @@ def _event_receipts(
         command_kind = _test_kind(item)
         is_rank = engine._rank_invocation(item)
         is_edit = _source_edit_event(item)
+        is_native_file_change = item.get("type") == "file_change"
+        if is_native_file_change:
+            file_change_event_count += 1
+            if event_type == "item.completed":
+                file_change_completed_count += 1
+                if identifier in seen_file_change_ids:
+                    file_change_duplicate_count += 1
+                    continue
+                seen_file_change_ids.add(identifier)
+                status_completed = item.get("status") == "completed"
+                if status_completed:
+                    file_change_status_completed_count += 1
+                valid_shape, target_matches = _native_file_change_shape(item, expected_source)
+                file_change_target_match_count += target_matches
+                if status_completed and valid_shape and target_matches:
+                    file_change_accepted_count += 1
+                    source_edit_completions.append(
+                        (index, event_times[index] if index < len(event_times) else float("nan"))
+                    )
+                else:
+                    file_change_rejected_count += 1
+                continue
         if event_type == "item.started":
             if identifier in seen_starts:
                 continue
@@ -380,6 +450,17 @@ def _event_receipts(
         "first_rank_completion_order": first_rank_completion[1] if first_rank_completion else None,
         "first_focused_start_order": first_focus_order,
         "choice_follow_status": follow_status,
+        "native_file_change_event_count": file_change_event_count,
+        "native_file_change_completed_event_count": file_change_completed_count,
+        "native_file_change_status_completed_count": file_change_status_completed_count,
+        "native_file_change_target_path_match_count": file_change_target_match_count,
+        "native_file_change_accepted_count": file_change_accepted_count,
+        "native_file_change_rejected_count": file_change_rejected_count,
+        "native_file_change_duplicate_count": file_change_duplicate_count,
+        "native_file_change_seen": file_change_event_count > 0,
+        "native_file_change_completed_seen": file_change_completed_count > 0,
+        "native_file_change_completed_status_seen": file_change_status_completed_count > 0,
+        "native_file_change_target_path_matched": file_change_target_match_count > 0,
     })
     return base
 
@@ -523,6 +604,7 @@ def _run_arm(**kwargs: Any) -> dict[str, Any]:
     immutable_before = _frozen_files(fixture)
     observation: dict[str, Any] = {}
     original_collector = engine.core._collect_events
+    original_event_receipts = engine._event_receipts
 
     def collect(process: subprocess.Popen[bytes], *, started: float, timeout: int,
                 preserve_on_failure: bool = False):
@@ -532,11 +614,18 @@ def _run_arm(**kwargs: Any) -> dict[str, Any]:
             before_source=before_source, observation=observation,
         )
 
+    def collect_receipts(lines, event_times, started):
+        return _event_receipts(
+            lines, event_times, started, expected_source=fixture / CHANGED_FILE,
+        )
+
     engine.core._collect_events = collect
+    engine._event_receipts = collect_receipts
     try:
         result = _original_run_arm(**kwargs)
     finally:
         engine.core._collect_events = original_collector
+        engine._event_receipts = original_event_receipts
     after_source = _digest_source(fixture)
     changed = before_source is not None and after_source is not None and before_source != after_source
     preserved = immutable_before == _frozen_files(fixture)

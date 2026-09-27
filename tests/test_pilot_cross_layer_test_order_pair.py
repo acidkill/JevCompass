@@ -36,6 +36,20 @@ def event(kind: str, identifier: str, command: str, **extra) -> str:
     })
 
 
+def native_file_change(status="completed", changes=None, identifier="file-change-1"):
+    if changes is None:
+        changes = [{"path": "checkout/service.py", "kind": "update"}]
+    return json.dumps({
+        "type": "item.completed",
+        "item": {
+            "id": identifier,
+            "type": "file_change",
+            "status": status,
+            "changes": changes,
+        },
+    })
+
+
 def rank_payload(order=("integration", "unit"), status="remote-choice"):
     return json.dumps({
         "status": status,
@@ -51,16 +65,19 @@ def rank_payload(order=("integration", "unit"), status="remote-choice"):
 
 def arm_events(prompt: str, *, edit_before_rank=True, edit_after_rank=False,
                rank_after_focus=False, useful_marker=True, duplicate=False,
-               focused_exit=1, no_op_source_event=False):
+               focused_exit=1, no_op_source_event=False, native_file_change_event=False):
     treatment = runner.TREATMENT_RANKING in prompt
     rows = []
     edit_cmd = "touch checkout/service.py" if no_op_source_event else "apply_patch -- checkout/service.py"
     rank_cmd = runner.RANK_COMMAND
     if treatment and edit_before_rank:
-        rows.extend([
-            event("item.started", "edit-before", edit_cmd),
-            event("item.completed", "edit-before", edit_cmd, exit_code=0),
-        ])
+        if native_file_change_event:
+            rows.append(native_file_change())
+        else:
+            rows.extend([
+                event("item.started", "edit-before", edit_cmd),
+                event("item.completed", "edit-before", edit_cmd, exit_code=0),
+            ])
     if treatment and not rank_after_focus:
         order = ("integration", "unit")
         payload = rank_payload(order)
@@ -176,6 +193,113 @@ class CrossLayerRunnerTests(unittest.TestCase):
                 result = runner._event_receipts(lines, times, times[0])
                 self.assertEqual(result["rank_phase_order_status"], "unscored")
 
+    def test_native_file_change_completed_event_qualifies_without_start_or_exit(self):
+        def scenario(native_events):
+            rows = list(native_events)
+            rows.extend([
+                event("item.started", "rank-1", runner.RANK_COMMAND),
+                event("item.completed", "rank-1", runner.RANK_COMMAND,
+                      exit_code=0, aggregated_output=rank_payload()),
+                event("item.started", "focused-1", runner.INTEGRATION_COMMAND),
+                event("item.completed", "focused-1", runner.INTEGRATION_COMMAND,
+                      exit_code=0, aggregated_output="OK"),
+                event("item.started", "required-1", runner.REQUIRED_COMMAND),
+                event("item.completed", "required-1", runner.REQUIRED_COMMAND,
+                      exit_code=0, aggregated_output="OK"),
+            ])
+            start = time.monotonic()
+            return runner._event_receipts(
+                rows, [start + index / 1000 for index in range(len(rows))], start
+            )
+
+        native = native_file_change()
+        native_item = json.loads(native)["item"]
+        self.assertNotIn("exit_code", native_item)
+        result = scenario([native])
+        self.assertEqual(result["source_edit_completed_before_rank"], True)
+        self.assertEqual(result["rank_completed_before_first_focused"], True)
+        self.assertEqual(result["rank_phase_order_status"], "verified_order")
+        self.assertEqual(result["native_file_change_event_count"], 1)
+        self.assertEqual(result["native_file_change_completed_event_count"], 1)
+        self.assertEqual(result["native_file_change_status_completed_count"], 1)
+        self.assertEqual(result["native_file_change_target_path_match_count"], 1)
+        self.assertEqual(result["native_file_change_accepted_count"], 1)
+        self.assertEqual(result["native_file_change_rejected_count"], 0)
+        self.assertTrue(result["native_file_change_completed_status_seen"])
+        self.assertNotIn("checkout/service.py", json.dumps(result))
+
+    def test_native_file_change_rejects_failed_unrelated_empty_and_unbounded(self):
+        invalid_events = (
+            native_file_change(status="failed"),
+            native_file_change(changes=[
+                {"path": "checkout/other.py", "kind": "update"},
+            ]),
+            native_file_change(changes=[]),
+            native_file_change(changes=[
+                {"path": "checkout/service.py", "kind": "update"}
+                for _ in range(129)
+            ]),
+            native_file_change(changes=[
+                {"path": "checkout/service.py", "kind": []},
+            ]),
+            native_file_change(changes=[
+                {"path": "x" * 2049, "kind": "update"},
+            ]),
+        )
+        for invalid in invalid_events:
+            with self.subTest(event=invalid[:90]):
+                rows = [invalid,
+                    event("item.started", "rank-1", runner.RANK_COMMAND),
+                    event("item.completed", "rank-1", runner.RANK_COMMAND,
+                          exit_code=0, aggregated_output=rank_payload()),
+                    event("item.started", "focused-1", runner.INTEGRATION_COMMAND),
+                    event("item.completed", "focused-1", runner.INTEGRATION_COMMAND,
+                          exit_code=0, aggregated_output="OK"),
+                ]
+                start = time.monotonic()
+                result = runner._event_receipts(
+                    rows, [start + index / 1000 for index in range(len(rows))], start
+                )
+                self.assertEqual(result["native_file_change_accepted_count"], 0)
+                self.assertEqual(result["native_file_change_rejected_count"], 1)
+                self.assertEqual(result["rank_phase_order_status"], "unscored")
+
+    def test_native_file_change_duplicate_id_is_counted_once(self):
+        native = native_file_change(identifier="same-id")
+        rows = [
+            native,
+            native,
+            event("item.started", "rank-1", runner.RANK_COMMAND),
+            event("item.completed", "rank-1", runner.RANK_COMMAND,
+                  exit_code=0, aggregated_output=rank_payload()),
+            event("item.started", "focused-1", runner.INTEGRATION_COMMAND),
+            event("item.completed", "focused-1", runner.INTEGRATION_COMMAND,
+                  exit_code=0, aggregated_output="OK"),
+        ]
+        start = time.monotonic()
+        result = runner._event_receipts(
+            rows, [start + index / 1000 for index in range(len(rows))], start
+        )
+        self.assertEqual(result["native_file_change_completed_event_count"], 2)
+        self.assertEqual(result["native_file_change_accepted_count"], 1)
+        self.assertEqual(result["native_file_change_duplicate_count"], 1)
+        self.assertEqual(result["native_file_change_target_path_match_count"], 1)
+        self.assertEqual(result["rank_phase_order_status"], "verified_order")
+
+    def test_native_file_change_still_requires_changed_rank_snapshot(self):
+        receipt, _output, _calls = self.execute_mock_pair(
+            native_file_change_event=True, unchanged_at_rank=True,
+        )
+        self.assertEqual(receipt["status"], "failed")
+        treatment = next(
+            arm for arm in receipt["arms"].values()
+            if arm["post_change_rank_phase_status"] != "not_applicable"
+        )
+        self.assertEqual(treatment["rank_phase_order_status"], "verified_order")
+        self.assertEqual(treatment["rank_source_snapshot_changed"], False)
+        self.assertEqual(treatment["post_change_rank_phase_status"], "unscored")
+        self.assertEqual(treatment["post_change_rank_phase_reason"], "source_not_changed_at_rank")
+
     def setup_pair(self, temp: str):
         root = Path(temp)
         auth_home = root / "auth"
@@ -212,7 +336,7 @@ class CrossLayerRunnerTests(unittest.TestCase):
 
         return auth_home, output, calls, popen
 
-    def execute_mock_pair(self, *, key_opt_in=False, missing_source_event=False, unchanged_at_rank=False, no_op_source_event=False, validation_exit=0):
+    def execute_mock_pair(self, *, key_opt_in=False, missing_source_event=False, unchanged_at_rank=False, no_op_source_event=False, native_file_change_event=False, validation_exit=0):
         with tempfile.TemporaryDirectory() as temp:
             auth, output, calls, popen = self.setup_pair(temp)
             saved = {}
@@ -224,6 +348,7 @@ class CrossLayerRunnerTests(unittest.TestCase):
                     edit_before_rank=not (missing_source_event and runner.TREATMENT_RANKING in process.prompt),
                     focused_exit=0,
                     no_op_source_event=no_op_source_event and runner.TREATMENT_RANKING in process.prompt,
+                    native_file_change_event=native_file_change_event and runner.TREATMENT_RANKING in process.prompt,
                 )
                 if runner.TREATMENT_RANKING in process.prompt:
                     observation["rank_source_snapshot_observed"] = True
