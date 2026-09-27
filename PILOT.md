@@ -1,3 +1,7 @@
+## VCR302 — All three remote routes wired into coordinator
+
+The frozen coordinator now forwards the opt-in supervisor timeout bridge, validates its route contract and requires key presence without recording credentials. Pretask remains supervisor-selected/keyless-agent; test ordering retains equal-arm API environments. Source execution identity is distinguished from informational installed package metadata. Nine targeted coordinator tests pass. No live paired task or benefit claim yet; the fixed feasibility schedule is the next execution gate.
+
 ## VCR303 — Actual supervisor bridge smoke
 
 A real seeded focused timeout (exit 1) enabled the supervisor bridge. The keyless child shim received a production remote-choice in 561.57 ms, exit 0, executed false and test_failed true. Reported provider usage: 376 input / 44 output tokens, USD 0.000015792. This single integration check is separate from the earlier direct-CLI abstention; it proves neither advice delivery to a Codex agent nor improved task completion. No retries or paired task ran.

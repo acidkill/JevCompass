@@ -46,7 +46,8 @@ def test_all_three_isolated_runner_probes_are_safe_and_route_labeled():
     assert post_change["status"] == "available"
     assert post_change["requested_route"] == "remote_agent_cli_equal_key_environment"
     assert triage["status"] == "available"
-    assert triage["remote_route_verified"] is False
+    assert triage["remote_route_verified"] is True
+    assert triage["requested_route"] == "supervisor_loopback_enum_bridge_agents_keyless_equal_network"
     assert triage["local_route_verified"] is True
 
 
@@ -133,6 +134,47 @@ def test_wrong_requested_route_fails_closed():
         assert str(error) == "requested_route_mismatch"
     else:
         raise AssertionError("unfrozen route was accepted")
+
+
+def test_timeout_bridge_route_is_forwarded_without_agent_key():
+    import pilot_ambiguous_timeout_pair as triage
+
+    captured = {}
+
+    def fake_run_pair(**kwargs):
+        captured.update(kwargs)
+        return {"status": "failed", "arms": {}}
+
+    with mock.patch.object(triage, "run_pair", fake_run_pair):
+        execute._run_case_child(
+            "ambiguous_failure_triage", codex="codex", model="gpt-6-luna",
+            reasoning_effort="low", timeout=60, max_tokens=100, seed=7,
+            output_dir=Path("/unused-synthetic-output"),
+            requested_route="supervisor_loopback_enum_bridge_agents_keyless_equal_network",
+        )
+    assert captured["allow_supervisor_triage"] is True
+
+
+def test_timeout_quality_gate_rejects_missing_or_failed_required_checks():
+    arm = {
+        "cli_status": "completed", "first_tool_was_focused": True,
+        "initial_focused_exit": 1, "initial_timeout_error_observed": True,
+        "focused_rerun_exit": 0, "full_suite_exit": 0,
+        "event_sequence_valid": True, "source_artifact_changed": True,
+        "immutable_fixture_unchanged": True,
+    }
+    independent = {
+        label: {"focused": {"status": "passed"}, "full": {"status": "passed"}}
+        for label in ("arm-a", "arm-b")
+    }
+    receipt = {
+        "status": "completed", "task_correctness": {"arm-a": "passed", "arm-b": "passed"},
+        "arms": {"arm-a": arm.copy(), "arm-b": arm.copy()},
+        "independent_validation": independent,
+    }
+    assert execute._quality_passed(receipt, "ambiguous_failure_triage")
+    receipt["independent_validation"]["arm-b"]["full"]["status"] = "failed"
+    assert not execute._quality_passed(receipt, "ambiguous_failure_triage")
 
 
 def load_tests(loader, tests, pattern):

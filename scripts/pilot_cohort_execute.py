@@ -75,8 +75,6 @@ CASE_FILES: dict[str, tuple[str, ...]] = {
 }
 PROTOCOL_FILES = ("BENCHMARK_PROTOCOL.md", "scripts/pilot_cohort_manifest.py", str(SCRIPT.relative_to(ROOT)))
 CASE_ORDER = ("pretask_strategy", "post_change_test_order", "ambiguous_failure_triage")
-# The WIP timeout wrapper's caller/route is not accepted as a remote ambiguity case.
-TRIAGE_REMOTE_ROUTE_VERIFIED = False
 IDENTIFIER = re.compile(r"[A-Za-z0-9._:+/@-]{1,160}\Z")
 SAFE_VERSION = re.compile(r"[A-Za-z0-9._+ -]{1,160}\Z")
 
@@ -164,8 +162,23 @@ def _probe_case(case: str) -> dict[str, Any]:
         functions["quality_gate"] = inspect.getsource(triage._arm_task_correct)
         run_arm_source = inspect.getsource(triage._run_arm)
         run_pair_source = inspect.getsource(triage.run_pair)
+        observer_collector_source = inspect.getsource(triage._collect_events_with_observer)
+        functions["pair_runner"] = run_pair_source
+        functions["agent_arm"] = run_arm_source
+        functions["bridge_event_collector"] = observer_collector_source
         installed_version = triage.timeout_fixture.core.PUBLISHED_PILOT_VERSION
-        max_tokens_applied = "core._collect_events" in run_arm_source
+        max_tokens_applied = (
+            hasattr(triage.timeout_fixture.core, "_safe_turn_usage")
+            and "observer" in inspect.signature(triage._collect_events_with_observer).parameters
+        )
+        remote_route_verified = (
+            "allow_supervisor_triage" in inspect.signature(triage.run_pair).parameters
+            and "allow_supervisor_bridge" in inspect.signature(triage._run_arm).parameters
+            and "env.pop(\"OPENROUTER_API_KEY\", None)" in run_arm_source
+            and '"agent_api_key_exposed": False' in run_pair_source
+            and '"supervisor_loopback_enum_bridge"' in run_pair_source
+            and "allow_network=allow_supervisor_bridge" in run_arm_source
+        )
     else:
         return {"status": "unavailable", "reason": "unknown_case"}
 
@@ -181,9 +194,9 @@ def _probe_case(case: str) -> dict[str, Any]:
         "requested_route": (
             "supervisor_remote_selector_agents_keyless" if case == "pretask_strategy"
             else "remote_agent_cli_equal_key_environment" if case == "post_change_test_order"
-            else "keyless_local_triage_unavailable_remote_stratum"
+            else "supervisor_loopback_enum_bridge_agents_keyless_equal_network"
         ),
-        "remote_route_verified": TRIAGE_REMOTE_ROUTE_VERIFIED if case == "ambiguous_failure_triage" else None,
+        "remote_route_verified": remote_route_verified if case == "ambiguous_failure_triage" else None,
         "local_route_verified": (
             "allow_openrouter_key=False" in run_arm_source
             and '"keyless_local_fallback_only"' in run_pair_source
@@ -283,8 +296,6 @@ def build_manifest(
         blockers.append("codex_identity_unavailable")
     if not resolved_codex:
         blockers.append("codex_executable_unavailable")
-    if not observed_jev:
-        blockers.append("installed_jev_identity_unavailable")
     key_available = (bool(os.environ.get("OPENROUTER_API_KEY"))
                      if openrouter_key_available is None else openrouter_key_available)
     if type(key_available) is not bool:
@@ -309,15 +320,16 @@ def build_manifest(
                          for relative, value in snapshot.items()
                          if value["status"] != "clean"]
         inspected = probe_case(case)
-        # Local-only timeout advice is a distinct stratum; this cohort's
-        # ambiguous-remote triage contract remains unavailable pending review.
-        route_ready = case != "ambiguous_failure_triage"
+        route_ready = (
+            case != "ambiguous_failure_triage"
+            or inspected.get("remote_route_verified") is True
+        )
         reasons = list(file_blockers)
         if inspected.get("status") != "available":
             reasons.append("runner_probe_unavailable")
         if not route_ready:
             reasons.append("remote_triage_route_unverified")
-        if case in ("pretask_strategy", "post_change_test_order") and not key_available:
+        if case in CASE_ORDER and not key_available:
             reasons.append("requested_remote_route_key_unavailable")
         case_status = "ready" if not reasons else "unavailable"
         cases[case] = {
@@ -331,8 +343,7 @@ def build_manifest(
             "runner_declared_package_version": inspected.get("runner_declared_package_version"),
             "requested_route": inspected.get("requested_route"),
             "route_status": (
-                "ready" if case != "ambiguous_failure_triage"
-                and (case not in ("pretask_strategy", "post_change_test_order") or key_available)
+                "ready" if route_ready and key_available
                 else "unavailable"
             ),
             "reasons": reasons,
@@ -364,12 +375,12 @@ def build_manifest(
             "reasoning_effort": reasoning_effort,
             "codex_identity": observed_codex,
             "codex_executable": resolved_codex,
-            "jev_installed_identity": observed_jev,
+            "installed_jev_version_informational": observed_jev,
             "openrouter_key_available": key_available,
             "requested_routes": {
                 "pretask_strategy": "supervisor_remote_selector_agents_keyless",
                 "post_change_test_order": "remote_agent_cli_equal_key_environment",
-                "ambiguous_failure_triage": "keyless_local_triage_unavailable_remote_stratum",
+                "ambiguous_failure_triage": "supervisor_loopback_enum_bridge_agents_keyless_equal_network",
             },
             "execution_path": "isolated_codex_cli_source_checkout",
             "per_arm_timeout_seconds": per_arm_timeout_seconds,
@@ -437,7 +448,7 @@ def _current_fingerprint(manifest: dict[str, Any], root: Path = ROOT) -> list[st
             if prior.get("status") != "clean":
                 issues.append(f"global_artifact_not_clean:{relative}")
     settings = manifest.get("settings")
-    required = ("model", "reasoning_effort", "codex_identity", "jev_installed_identity",
+    required = ("model", "reasoning_effort", "codex_identity",
                 "codex_executable",
                 "per_arm_timeout_seconds", "per_arm_agent_token_budget",
                 "total_runtime_seconds", "total_agent_token_budget")
@@ -449,14 +460,15 @@ def _current_fingerprint(manifest: dict[str, Any], root: Path = ROOT) -> list[st
         expected_routes = {
             "pretask_strategy": "supervisor_remote_selector_agents_keyless",
             "post_change_test_order": "remote_agent_cli_equal_key_environment",
-            "ambiguous_failure_triage": "keyless_local_triage_unavailable_remote_stratum",
+            "ambiguous_failure_triage": "supervisor_loopback_enum_bridge_agents_keyless_equal_network",
         }
         if settings.get("requested_routes") != expected_routes:
             issues.append("requested_route_changed")
         if (settings.get("requested_routes") == expected_routes
                 and isinstance(manifest.get("cases"), dict)
-                and manifest["cases"].get("pretask_strategy", {}).get("status") == "ready"
-                and settings.get("openrouter_key_available") is not True):
+                and settings.get("openrouter_key_available") is not True
+                and any(manifest["cases"].get(case, {}).get("status") == "ready"
+                        for case in CASE_ORDER)):
             issues.append("remote_route_not_authorized_by_frozen_key_presence")
         for key in ("per_arm_timeout_seconds", "per_arm_agent_token_budget",
                     "total_runtime_seconds", "total_agent_token_budget"):
@@ -497,7 +509,7 @@ def _run_case_child(case: str, *, codex: str, model: str, reasoning_effort: str,
     expected_routes = {
         "pretask_strategy": "supervisor_remote_selector_agents_keyless",
         "post_change_test_order": "remote_agent_cli_equal_key_environment",
-        "ambiguous_failure_triage": "keyless_local_triage_unavailable_remote_stratum",
+        "ambiguous_failure_triage": "supervisor_loopback_enum_bridge_agents_keyless_equal_network",
     }
     if requested_route != expected_routes.get(case):
         raise RuntimeError("requested_route_mismatch")
@@ -520,22 +532,49 @@ def _run_case_child(case: str, *, codex: str, model: str, reasoning_effort: str,
             max_tokens=max_tokens,
         )
     if case == "ambiguous_failure_triage":
-        if not TRIAGE_REMOTE_ROUTE_VERIFIED:
-            raise RuntimeError("triage_route_unverified")
         import pilot_ambiguous_timeout_pair as triage
-        original = triage.core._collect_events
+        observed_collector = triage._collect_events_with_observer
         count = 0
-        def bounded_collector(*args: Any, **kwargs: Any):
+
+        def bounded_collector(process: Any, *, started: float, timeout: int,
+                              observer: Any, preserve_on_failure: bool = True):
             nonlocal count
             count += 1
-            kwargs["max_tokens"] = max_tokens
-            return original(*args, **kwargs)
-        triage.core._collect_events = bounded_collector
+            cumulative_tokens = 0
+            exceeded = False
+
+            def observe(line: str) -> None:
+                nonlocal cumulative_tokens, exceeded
+                observer(line)
+                try:
+                    event = json.loads(line)
+                except (TypeError, ValueError):
+                    return
+                if not isinstance(event, dict) or event.get("type") != "turn.completed":
+                    return
+                status, usage = triage.core._safe_turn_usage(event)
+                if status != "available" or usage is None:
+                    return
+                cumulative_tokens += usage["input_tokens"] + usage["output_tokens"]
+                if cumulative_tokens > max_tokens:
+                    exceeded = True
+                    try:
+                        process.kill()
+                    except (OSError, ProcessLookupError):
+                        pass
+
+            lines, times, failure = observed_collector(
+                process, started=started, timeout=timeout, observer=observe,
+                preserve_on_failure=preserve_on_failure,
+            )
+            return (lines, times, "token_budget_exceeded") if exceeded else (lines, times, failure)
+
+        triage._collect_events_with_observer = bounded_collector
         try:
             result = triage.run_pair(
                 codex=codex, model=model,
                 reasoning_effort=reasoning_effort, timeout=timeout, seed=seed,
-                output_dir=output_dir,
+                output_dir=output_dir, allow_supervisor_triage=True,
             )
             result["coordinator_token_monitor_calls"] = count
             result["max_tokens_per_arm"] = max_tokens
@@ -552,7 +591,7 @@ def _run_case_child(case: str, *, codex: str, model: str, reasoning_effort: str,
                 os.replace(temporary, receipt_path)
             return result
         finally:
-            triage.core._collect_events = original
+            triage._collect_events_with_observer = observed_collector
     raise ValueError("unknown case")
 
 
@@ -663,6 +702,13 @@ def _quality_passed(receipt: dict[str, Any], case: str) -> bool:
             and all(
                 isinstance(arm, dict)
                 and arm.get("cli_status") == "completed"
+                and arm.get("first_tool_was_focused") is True
+                and arm.get("initial_focused_exit") == 1
+                and arm.get("initial_timeout_error_observed") is True
+                and arm.get("focused_rerun_exit") == 0
+                and arm.get("full_suite_exit") == 0
+                and arm.get("event_sequence_valid") is True
+                and arm.get("source_artifact_changed") is True
                 and arm.get("immutable_fixture_unchanged") is True
                 and receipt.get("independent_validation", {}).get(label, {}).get("focused", {}).get("status") == "passed"
                 and receipt.get("independent_validation", {}).get(label, {}).get("full", {}).get("status") == "passed"
