@@ -31,7 +31,7 @@ class FakeClock:
 
 
 class TestPairPreparationMetrics(unittest.TestCase):
-    def run_timed_pair(self, root: Path, *, include_completion=True):
+    def run_timed_pair(self, root: Path, *, include_completion=True, validation_fields=None):
         clock = FakeClock()
         auth = root / "auth"
         auth.mkdir()
@@ -84,6 +84,9 @@ class TestPairPreparationMetrics(unittest.TestCase):
                 "independent_validation": {"status": "passed"},
                 "token_usage_status": "unknown",
             }
+            if validation_fields is not None:
+                result.pop("independent_validation")
+                result.update(validation_fields)
             if include_completion:
                 # Agent wall time remains its pre-existing independent metric.
                 result["completion_ms"] = 27.0
@@ -131,6 +134,30 @@ class TestPairPreparationMetrics(unittest.TestCase):
         self.assertGreaterEqual(timing["post_run_gate_validation_elapsed_ms"], 0.0)
         self.assertEqual(timing["total_pair_elapsed_ms"], 1800.0)
         self.assertIn("excludes wrapper postprocessing and serialization", timing["total_elapsed_scope"])
+
+    def test_contract_wrapper_and_numeric_duration_are_reported(self):
+        for fields in (
+            {"independent_contract_validation": {"status": "passed"},
+             "independent_validation_ms": 118.11},
+            {"independent_validation_ms": 118.11},
+        ):
+            with self.subTest(fields=fields), tempfile.TemporaryDirectory() as temporary:
+                receipt, _, _ = self.run_timed_pair(
+                    Path(temporary), validation_fields=fields)
+            for arm in receipt["arms"].values():
+                self.assertEqual(arm["timing"]["independent_validation_status"],
+                                 "included_in_run_arm_elapsed")
+                self.assertEqual(arm["timing"]["independent_validation_elapsed_ms"], 118.11)
+
+    def test_invalid_duration_without_validation_record_stays_unknown(self):
+        for duration in (None, True, -1, float("nan"), float("inf"), "118"):
+            with self.subTest(duration=duration), tempfile.TemporaryDirectory() as temporary:
+                receipt, _, _ = self.run_timed_pair(
+                    Path(temporary), validation_fields={"independent_validation_ms": duration})
+            for arm in receipt["arms"].values():
+                self.assertEqual(arm["timing"]["independent_validation_status"],
+                                 "not_reported_by_runner")
+                self.assertIsNone(arm["timing"]["independent_validation_elapsed_ms"])
 
     def test_missing_completion_stays_unavailable_and_unknown_is_not_zero(self):
         with tempfile.TemporaryDirectory() as temporary:
