@@ -963,3 +963,9 @@ Both CLI runs exited 0. Raw completed-command events confirm separate focused te
 Treatment had an additional **611 ms** accepted remote decision selecting `assertion_expectation_drift`, with 400 input/53 output tokens and provider-reported USD 0.0000168. This selected a diagnostic next step, not an established ranking of hypothesis likelihood. Agent time was 2,291.29 ms longer with advice; measured setup + advice + agent + independent validation totaled 28,496.42 ms baseline and 31,398.13 ms treatment. Overall shared/manual preparation was not instrumented, first useful error was not established, and coding-provider cost is unknown. Cache tokens are a subset of input, not additional tokens.
 
 Both final implementations passed the frozen tests, but this pair shows no speed or demonstrated quality gain. Retain the negative result. One sequential pair with differing model-cache usage cannot establish causal or general effects.
+
+## VCR354 — Isolated pipx installation
+
+The VCR351 source wheel (SHA-256 `3fac2a585b32ccd68d1e093ea6300874d36a71ef87727c68ddcab30e7d3a8cc9`) installed successfully using pipx with dedicated temporary `PIPX_HOME`, `PIPX_BIN_DIR` and `PIPX_MAN_DIR`, Python 3.14.7 and `--pip-args='--no-index'`. The installed executable passed help/version and its environment imported `jevcompass._typed_decision_cache`. An initial attempt adding `--no-deps` failed because this host's uv-backed pipx already supplies it; removing the duplicate flag succeeded. This was an installation correction, not a repeated benchmark.
+
+No user-global pipx installation, PATH, production hooks, remote decision or publication was changed. This verifies a local source-wheel pipx install only, not a registry install/upgrade, macOS execution, native delivery or coding speed. The source wheel reports 0.1.22 and remains distinct from published PyPI 0.1.22.
