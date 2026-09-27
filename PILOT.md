@@ -1105,3 +1105,12 @@ Freeze expected outcome and mandatory checks before running, retain failure sema
 The VCR-260-A strategy audit found no justified new remote pair with existing metadata: task-specific contract/dependency distinctions are absent from coarse tied-strategy requests. VCR-260-B found no suitable existing test-order fixture: calculation candidates detect the same defect and boundary mapping is locally obvious. These findings reject repetition of those tasks to seek a favorable result.
 
 The new [cross-layer decision protocol](tests/evaluation/cross_layer_decision_protocol.md) requires distinct mutant coverage, truthful measured metadata and a reasonable frozen local baseline policy before a remote trial. It retains all mandatory tests, includes preparation cost and requires task-specific completed failure events for useful-error timing. New dependency/cross-layer fixtures remain under construction and must pass eligibility review; their existence will not establish a useful remote choice, quality benefit or native host coverage.
+
+
+## VCR-261-A — prospective dependency adapter quality fixture
+
+The synthetic Ledger Archive task preserves a public positional-or-keyword adapter while migrating a removed dependency call to keyword-only v2 access through a context manager. Only ledger_adapter.py may change. Written contract, fake dependency and starter tests are immutable. The supervisor independently checks ten contract obligations, including copy isolation, empty/None boundaries, exact exception propagation and cleanup on success/failure.
+
+A corrected implementation and predefined plausible mutants are evaluated in disposable copies. The bounded child verifier exposes only aggregate status/counts, suppresses fixture output and receives no inherited credentials. This is trusted synthetic-code execution, not an operating-system security sandbox. Passing starter tests alone is not acceptance. Focused and full agent test commands remain required separately from supervisor checks.
+
+Parent combined-worktree validation passed 485 tests and rebuilt graphify (1933 nodes, 3758 edges); separate cross-layer fixture work remains outside this task's commit. No live model/provider call was made. The explicit v2 contract makes local inspection plausible; fixture existence does not justify remote strategy selection or prove a quality/time gain. Freeze fixture/verifier hashes and review truthful decision metadata before a future pair.

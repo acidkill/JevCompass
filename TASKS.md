@@ -494,7 +494,7 @@ Important limits: the Codex event has no reliable task objective; the article th
 - [x] Collect the single frozen run 3834d47af33e4cc38ceeecdcc4ae9b99 without rerunning it.
 - [x] Verify equal fixture hashes, preserved immutable files/verifier, early advice acknowledgment and focused/full test order.
 - [x] Record treatment 10/10 independent checks versus baseline 9/10; withhold baseline validated completion and any speed benefit claim.
-- [ ] Merge evidence after green hosted CI. Repeatable benefit and remote Jev efficacy remain unproven.
+- [x] Merge evidence after green hosted CI (PR #179, 37 s). Repeatable benefit and remote Jev efficacy remain unproven.
 
 
 ## VCR-260-C — discriminating triage evidence audit
@@ -503,7 +503,7 @@ Important limits: the Codex event has no reliable task objective; the article th
 - [x] Confirm that timeout remote state contains only failed outcome, timeout kind and two hypothesis IDs, with no resource/progress observations.
 - [x] Preserve existing failure status and distinguish generic diagnostic prioritization from evidence-based cause discrimination.
 - [ ] Before a prospective timeout paired trial, review allowlisted locally verified observations and freeze a fixture/quality rubric that does not disclose the answer to treatment alone.
-- [ ] Merge audit after green hosted CI.
+- [x] Merge audit after green hosted CI (PR #180, 37 s).
 
 
 ## VCR-261-C — prospective decision experiment protocol
@@ -512,4 +512,14 @@ Important limits: the Codex event has no reliable task objective; the article th
 - [x] Freeze eligibility, equal-information, baseline-policy and useful-error evidence requirements before new model calls.
 - [x] Keep candidate/runtime eligibility and final artifact acceptance distinct from any benefit claim.
 - [ ] Validate the new fixtures against this protocol; no live run authorized by fixture existence alone.
-- [ ] Merge protocol after green hosted CI.
+- [x] Merge protocol after green hosted CI (PR #181, 35 s).
+
+
+## VCR-261-A — dependency adapter contract fixture
+
+- [x] Create a fictional stdlib dependency-v2 migration with a stable public adapter API and one allowed source file.
+- [x] Add a separate ten-check supervisor contract gate for signature/mapping, copies, empty values, exception identity and cleanup.
+- [x] Check corrected implementation and plausible mutants in disposable copies, keeping raw fixture output out of receipts.
+- [x] Parent validation: 485 tests passed in the combined worktree; graph refreshed (1933 nodes, 3758 edges). Cross-layer work is not included in this task's commit.
+- [ ] Complete final focused review and merge after green hosted CI.
+- [ ] Review prospective strategy evidence and runner before any live pair; this clear migration does not establish remote-choice eligibility or benefit.
