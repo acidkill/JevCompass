@@ -1,3 +1,7 @@
+## VCR330 — Plan-only local-advisor comparison runner
+
+Added a minimal prospective runner using existing CLI event/isolation helpers, real read-only sandbox, identical ordinary fixture evidence and one optional local clarification recommendation. Private neutral plan artifacts and a separate arm map support later blinded assessment; metadata receipts retain preparation/plan timing, unknown billing and immutable checks without raw plans or streams. No automatic quality scoring, coding completion or native-hook claim. Four focused offline tests and all 704 Python tests passed (29.839 s); graphify refreshed (2892 nodes, 5797 edges). Hosted CI remains the merge gate. No live comparison has run.
+
 ## VCR331 — Frozen invoice-plan criteria
 
 Prepared [invoice plan expected evidence](tests/evaluation/invoice_plan_expected.md) before generating plans. Criteria distinguish the incomplete half-up aggregation contract from the explicit source/golden disagreement and require clarification before a conditional repair. Verified CLI metadata `coding`, `existing_symbol`, `behavior_change`, `contract_evidence=conflicting` returns local `define_contract_then_implement` with null usage. This is a local-advisor control, not a remote Jev comparison; no plans generated or scored. Plan-only runner implementation remains pending.
