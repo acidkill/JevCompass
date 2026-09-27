@@ -1114,3 +1114,10 @@ The synthetic Ledger Archive task preserves a public positional-or-keyword adapt
 A corrected implementation and predefined plausible mutants are evaluated in disposable copies. The bounded child verifier exposes only aggregate status/counts, suppresses fixture output and receives no inherited credentials. This is trusted synthetic-code execution, not an operating-system security sandbox. Passing starter tests alone is not acceptance. Focused and full agent test commands remain required separately from supervisor checks.
 
 Parent combined-worktree validation passed 485 tests and rebuilt graphify (1933 nodes, 3758 edges); separate cross-layer fixture work remains outside this task's commit. No live model/provider call was made. The explicit v2 contract makes local inspection plausible; fixture existence does not justify remote strategy selection or prove a quality/time gain. Freeze fixture/verifier hashes and review truthful decision metadata before a future pair.
+
+
+## VCR-262-A — specific dependency migration advice
+
+Inspection recommendations with a verified dependency_change signal now append a fixed locally reviewed checklist: verify API/signature, preserve the caller public contract and validate exception propagation/resource ownership. It applies to explicit local resolution, fallback and accepted remote inspection. Other IDs or signals retain their existing advice. The checklist is composed locally and is absent from backend requests; remote eligibility, thresholds, usage and public API remain unchanged.
+
+Validation passed 42 strategy tests and 492 combined-worktree tests; graphify refreshed (1948 nodes, 3792 edges). Concurrent cross-layer fixture work is outside this task's commit. This is a prospective content-quality intervention, not measured benefit. The frozen dependency fixture can independently assess whether the checklist improves correctness or completion time; local resolution and remote selection must remain separately scored.

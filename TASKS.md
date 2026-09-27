@@ -521,5 +521,14 @@ Important limits: the Codex event has no reliable task objective; the article th
 - [x] Add a separate ten-check supervisor contract gate for signature/mapping, copies, empty values, exception identity and cleanup.
 - [x] Check corrected implementation and plausible mutants in disposable copies, keeping raw fixture output out of receipts.
 - [x] Parent validation: 485 tests passed in the combined worktree; graph refreshed (1933 nodes, 3758 edges). Cross-layer work is not included in this task's commit.
-- [ ] Complete final focused review and merge after green hosted CI.
+- [x] Complete final focused review and merge after green hosted CI (PR #182, 35 s).
 - [ ] Review prospective strategy evidence and runner before any live pair; this clear migration does not establish remote-choice eligibility or benefit.
+
+
+## VCR-262-A — dependency migration guidance
+
+- [x] Compose a short fixed local checklist for inspection recommendations carrying dependency_change.
+- [x] Cover resolved/fallback/accepted remote paths without changing remote criteria, eligibility, usage or IDs.
+- [x] Validate 42 strategy tests and 492 tests in combined worktree; refresh graph (1948 nodes, 3792 edges).
+- [ ] Merge after green hosted CI; cross-layer fixture is outside this commit.
+- [ ] Evaluate prospective dependency task quality/time before claiming benefit.

@@ -73,6 +73,8 @@ The source API also accepts `contract_evidence`, and the source CLI accepts `--c
 
 The latest compliant supervisor-prepared CLI comparison confirmed strategy advice before the first observed tool and complete focused/full validation, but treatment was 0.754 seconds slower with identical final code. See VCR-257-H in [PILOT.md](PILOT.md). Initial-prompt injection in that harness does not verify native Desktop hook delivery.
 
+With a verified `dependency_change` signal, source inspection advice also includes a short local migration checklist: compare API/signature, preserve the caller contract, and check exceptions and resource ownership. This adds no provider call and is not a measured quality or speed guarantee.
+
 ## Post-change test order (source candidate)
 
 The source checkout can discover Python focused checks from staged, unstaged, and untracked changes: `jevcompass tests discover --required 'python -m unittest discover -s tests -v' --json` from the Git root. Supply the actual required command from your repository's instructions or CI; JevCompass does not invent that gate. Discovery bounds the scan, rejects symlinks and ambiguous filename mappings, and abstains when it cannot safely associate code and tests. Unit and integration tests for the same changed module become distinct alternatives. For other languages or curated candidates, `jevcompass tests rank` accepts explicit local JSON metadata. It **prints an order; it does not execute tests**. This command is not in the published v0.1.22 package, and no speed or quality improvement has been established.
