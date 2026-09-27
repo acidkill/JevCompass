@@ -1804,3 +1804,22 @@ The missing VCR396 acknowledgment cannot be attributed to this issue without its
 The prospective runner adds an explicit initial-failure triage stage for nonbinding validated repair profiles. After a confirmed focused failure and one verified local discriminator, the agent may request enum-only diagnostic advice if competing hypotheses remain. Configured observation flags are omitted from the early command and bridge contract because they have not necessarily been verified. The default evidence-reviewed stage remains strict.
 
 Complete configured evidence review and every mandatory repair check remain required before acceptance. Early advice eligibility, final evidence completeness, diagnostic selection and causal ranking are measured separately; missing failure, unknown identifiers and late acknowledgment cannot pass delivery gates. Local resolution must skip remote advice. Eight targeted stage tests and the full local suite of 831 tests pass (37.595 seconds). Hosted CI remains the merge gate. Historical receipts are unchanged.
+
+## VCR402 — Initial-failure cache pair: incomplete acceptance
+
+One prospective pair ran from merged `ef2f127e053e5f00d4b2fc66705d7421a5fdca5e`, protocol SHA-256 `5ea6f13f5224ddfe6c679fe49f93a0a4360900e6e569c8306c4e8be4a5118038`, Codex CLI 0.157.0, gpt-6-luna/low, seed 402, 180 seconds per arm and 300,000 observed completed-turn token cap. Baseline ran first. No retry or historical rescoring.
+
+| Measurement | Baseline | Optional initial-failure workflow |
+| --- | ---: | ---: |
+| Agent wall | 40.189 s | 75.411 s |
+| Independent validation | 0.214 s | 0.164 s |
+| Validated completion | Not established | Not established |
+| Input tokens (cached subset included) | 137,692 | 242,342 |
+| Cached input tokens | 122,624 | 220,416 |
+| Output tokens | 899 | 1,961 |
+| Reported Codex cost | Unknown | Unknown |
+| Private event archive bytes | 11,894 | 20,306 |
+
+Both source-only repairs passed the immutable oracle, and tests/protected evidence were unchanged. Both task outcomes remain incomplete because mandatory agent command observations were missing. Treatment acknowledgment was invalid, no bridge request occurred, and measured Jev transport calls were zero. The overall receipt is incomplete with failed task acceptance and delivery. Agent exit zero and independent oracle pass do not replace the missing gates. No speed, ranking, quality or native delivery benefit is established.
+
+The retained private events show shell-wrapped command_execution values using `/usr/bin/bash -lc`; the current matcher did not recognize the focused/full invocations. Some combined commands also appear, whose individual exit codes must not be inferred from the shell exit. A prospective normalization fix will accept only safely parsed simple wrappers and reject compound commands. This observation does not establish every missing gate or explain the missing acknowledgment, and it does not change this frozen result. Raw events stay private and are not published.
