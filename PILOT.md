@@ -12,6 +12,10 @@ Overall acceptance remains **not established**. Source delivery, transport and g
 
 Agent billing remains unknown in these comparisons; provider-reported Jev cost, when present, is only one cost component. Native fresh Desktop delivery and the broader cross-host acceptance gates remain open. The local retry pair is complete and retained, including its failed baseline quality gate. The dependency-guidance runner produced the failed VCR-265-A comparison below; the post-change cross-layer runner remains under preparation. No new pair should be inferred from fixture tests or timing metadata.
 
+### VCR-266-C pretask overhead audit (2026-09-27)
+
+A read-only audit recommends avoiding a separate selector when the agent has already determined its strategy. The existing source API can return caller-verified eligible resolved_strategy locally without constructing a client; however, current Codex hook contracts do not transport this verified enum. Automatic delivery cannot be implemented by inventing event fields or inferring verified evidence from prompt text. Retain the explicit source command only for unresolved substantial choices and proceed directly for resolved decisions. This is an integration limitation and next-action finding, not measured performance improvement. Published0.1.22 does not include the source strategy CLI.
+
 ### VCR-267-B focused failure recovery guidance (2026-09-27)
 
 The bundled focused-tests skill now explicitly treats a failing focused check as unfinished work: inspect it, repair within scope, rerun the affected check, and retain required validation. This responds to the observed VCR-265-A validation omission without claiming its cause. Correct final artifacts alone still do not pass process gates. Source guidance is not fresh-agent adoption evidence or a measured quality gain; no historical run is rescored.
