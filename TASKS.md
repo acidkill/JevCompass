@@ -3,6 +3,11 @@
 - Added a synthetic stdlib-only adapter migration with a fully specified application contract. It is explicitly a local-resolution control, not an unresolved remote-strategy case. No advisor instructions or solution are embedded in the fixture.
 - Seeded adapter fails seven tests. Temporary reference repairs pass all seven with both supported import styles; hardcoded output fails three behavioral assertions. Tests cover varied data, filtering, ordering, caller compatibility and fresh per-call lists. No live pair or benefit claim.
 
+## VCR285 — Explicit safe refresh of bundled skills
+
+- Added opt-in skills install --refresh, restricted to three exact historical focused-tests digests verified against Git revisions. Arbitrary local edits remain protected. Backup precedes atomic replacement; failed rollback retains recovery copies.
+- Registers five bundled skills, including coding-workflow. Nine installer tests passed for preflight, dry-run, idempotence, recognized refresh, custom-content refusal and failure recovery. Actual local profile dry-run: three new, one refreshable, one unchanged. Catalog registration remains a separate task; no native delivery or efficacy claim.
+
 ## VCR284 — Phase-aware coding workflow skill
 
 - Added an opt-in English skill routing genuine unresolved strategy choices, competing focused checks and observed ambiguous failures to the three verified CLI APIs. Clear local choices skip advice; recommendations remain nonbinding and mandatory checks remain required.

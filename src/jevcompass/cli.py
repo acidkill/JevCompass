@@ -388,8 +388,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     skills = sub.add_parser("skills", help="Manage optional bundled Codex skills")
     skills_sub = skills.add_subparsers(dest="skills_action", required=True)
-    skills_install = skills_sub.add_parser("install", help="Install two reviewed, local workflow skills")
+    skills_install = skills_sub.add_parser("install", help="Install five reviewed, local workflow skills")
     skills_install.add_argument("--dry-run", action="store_true", help="Validate without writing skill files")
+    skills_install.add_argument("--refresh", action="store_true",
+                                help="Refresh only exact known older bundled skill versions")
     skills_add = skills_sub.add_parser("add", help="Register approved generic metadata for an installed skill")
     skills_add.add_argument("name", help="Installed skill identifier (lowercase slug)")
     for field in ("capability", "use-when", "avoid-when"):
@@ -556,7 +558,7 @@ def main(argv: list[str] | None = None) -> int:
         from .skill_pack import install_skills
 
         try:
-            print(install_skills(dry_run=args.dry_run))
+            print(install_skills(dry_run=args.dry_run, refresh=args.refresh))
         except (OSError, ValueError, RuntimeError, UnicodeError) as error:
             print(f"JevCompass skill install failed: {error}", file=sys.stderr)
             return 1
