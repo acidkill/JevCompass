@@ -1,3 +1,9 @@
+## VCR336 — Retained Ledger migration comparison
+
+The first one-attempt local dependency-guidance pair ran from archived source 9b85c2d with preregistration SHA-256 93db5a0636486e3ca6c7049301226a82060aff17d921a1f4758cfef2711d77b7. Both arms passed all ten independent contract checks with immutable evidence and verifier preserved. Treatment recorded the required focused and full checks and advice before its first tool; baseline recorded the full check but no focused check, failing the frozen command-order gate. The pair is failed and excluded from efficacy comparisons; no retry or rescore.
+
+Descriptive agent completion/preparation: treatment 23,650.38/109.72 ms; baseline 25,830.71/0.00 ms. Independent validation: 118.11/114.13 ms; fixture/auth preparation 1.02/1.18 ms. Pair elapsed 49,834.77 ms excludes wrapper postprocessing and serialization. Treatment input/output/cache tokens 90,356/672/81,408; baseline 74,594/676/66,304. Billing and useful-error time unknown; zero Jev requests. Receipt SHA-256 810794d7e567b33e93139106192d1679a0649e9899c975f8538fb62474c05e70. No accepted speed, quality, remote-model or native-hook benefit is established.
+
 ## VCR335 — Prospective first-tool measurement correction
 
 The plan-only runner now reads the parser's actual first-tool observation instead of a nonexistent flattened field. Future receipts retain observed elapsed time and preserve unknown values when no tool event exists. Historical VCR332 receipts and assessment remain unchanged; no retry or efficacy claim. All six focused runner tests passed, including a real parser tool event and no-tool case. All 708 Python tests passed; graphify refreshed (2907 nodes, 5816 edges). Hosted CI remains the merge gate.
