@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-256-M — focused-skill adoption pair
+
+Ran the unchanged boundary task with full updated skill text injected into treatment, without forced ranking. Both arms chose contract and passed all required/independent checks; neither invoked ranking. Treatment21.036s versus baseline15.783s: no benefit established. Timing field remained null despite successful contract execution; real event compatibility must be investigated without claiming instrumentation acceptance. Prompt-injected guidance is not proof of automatic skill discovery.
+
 ### VCR-256-L — boundary useful-action timestamps
 
 Instrumented matched contract-test completion: a specific mapping failure marker scores first useful error; successful exit plus named mapping check and final OK scores first successful relevant check. Missing timestamps, unrelated failures and partial output remain unscored. Past pairs are not retroactively rescored. Targeted tests pass; full suite/graph gate before merge. New live comparison remains pending.
