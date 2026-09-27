@@ -640,12 +640,14 @@ def run_pair(
                 "independent_validation_elapsed_ms",
                 arms[label].get("independent_validation_ms"),
             )
+            per_arm_validation_ms[label] = _known_nonnegative_finite_ms(raw_validation_ms)
             per_arm_validation_status[label] = (
                 "included_in_run_arm_elapsed"
-                if "independent_validation" in arms[label]
+                if ("independent_validation" in arms[label]
+                    or "independent_contract_validation" in arms[label]
+                    or per_arm_validation_ms[label] is not None)
                 else "not_reported_by_runner"
             )
-            per_arm_validation_ms[label] = _known_nonnegative_finite_ms(raw_validation_ms)
             completion_ms = arms[label].get("completion_ms")
             completion_observed = _known_nonnegative_finite_ms(completion_ms) is not None
             arms[label]["timing"] = {

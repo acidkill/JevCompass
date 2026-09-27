@@ -1,3 +1,7 @@
+## VCR338 — Prospective independent-validation timing status
+
+Future timing receipts recognize the dependency wrapper's independent contract-validation record and valid finite duration, instead of labeling a measured validation as unreported. Missing or malformed durations remain unknown; historical VCR336 receipts, gates and scores are unchanged. Four focused timing tests and all 710 Python tests pass (29.802 s); graphify refreshed (2911 nodes, 5822 edges). Hosted CI remains the merge gate. No live retry or benefit claim.
+
 ## VCR336 — Retained Ledger migration comparison
 
 The first one-attempt local dependency-guidance pair ran from archived source 9b85c2d with preregistration SHA-256 93db5a0636486e3ca6c7049301226a82060aff17d921a1f4758cfef2711d77b7. Both arms passed all ten independent contract checks with immutable evidence and verifier preserved. Treatment recorded the required focused and full checks and advice before its first tool; baseline recorded the full check but no focused check, failing the frozen command-order gate. The pair is failed and excluded from efficacy comparisons; no retry or rescore.
