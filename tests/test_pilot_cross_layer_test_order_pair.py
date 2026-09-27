@@ -271,6 +271,11 @@ class CrossLayerRunnerTests(unittest.TestCase):
                 exit_code=0,
             ),
             event(
+                "item.completed", "required-in-argv-bash-wrapper",
+                ["/usr/bin/bash", "-lc", "pytest tests/test_private_case && " + runner.REQUIRED_COMMAND],
+                exit_code=0,
+            ),
+            event(
                 "item.completed", "combined-without-required",
                 "python -m unittest tests.test_private_case && pytest tests/test_private_case",
                 exit_code=1,
@@ -291,16 +296,16 @@ class CrossLayerRunnerTests(unittest.TestCase):
             rows, [start + index / 1000 for index in range(len(rows))], start
         )
 
-        self.assertEqual(result["unmatched_test_invocation_count"], 6)
+        self.assertEqual(result["unmatched_test_invocation_count"], 7)
         self.assertEqual(
             result["unmatched_test_invocation_required_component_status_counts"],
             {
-                "exact_required_component_present": 3,
+                "exact_required_component_present": 4,
                 "no_exact_required_component": 1,
                 "unparseable": 2,
             },
         )
-        self.assertEqual(result["unmatched_test_invocation_kind_counts"]["combined"], 5)
+        self.assertEqual(result["unmatched_test_invocation_kind_counts"]["combined"], 6)
         self.assertFalse(result["required_suite_invocation_observed"])
         self.assertIsNone(result["required_suite_exit"])
         self.assertEqual(result["focused_invocation_count"], 0)

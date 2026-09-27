@@ -85,18 +85,42 @@ def _command_argv(item: dict[str, Any]) -> list[str] | None:
     if isinstance(raw, list) and all(isinstance(part, str) for part in raw):
         argv = raw
     elif isinstance(raw, str):
+        # CLI JSON may represent embedded shell newlines as backslash-n/r.
+        if any(marker in raw for marker in ("\n", "\r", r"\n", r"\r")):
+            return None
         try:
             argv = shlex.split(raw)
         except ValueError:
             return None
     else:
         return None
-    if (len(argv) == 3 and argv[0] in {"bash", "/bin/bash", "/usr/bin/bash"}
-            and argv[1] == "-lc"):
+
+    shell_names = {"bash", "/bin/bash", "/usr/bin/bash",
+                   "sh", "/bin/sh", "/usr/bin/sh"}
+    shell_family = {"bash", "sh", "zsh", "dash", "fish", "ksh"}
+    shell_name = Path(argv[0]).name if argv else ""
+    if shell_name in shell_family:
+        # Only unwrap the command-only forms observed in CLI command events.
+        # Parsing is lexical: never invoke a shell or evaluate its input.
+        if argv[0] not in shell_names or len(argv) != 3 or argv[1] not in {"-c", "-lc"}:
+            return None
+        script = argv[2]
+        if any(char in script for char in "$`\n\r"):
+            return None
         try:
-            argv = shlex.split(argv[2])
+            lexer = shlex.shlex(script, posix=True, punctuation_chars="();<>|&")
+            lexer.whitespace_split = True
+            lexer.commenters = ""
+            script_argv = list(lexer)
         except ValueError:
             return None
+        if (not script_argv
+                or any(token and all(char in "();<>|&" for char in token)
+                       for token in script_argv)
+                or any(re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", token)
+                       for token in script_argv)):
+            return None
+        return script_argv
     return argv
 
 

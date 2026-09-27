@@ -260,6 +260,14 @@ def _required_component_status(item: dict[str, Any], invocation_kind: str) -> st
         return "unparseable"
     raw = item.get("command")
     if isinstance(raw, list) and all(isinstance(part, str) for part in raw):
+        shell_names = {"bash", "/bin/bash", "/usr/bin/bash",
+                       "sh", "/bin/sh", "/usr/bin/sh"}
+        if (len(raw) == 3 and raw[0] in shell_names
+                and raw[1] in {"-c", "-lc"}):
+            wrapped_command = " ".join(shlex.quote(part) for part in raw)
+            return _required_component_status(
+                {"command": wrapped_command}, invocation_kind
+            )
         if any(part in {"&&", "||", ";", "|", "&"} for part in raw):
             # An argv list is not sufficient evidence that these tokens are shell syntax.
             return "unparseable"
@@ -339,7 +347,7 @@ def _required_component_status(item: dict[str, Any], invocation_kind: str) -> st
 
 
 def _test_invocation_kind(item: dict[str, Any]) -> str | None:
-    """Classify test-runner invocation metadata without retaining raw command text."""
+    """Classify test-runner metadata without retaining raw command text."""
     raw = item.get("command")
     if isinstance(raw, str):
         raw_text = raw
@@ -352,7 +360,37 @@ def _test_invocation_kind(item: dict[str, Any]) -> str | None:
 
     argv = engine._command_argv(item)
     if argv is None:
-        return "unknown" if re.search(r"(?i)\b(?:pytest|unittest)\b", raw_text) else None
+        # This path classifies diagnostic metadata only; it does not map a
+        # compound process exit to any individual shell command.
+        try:
+            outer_argv = (
+                shlex.split(raw_text) if isinstance(raw, str)
+                else raw if isinstance(raw, list) else []
+            )
+        except ValueError:
+            outer_argv = []
+        shell_names = {"bash", "/bin/bash", "/usr/bin/bash",
+                       "sh", "/bin/sh", "/usr/bin/sh"}
+        if (len(outer_argv) == 3 and outer_argv[0] in shell_names
+                and outer_argv[1] in {"-c", "-lc"}):
+            script = outer_argv[2]
+        elif isinstance(raw, str):
+            script = raw_text
+        else:
+            script = ""
+        if any(char in script for char in {"$", chr(96), "<", ">", "(", ")"}):
+            return "unknown" if re.search(
+                r"(?i)\b(?:pytest|unittest)\b", raw_text
+            ) else None
+        try:
+            lexer = shlex.shlex(script, posix=True, punctuation_chars=";&|")
+            lexer.whitespace_split = True
+            lexer.commenters = ""
+            argv = list(lexer)
+        except ValueError:
+            return "unknown" if re.search(
+                r"(?i)\b(?:pytest|unittest)\b", raw_text
+            ) else None
     if sum(len(token) for token in argv) > 8192:
         return "unknown" if re.search(r"(?i)\b(?:pytest|unittest)\b", raw_text) else None
 

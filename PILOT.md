@@ -1830,3 +1830,10 @@ The retained private events show test invocations that differ from the frozen re
 Future repair-profile trials expose exact standalone validation commands to both baseline and treatment before treatment-specific advice instructions. The initial focused check precedes edits; post-edit focused, full-suite and diff checks remain mandatory. Optional initial-failure triage stays optional. Default and non-repair prompts remain unchanged. Historical trials are not rescored or rerun.
 
 Two new symmetry/compatibility tests, nine profile tests and fifteen triage tests pass. Graph refreshed (3439 nodes, 6944 edges, 239 communities). The concurrent shell-parser patch still has a separate diagnostic test failure and is excluded from this commit. Hosted CI on this isolated change is required before merge. No coding benefit or native-host delivery is claimed.
+
+
+## VCR403 — Prospective shell-command observation hardening
+
+Simple Bash and POSIX-shell command wrappers are normalized lexically without executing their contents. Compound commands, substitutions, redirections, environment assignments, newline separators and malformed wrappers cannot receive individual test gate credit. Cross-layer aggregate diagnostics remain separate from successful mandatory-suite observations and support both string and argv-list wrappers.
+
+This is prospective instrumentation hardening, not a retrospective explanation or rescore of VCR402. Its original Bash wrapper form was already supported. Twenty-five cross-layer tests and the full 839-test suite pass (40.827 s). Graph refreshed (3439 nodes, 6944 edges, 239 communities). Hosted CI remains required before merge. No new coding efficacy or native-host delivery result is claimed.
