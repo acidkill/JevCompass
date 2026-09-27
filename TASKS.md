@@ -1086,3 +1086,12 @@ The wheel installed into a private venv using no-index/no-deps. Installed CLI ex
 ## VCR379 — Exercise the real hook strategy transport path
 
 Three new offline tests call `advisor.evaluate()` with the actual strategy selector and a synthetic Decisions transport: one accepted ambiguous choice sends a single allowlisted request, timeout and low-confidence responses fall back locally without blocking the hook, and a single-signal local choice constructs no client. Prompt sentinel and function name are absent from request/output; hook text is composed from local catalog rationale. Focused command `PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 python -m unittest tests.test_hook_strategy_remote_path -v` passes all 3 tests. This proves path wiring and fail-safe behavior only, not live API behavior or recommendation quality.
+
+
+## VCR374 — One-shot test-order trial measurement error
+
+The frozen matched pair is **not assessable as a pair**. The baseline terminal result was reported accepted at 28,400.35 ms. During treatment result serialization, the runner terminated with `UnboundLocalError: local variable payload referenced before assignment` (line 222); treatment acceptance and elapsed time, structured ranking result, and cost are unavailable. Raw events show the ranking CLI command exited 0, but this is not evidence of which candidate was selected.
+
+Raw event command/exit observations (not rescored): both arms ran the seeded-failure test (exit 1), focused unit test (exit 0), full suite (exit 0), and `git diff --check` (exit 0). Treatment also ran `python -m jevcompass tests rank --input test-options.json --json` (exit 0). Each raw capture contains a completed-turn usage object; no token totals or cost are asserted here.
+
+Evidence hashes: preregistration `df0682712651e2f5016931a55c6c9ee13f163ea36167edfe22e9db92dc844d81`; baseline raw events `a31e17393882da2a32583314b8ff871eab05d65e92fef188412da5224a02c299`; treatment raw events `a968cb74952d87fdf1bc4c55abc458834ba9ca1a17341abc1b3300f07a98753b`; measurement-error receipt `3908b9068691b5fa7b4187909980b531622ac01a6cb86cd599d3cf1ff8115b56`. No retry/rescore; no efficacy claim.
