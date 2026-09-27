@@ -936,3 +936,9 @@ Codex usage: baseline 104,905 input (83,712 cached subset) / 686 output; treatme
 ## VCR350 — Readable cache provenance
 
 Readable strategy and test-order headings now identify a cached decision and no new API call, matching existing JSON `cache_hit` provenance. Non-cache headings and triage labels remain unchanged. This is output clarity only, not a new backend call or measured coding-time benefit. Focused CLI tests passed 5/5; the documented full suite passed 728 tests in 30.421 seconds. Graphify rebuilt 2,974 nodes, 5,976 edges and 195 communities.
+
+## VCR351 — Isolated source-wheel installation
+
+An immutable archive of source `d4b14ba90bebaa08c4d527cc97a932251cbd2462` built a wheel whose SHA-256 is `3fac2a585b32ccd68d1e093ea6300874d36a71ef87727c68ddcab30e7d3a8cc9`. Installed with `pip install --no-deps --no-index` into a private venv, it passed `pip check`, installed CLI help/version, and inspection for the typed-cache module and readable provenance labels. The source wheel still reports 0.1.22; it is distinct from the existing published 0.1.22 artifact. No release, upload or global installation change occurred.
+
+Offline installed-wheel checks passed: locally resolved strategy used `no-remote-choice` with null usage; local test ordering preserved focused/full required commands and `executed: false`. A guard prohibited remote-client construction. Doctor used a synthetic private profile and stubbed public metadata, so this does not prove live model availability. No live API or paid decision was made. This verifies a private venv installation, not pipx upgrade, native host delivery or coding-time benefit.
