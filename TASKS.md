@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-256-O — live timing verification
+
+Complete-summary timing recognized in a fresh keyless boundary pair: baseline first successful contract13.361s/completion18.770s, treatment15.162s/20.418s. Both preserved frozen files and passed required/independent validation; local contract choice. No relevant failure observed. This verifies successful-check timing for this host/run, not general delivery or benefit. Raw events not retained; historical nulls remain null.
+
 ### VCR-256-N — live event-shape timing repair
 
 A synthetic diagnostic pair confirmed exact contract completion with output, timestamp, exit0 and OK but no test-name marker. Added a strict alternate success path requiring the complete two-test summary plus final OK for the matched frozen contract command; bare OK remains insufficient. Full task acceptance still requires immutable files and independent suites. Offline summary test passes; live verification of this alternate remains pending. Diagnostic pair had identical guidance, so is not efficacy evidence.

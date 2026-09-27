@@ -2,6 +2,10 @@
 
 ## Status
 
+### VCR-256-O live timing confirmation (2026-09-27)
+
+Fresh keyless seed256 pair on unchanged boundary fixture: baseline first successful relevant contract13,361.24ms, completion18,770.37ms,73,546 input/63,232 cached/527 output tokens; treatment15,162.00ms,20,418.01ms,104,200 input/95,488 cached/541 output. Both selected contract and passed focused, required and independent suites with immutable files intact. Local ranking returned no-remote-choice; reported0ms latency remains an event-resolution artifact and usage incomplete/null. No relevant failure was observed. Complete-summary success timing is verified in this live host/run; broader output variants remain unproven. Treatment first check was1,800.76ms later and completion1,647.64ms later: no speed benefit. Codex billing and blind quality remain unknown. Receipts `/tmp/jev-boundary-timing-20260927-01`; previous missing timestamps are not retroactively filled.
+
 ### VCR-256-N event-shape diagnostic (2026-09-27)
 
 A diagnostic pair with identical prompts reported completed exact contract commands with timestamps, exit0 and OK, but no mapping-test name in exposed output. Boolean-only diagnostics retained no raw output. Added alternate success recognition for a complete `Ran 2 tests in ...` plus final OK summary; bare OK is rejected. Exact command correlation, immutable fixture checks and independent validation remain required. Synthetic summary tests do not prove that live output contains this summary; live alternate-path verification is pending. `/tmp/jev-boundary-shape-20260927-01` is diagnostic evidence, not a treatment comparison.
