@@ -7,6 +7,7 @@ Prompts, raw events, test output, and source text are never written to receipts.
 """
 from __future__ import annotations
 
+import contextvars
 import hashlib
 import importlib.util
 import json
@@ -79,6 +80,12 @@ engine.REQUIRED = REQUIRED
 engine.CHOICE_IDS = CHOICE_IDS
 engine.BASE_PROMPT = BASE_PROMPT
 engine.TREATMENT_RANKING = TREATMENT_RANKING
+
+# Set per pair so the shared arm hook can identify treatment from the explicit
+# profile inputs, without coupling phase validation to a particular prompt text.
+_RANK_PHASE_PROFILE: contextvars.ContextVar[tuple[bool, str, str]] = contextvars.ContextVar(
+    "jev_cross_layer_rank_phase_profile", default=(False, "", "")
+)
 
 SAFE_FAILURES = {
     "unit": "test_half_cent_rounds_half_up",
@@ -807,7 +814,11 @@ def _run_arm(**kwargs: Any) -> dict[str, Any]:
     result["immutable_files_preserved"] = preserved
     result["independent_validation"] = _independent_final_validation(fixture)
     prompt = kwargs.get("prompt", "")
-    treatment = TREATMENT_RANKING in prompt
+    phase_tracking_enabled, baseline_prompt, treatment_suffix = _RANK_PHASE_PROFILE.get()
+    treatment = (
+        phase_tracking_enabled
+        and prompt == baseline_prompt + treatment_suffix
+    )
     if treatment:
         phase_order = result.get("rank_phase_order_status") == "verified_order"
         snapshot_observed = observation.get("rank_source_snapshot_observed") is True
@@ -865,6 +876,11 @@ def _private_receipt_update(output_dir: Path, receipt: dict[str, Any]) -> None:
 
 
 def run_pair(**kwargs: Any) -> dict[str, Any]:
+    track_post_change_rank_phase = kwargs.pop("track_post_change_rank_phase", True)
+    if type(track_post_change_rank_phase) is not bool:
+        raise ValueError("track_post_change_rank_phase must be a boolean")
+    baseline_prompt = kwargs.get("baseline_prompt", engine.BASE_PROMPT)
+    treatment_suffix = kwargs.get("treatment_prompt_suffix", engine.TREATMENT_RANKING)
     baseline_policy = kwargs.pop("baseline_first_candidate_policy", "unit")
     if (not isinstance(baseline_policy, str)
             or baseline_policy not in _BASELINE_FIRST_CANDIDATES):
@@ -873,7 +889,13 @@ def run_pair(**kwargs: Any) -> dict[str, Any]:
     if not isinstance(advice_policy, str) or advice_policy not in _ADVICE_POLICIES:
         raise ValueError("invalid advice policy")
     kwargs.setdefault("fixture_source", FIXTURE)
-    receipt = _original_pair(**kwargs)
+    phase_token = _RANK_PHASE_PROFILE.set((
+        track_post_change_rank_phase, baseline_prompt, treatment_suffix,
+    ))
+    try:
+        receipt = _original_pair(**kwargs)
+    finally:
+        _RANK_PHASE_PROFILE.reset(phase_token)
     arms = receipt.get("arms")
     if not isinstance(arms, dict) or len(arms) != 2:
         return receipt

@@ -1,3 +1,7 @@
+## VCR310 — Post-change phase tracking correction
+
+Treatment phase tracking now follows explicit per-run profile inputs and prompt values, avoiding prompt-marker inference; phase credit still requires source-change and event-order evidence. Thirty-six focused and copied 664-test full-suite checks pass; graph refreshed to 2,665 nodes, 5,329 edges, 173 communities. T-F1 remains failed and unrescored; no new live pair or efficacy claim.
+
 ## VCR308 — Fixed feasibility cohort results
 
 The six-pair cohort is complete: four completed, T-F1 failed required observational gates, and T-F2 was case-stopped. The three prior attempts were restored from hash-verified receipts/maps, not rerun; each was conservatively charged 360 seconds. Both new triage pairs passed task correctness and independent focused/full gates. A-F1 did not invoke triage; A-F2 made one bridge request that returned valid local abstention/fallback, not accepted remote advice. Adoption remains unscored. Treatment was 7,797.40 ms slower in aggregate and reached the first useful failure later in both pairs. No repeatable benefit or efficacy claim; provider usage/cost was not reported and native Desktop acceptance is unverified. Ledger: `/tmp/jev-cohort-recovered-results-20260927/cohort-ledger.json` (996,461 tokens; 1,200.585723 charged seconds, including 1,080 conservative replay seconds). The separate 20-pair main cohort has not started; regenerate its frozen manifest after this docs revision merges without changing cases, settings or schedules.

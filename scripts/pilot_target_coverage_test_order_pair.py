@@ -159,6 +159,7 @@ def run_pair(**kwargs: Any) -> dict[str, Any]:
         kwargs["fixture_source"] = enriched
         kwargs["baseline_prompt"] = BASELINE_PROMPT
         kwargs["treatment_prompt_suffix"] = TARGET_RANKING
+        kwargs["track_post_change_rank_phase"] = True
         kwargs["baseline_first_candidate_policy"] = "either"
         kwargs["advice_policy"] = "nonbinding"
         return cross_layer.run_pair(**kwargs)

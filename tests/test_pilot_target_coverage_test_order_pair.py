@@ -111,6 +111,7 @@ class TargetCoverageRunnerTests(unittest.TestCase):
         self.assertEqual(observed["advice_policy"], "nonbinding")
         self.assertEqual(observed["baseline_prompt"], runner.BASELINE_PROMPT)
         self.assertEqual(observed["treatment_prompt_suffix"], runner.TARGET_RANKING)
+        self.assertIs(observed["track_post_change_rank_phase"], True)
         self.assertIn("own judgment", runner.BASELINE_PROMPT)
         self.assertNotIn("faster-unit-first", runner.BASELINE_PROMPT)
         self.assertNotIn("rank --input", runner.BASELINE_PROMPT)
