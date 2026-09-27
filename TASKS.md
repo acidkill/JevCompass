@@ -1149,3 +1149,9 @@ This is preparation, not a launched pair or efficacy evidence. Launch remains ga
 ## VCR394 — Independent diagnostic and causal ranking receipts
 
 A valid diagnostic next step is now scored separately from complete causal ordering. Unestablished, partial or malformed rankings remain explicitly non-complete without erasing valid diagnostic delivery. Complete ranking requires a unique full causal permutation; contract confirmation remains a requested diagnostic candidate only. Three offline tests cover these boundaries. No live delivery or efficacy claim.
+
+## VCR393 — Credential-isolated profile triage bridge
+
+Added a reusable one-shot supervisor bridge for validated enum-only profile triage. The child receives no OpenRouter key. Accepted requests persist a private typed receipt before returning catalog-authored advice, with diagnostic choice, causal order, usage and actual provider transport calls recorded separately. Nine offline tests cover isolation, complete/incomplete ranking, local abstention, fallback and invalid requests.
+
+The module is not yet integrated into the profile runner and proves neither native delivery nor benefit. Supplying the observed client disables internal typed decision caching. Broader child network egress is not restricted by this module; equivalent egress configuration is required for paired trials.
