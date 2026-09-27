@@ -1,3 +1,8 @@
+## VCR275-A — Coverage targets participate in real-choice eligibility
+
+- Candidate signatures now include normalized coverage targets; distinct target sets can represent a genuine choice even for the same test kind. Identical normalized sets retain local abstention. The legacy unit-before-contract shortcut requires absent targets.
+- Required validation, relevance-based local resolution, privacy filtering, confidence thresholds, and missing-target behavior remain unchanged. Forty-five test-order tests passed; no live benefit claim.
+
 ## VCR274-A — Completed revised local triage pair
 
 - Run `266dd4e0f64c4789a56ffb4a3ad4bb89`, seed 274: treatment first, baseline second; both gates pass with initial focused failure, focused/full recovery, immutable fixtures, and independent focused/full validation (5 each).

@@ -1,3 +1,7 @@
+## VCR275-A — Correct real-choice detection for coverage targets
+
+Coverage-target metadata now participates in candidate signatures. Same-kind candidates with different reviewed target sets no longer automatically become `no_choice_needed`; identical normalized sets still do. Legacy Python unit-before-contract resolution applies only when targets are absent. Other local resolution rules, confidence thresholds, privacy allowlists, and mandatory validation are unchanged. This fixes eligibility semantics; it does not establish a speed or quality gain. Forty-five module tests passed; future equivalent-task evaluation must retain all existing correctness gates.
+
 ## VCR274-A — Revised timeout guidance: one positive completed pair
 
 Run `266dd4e0f64c4789a56ffb4a3ad4bb89` used seed 274 on merged PR #204. Treatment arm-a ran first; baseline arm-b second. Both acknowledged before tools, reproduced focused exit 1, then passed focused/full exit 0, preserved frozen files, and passed independent focused/full checks (5 tests each). Protocol completed; advice utility remains unscored.
