@@ -194,6 +194,90 @@ class PilotContractCaseProfileTests(unittest.TestCase):
             )
         return receipt, output
 
+    def test_profile_configured_choice_ack_is_observed_and_missing_or_late_fails(self):
+        import shlex
+
+        def command_event(kind, event_id, argv, **extra):
+            item = {
+                "id": event_id,
+                "type": "command_execution",
+                "command": shlex.join(argv),
+                **extra,
+            }
+            return json.dumps({"type": kind, "item": item})
+
+        def assistant_event(event_id, text):
+            return json.dumps({
+                "type": "item.completed",
+                "item": {"id": event_id, "type": "agent_message", "text": text},
+            })
+
+        triage_output = json.dumps({
+            "observed_exit_status": 1,
+            "test_failed": True,
+            "status": "no-remote-choice",
+            "steps": [{"id": self.profile.triage_accepted_ids[0]}],
+            "executed": False,
+            "decision_usage": None,
+            "hypothesis_ranking_status": "complete",
+            "hypothesis_order": list(self.profile.triage_hypotheses),
+        })
+        evidence_argv = ["cat", *self.profile.evidence_files.values()]
+        evidence_output = " ".join(
+            marker
+            for markers in self.profile.evidence_markers.values()
+            for marker in markers
+        )
+
+        def parse(ack_position):
+            lines = [
+                assistant_event("workflow-ack", runner.WORKFLOW_ACK_LINE),
+                command_event("item.started", "focused", self.profile.focused_command),
+                command_event(
+                    "item.completed", "focused", self.profile.focused_command,
+                    exit_code=1, aggregated_output="AssertionError: expected value mismatch",
+                ),
+                command_event("item.started", "evidence", evidence_argv),
+                command_event(
+                    "item.completed", "evidence", evidence_argv,
+                    exit_code=0, aggregated_output=evidence_output,
+                ),
+            ]
+            triage_argv = runner._triage_argv(1, self.profile)
+            lines.extend([
+                command_event("item.started", "triage", triage_argv),
+                command_event(
+                    "item.completed", "triage", triage_argv,
+                    exit_code=0, aggregated_output=triage_output,
+                ),
+            ])
+            if ack_position == "before_next_tool":
+                lines.append(assistant_event(
+                    "triage-ack", runner.PROFILE_TRIAGE_RESULT_ACK_LINE,
+                ))
+            full_argv = shlex.split(runner.REQUIRED_COMMAND)
+            lines.append(command_event("item.started", "full", full_argv))
+            if ack_position == "after_next_tool":
+                lines.append(assistant_event(
+                    "triage-ack", runner.PROFILE_TRIAGE_RESULT_ACK_LINE,
+                ))
+            return runner._event_receipts(
+                lines, [float(index + 1) for index in range(len(lines))], 0.0,
+                advice_policy="nonbinding", profile=self.profile,
+            )[0]
+
+        accepted = parse("before_next_tool")
+        self.assertEqual(accepted["triage_output_status"], "valid_configured_choice")
+        self.assertEqual(accepted["triage_result_acknowledgment"], "before_next_tool")
+
+        missing = parse("missing")
+        self.assertEqual(missing["triage_output_status"], "valid_configured_choice")
+        self.assertEqual(missing["triage_result_acknowledgment"], "not_applicable")
+
+        late = parse("after_next_tool")
+        self.assertEqual(late["triage_output_status"], "valid_configured_choice")
+        self.assertEqual(late["triage_result_acknowledgment"], "after_next_tool")
+
     def test_valid_profile_parses_allowlisted_paths_and_enums(self):
         self.assertEqual(self.profile.case_id, "synthetic-repair")
         self.assertEqual(self.profile.outcome_mode, "repair")
