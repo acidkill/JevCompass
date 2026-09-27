@@ -486,5 +486,12 @@ Important limits: the Codex event has no reliable task objective; the article th
 - [x] Apply independent ten-check contract verification to both final artifacts; retain focused/full agent validation separately.
 - [x] Include supervisor preparation in elapsed time, capture advice before first tool and retain safe usage/quality receipts.
 - [x] Validate runner offline (16 dedicated tests), run all 474 repository tests and graph refresh (1832 nodes, 3579 edges).
-- [ ] Merge after green hosted CI.
-- [ ] Run the frozen live pair and report time, tokens, available cost and quality without treating local routing as remote Jev efficacy.
+- [x] Merge after green hosted CI (PR #178, 68 s).
+- [x] Run the frozen live pair and report time, tokens, available cost and quality without treating local routing as remote Jev efficacy.
+
+## VCR-259-C — retry strategy paired evidence
+
+- [x] Collect the single frozen run 3834d47af33e4cc38ceeecdcc4ae9b99 without rerunning it.
+- [x] Verify equal fixture hashes, preserved immutable files/verifier, early advice acknowledgment and focused/full test order.
+- [x] Record treatment 10/10 independent checks versus baseline 9/10; withhold baseline validated completion and any speed benefit claim.
+- [ ] Merge evidence after green hosted CI. Repeatable benefit and remote Jev efficacy remain unproven.

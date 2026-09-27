@@ -1069,3 +1069,23 @@ Retain both wins and losses and distinguish one-pair observations from repeatabl
 
 
 Runner verification: all 16 dedicated tests and 474 repository tests pass; graph refreshed (1832 nodes, 3579 edges). Tests reject contradictory gate summaries, altered verifier/immutable files, wrong local strategy ID, missing focused/full evidence and late acknowledgment; duplicate events do not inflate counts. Validated completion is withheld when any required gate fails. Retry-specific useful-error timing remains null rather than reusing ParcelQuote markers. Actual local preparation returned exactly inspect_dependency_or_symbol_use/no-remote-choice/null usage. No live pair has run in this task.
+
+
+## VCR-259-C — single local-route retry pair
+
+Frozen run `3834d47af33e4cc38ceeecdcc4ae9b99`, seed 259, Codex CLI 0.157.0, gpt-6-luna/low. Randomized arm-a was treatment and arm-b baseline. Private receipt and arm map remain under `/tmp/jev-retry-strategy-vcr259-20260927-01/`; raw prompts, code and events are not published.
+
+| Metric | Baseline | Treatment |
+| --- | ---: | ---: |
+| Agent completion (ms) | 27996.77 | 28166.89 |
+| Preparation (ms) | 0 | 96.77 |
+| Completion including preparation (ms) | 27996.77 | 28263.66 |
+| Independent verification (ms) | 117.23 | 118.90 |
+| Validated completion (ms) | unavailable: quality failed | 28382.56 |
+| First tool (ms) | 5569.82 | 5877.34 |
+| Independent contract checks | 9 passed, 1 failed | 10 passed, 0 failed |
+| Agent input / cached input / output tokens | 89478 / 77312 / 968 | 90085 / 81408 / 936 |
+
+Both arms ran one focused and one full suite, each exit 0, in the required order. Both preserved immutable files and the frozen verifier. Initial receipts preceded first tool use. Equal fixture SHA-256 was `a8b77afe0bad03f70c1a017d142429d3ab65e9adc1f3e28ede8de78467fe1516`; verifier SHA-256 was `542092a75f5fdaf3403de3bcb8bed45854d5844f10e50af8f32610ee85b367b7`.
+
+The pair status is failed because baseline violates one independent contract check; its validated completion is correctly withheld. Treatment elapsed completion was 266.89 ms longer before independent validation. Useful-error timing is unscored, and agent billing is unknown. The treatment selected inspection locally with no provider request. This is one correctness observation for local routing, not repeatable quality benefit, remote Jev efficacy, speed improvement or native Desktop delivery. Do not rerun this pair to replace the result.
