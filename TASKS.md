@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-265-A — dependency-guidance live comparison retained
+
+Completed one seed265 pair, run `c76a7ebb2961480da35ff4ade8d171e7`. Baseline passed required focused/full validation; treatment focused exit1 and absent full validation fail acceptance despite both independent artifacts passing10/10. Treatment23,238.96ms versus baseline20,855.23ms; validated treatment time withheld. Local preparation92.05ms, no provider request, billing unknown. PILOT records tokens, hashes, acknowledgment and timing limits. No rerun and no efficacy claim. Cross-layer post-change phase proof remains a separate open task.
+
 ### VCR-257-I — locally resolved strategy route
 
 Add an optional enum-only resolved strategy from verified local evidence. Eligible resolution returns one reviewed strategy without decision-client construction or API usage; invalid/ineligible explicit resolution abstains locally. Unresolved behavior is preserved. Source CLI exposes bounded choices; README explains using the direct local approach rather than a redundant confirmation command. Luna implemented and verified the route; 440 full tests, source CLI smoke and graph refresh (1746nodes/3399edges) passed. Six new tests cover local resolution, invalid/ineligible values, existing remote behavior and CLI validation. Green-only PR follows. No measured agent speed claim; cross-host acceptance remains open.
