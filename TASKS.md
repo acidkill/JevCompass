@@ -1,3 +1,8 @@
+## VCR280-A — Frozen three-use comparison design
+
+- Added BENCHMARK_PROTOCOL.md: six feasibility pairs followed by a separate fixed 20-pair cohort (7 strategy, 7 test-order, 6 triage). All 26 seed/order mappings verified; main cohort has ten baseline-first and ten treatment-first pairs. Seeds affect arm order, not model sampling.
+- Optional adoption, task correctness and actual delivery are separate. Failed/missing slots remain without replacement; local and accepted remote observations are reported separately. An exact execution manifest with hashes, settings and enforceable caps is required before any run. No cohort result or efficacy claim.
+
 ## VCR279-B — Separate optional advice from task correctness
 
 - Prospective enriched profiles will report task correctness, rank delivery, advice adoption, and effect scope separately. Abstention permits autonomous test selection; nonadoption does not invalidate a correct task. Missing or malformed rank delivery and all mandatory validation failures remain failures.

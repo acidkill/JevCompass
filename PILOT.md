@@ -1,3 +1,7 @@
+## VCR280-A — Fixed prospective cohort
+
+[BENCHMARK_PROTOCOL.md](BENCHMARK_PROTOCOL.md) preregisters six feasibility pairs and a separate 20-pair cohort: seven strategy, seven test-order and six triage. All seed/order mappings were verified offline, with ten baseline-first and ten treatment-first main pairs. The seed controls arm assignment only. Outcomes cannot be replaced or rerun to select favorable results. Actual local/remote route, adoption, required correctness and delivery are scored separately. Execution remains pending an exact manifest of hashes, settings and enforceable limits; this document is not a result or acceptance claim.
+
 ## VCR279-B — Prospective optional-advice evaluation
 
 The next enriched profile separates task correctness, valid post-change ranking delivery, optional adoption, and accepted-choice effect scope. An abstention is not an accepted remote recommendation; an independently selected declared test can still be correct. Mandatory focused/full/independent checks and immutable-source guards remain. Legacy required-order profiles and all historical receipts, including VCR277, are not rescored. The enriched wrapper opts into this policy; the default remains strict required-order. Malformed delivery is rejected safely. Thirty-five focused tests passed; no new live efficacy result exists.
