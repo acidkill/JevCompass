@@ -1,3 +1,7 @@
+## VCR315 — Required-suite component diagnostics
+
+Unmatched completed test commands now retain aggregate-only presence categories for an exact required-suite component in bounded shell segments. Component presence never grants required-suite credit or changes exit-status gates. Compound commands, wrappers, malformed/newline input and privacy regressions pass; 25 focused tests and the full 677-test suite passed. Graph refreshed. This prospective diagnostic does not rescore T-F1 or establish coding efficacy.
+
 ## VCR314 — Diagnostic smoke evidence
 
 A post-merge timeout probe returned a result, but the local reporter failed on a nonexistent result attribute; its provider outcome and usage were not retained and it is unscored. After an offline fake-client serialization check, one distinct synthetic assertion probe used the production client with explicit typesafe/jev-1.13 and a 1.5-second timeout. It returned no-remote-choice with insufficient_confidence in 510.54 ms, preserving the failed-test outcome and local fallback. Reported usage: 382 input / 53 output tokens, USD 0.000016044. No private task data was sent. This verifies reason/usage capture for an abstention, not agent delivery or coding efficacy; no benchmark pair was rerun.
