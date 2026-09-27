@@ -1,3 +1,8 @@
+## VCR288 — Coding workflow catalog integration
+
+- Curated the phase-aware workflow for coding, debugging and testing; availability requires discovering the installed skill rather than finding its bundled source. Documentation, unrelated work and planner-only selection remain excluded. Absence of a failure disables triage only.
+- Two new and 28 existing catalog tests passed; parent full suite passed 600 tests. No remote calls, native delivery or efficacy claim.
+
 ## VCR287 — Dependency migration local-resolution control
 
 - Added a synthetic stdlib-only adapter migration with a fully specified application contract. It is explicitly a local-resolution control, not an unresolved remote-strategy case. No advisor instructions or solution are embedded in the fixture.
