@@ -1007,3 +1007,14 @@ Focused bridge/install/advisor/product-contract tests passed (73 tests). Full-su
 Added an offline integration test that runs the opted-in hook through the real typed strategy selector and a fake DecisionsClient transport. It verifies the allowlisted request excludes prompt/private text, only one transport request occurs, the generic selector is not called, and remote acceptance, invalid choice, low confidence, transport failure and a validated cache hit receive the expected provenance. Focused command passed 3 tests; no product code, live API request or efficacy claim.
 
 Parent validation: full unittest discovery passed 742 tests in 30.386 seconds; graph refresh completed with 3,035 nodes, 6,090 edges and 190 communities.
+
+
+## VCR362 — Native vanilla CLI strategy delivery smoke (2026-09-27)
+
+One read-only ephemeral Codex CLI 0.157.0 invocation used source `c03dc34`, an isolated auth-only profile, no copied personal MCP configuration or skills, and the actual `install --strategy-advice` hook. No advice was inserted into the prompt. OpenRouter credentials were excluded, so this tested local fallback delivery, not a remote Jev choice. Hook trust was bypassed for this vetted invocation only; normal persisted trust and Desktop delivery remain unverified.
+
+The process exited 0 after 9,845.24 ms. Raw JSONL assistant event 5 reported advice ID `ce315e2a` and strategy `inspect_dependency_or_symbol_use` at 6,220.51 ms, before the first tool event 6 at 7,115.63 ms. The sole tool read the synthetic file and exited 0. The advice ID matches the hook diagnostic trace. Reported usage: 27,555 input tokens, including 24,064 cached input tokens, and 123 output tokens; reasoning output 0. Provider cost is unknown. This is one delivery smoke, not a coding comparison or evidence of speed or quality improvement.
+
+The original receipt retains `strategy_id_before_tool: null`: its parser expected a full hook block rather than the agent's `Strategy ID:` report. The strategy above is a separate raw-event inspection, not a rerun or historical acceptance rescore. The synthetic file contains literal escaped newline sequences, so this read-only fixture does not establish executable Python correctness. The generic catalog metric says `low-signal-skip`; that does not mean the strategy context was absent, and its duration is not total hook latency.
+
+Private evidence SHA-256: events `834c4177ba89f1ec02ea77cec2ab6ea350f50e07641b91f4f53c7ecf946774dc`; original receipt `cd263b3354ba6e68a7c0603b89ae8bf0ebbaec51fb748a80a2c42f65a1d8be95`; runner `31f3448dce6fa1c26835f01102cbf9e7d349359fff6b9d76e2a117fba52a72db`. No replay was performed.
