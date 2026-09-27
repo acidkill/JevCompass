@@ -171,6 +171,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--model", required=True)
     parser.add_argument("--reasoning-effort", required=True)
     parser.add_argument("--timeout", type=int, default=cross_layer.engine.DEFAULT_TIMEOUT)
+    parser.add_argument(
+        "--max-tokens", type=int,
+        help=("optional per-arm observed usage ceiling; detected from completed-turn "
+              "usage events, not a provider per-request hard cap"),
+    )
     parser.add_argument("--seed", type=int)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--allow-openrouter-key", action="store_true",
@@ -187,6 +192,7 @@ def main(argv: list[str] | None = None) -> int:
             codex=codex, model=args.model, reasoning_effort=args.reasoning_effort,
             timeout=args.timeout, seed=args.seed, output_dir=args.output_dir,
             allow_openrouter_key=args.allow_openrouter_key,
+            max_tokens=args.max_tokens,
         )
     except (OSError, ValueError, RuntimeError):
         print(json.dumps({"status": "failed", "failure": "runner_setup_failed"}))
