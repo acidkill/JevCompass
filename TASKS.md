@@ -530,7 +530,7 @@ Important limits: the Codex event has no reliable task objective; the article th
 - [x] Compose a short fixed local checklist for inspection recommendations carrying dependency_change.
 - [x] Cover resolved/fallback/accepted remote paths without changing remote criteria, eligibility, usage or IDs.
 - [x] Validate 42 strategy tests and 492 tests in combined worktree; refresh graph (1948 nodes, 3792 edges).
-- [ ] Merge after green hosted CI; cross-layer fixture is outside this commit.
+- [x] Merge after green hosted CI (PR #183, 39 s); cross-layer fixture is outside this commit.
 - [ ] Evaluate prospective dependency task quality/time before claiming benefit.
 
 
@@ -541,4 +541,12 @@ Important limits: the Codex event has no reliable task objective; the article th
 - [x] Record a parent 12-run alternating measurement on final fixture hash 36e572088069b0947293f44cc7e2b0f3c4ddeb779219cc597a6dbfd60edefa84, unchanged afterward.
 - [x] Keep both direct candidates and mandatory full suite; local injected-client check confirms only enum/kind/coverage/runtime metadata reaches selector.
 - [x] Combined-tree validation: 492 tests and graph refresh (1948 nodes, 3792 edges).
-- [ ] Merge fixture after green hosted CI; no live pair or benefit established.
+- [x] Merge fixture after green hosted CI (PR #184, 36 s); no live pair or benefit established.
+
+
+## VCR-264-A — acceptance state reconciliation
+
+- [x] Update the top-level pilot summary with the retained VCR-259-C quality failure and measured timing.
+- [x] Close merged guidance/fixture delivery gates using authoritative PR CI results.
+- [x] Distinguish pending runners, measured local outcome, remote efficacy and native Desktop acceptance.
+- [ ] Merge documentation after green hosted CI. Overall goal remains incomplete.

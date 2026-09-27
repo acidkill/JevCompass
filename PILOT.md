@@ -6,11 +6,11 @@ Overall acceptance remains **not established**. Source delivery, transport and g
 
 | Use case | Current matched evidence | Outcome and remaining gap |
 | --- | --- | --- |
-| Pretask strategy | VCR-257-H, supervised CLI injection with independent frozen checks | Treatment completed 753.72 ms later, with identical final code; one pair does not prove token savings. Verified contract routing in VCR-259-A still needs task outcome evidence. |
+| Pretask strategy | VCR-257-H remote selection; VCR-259-C local contract route with independent checks | Remote treatment completed 753.72 ms later with identical code. Local retry treatment passed 10/10 versus baseline 9/10, but elapsed completion was 266.89 ms longer; baseline validated completion is withheld. One correctness observation is not repeatable benefit or remote Jev efficacy. |
 | Post-change test order | VCR-256-G/H opposite-order remote pairs; VCR-256-O local repeat | Remote selections matched baseline; the two-pair treatment mean was slower. Local repeat completed 1647.64 ms later. No repeatable speed benefit; broader genuine coverage/runtime tradeoffs remain unverified. |
 | Ambiguous failure triage | VCR-255-D unresolved-contract pair with preserved failing tests | Observable diagnosis quality tied; treatment completed 2501 ms later and observed the first failure later. Appropriate local deferral does not prove remote selection benefit. |
 
-Agent billing remains unknown in these comparisons; provider-reported Jev cost, when present, is only one cost component. Native fresh Desktop delivery and the broader cross-host acceptance gates remain open. The next retry pair is explicitly local-routing evidence with an independent contract gate, not a remote Jev efficacy trial.
+Agent billing remains unknown in these comparisons; provider-reported Jev cost, when present, is only one cost component. Native fresh Desktop delivery and the broader cross-host acceptance gates remain open. The local retry pair is complete and retained, including its failed baseline quality gate. Dependency-guidance and post-change cross-layer runners are under preparation; neither has produced a live outcome. No new pair should be inferred from fixture tests or timing metadata.
 
 ### VCR-257-B explicit strategy comparison runner (2026-09-27)
 
