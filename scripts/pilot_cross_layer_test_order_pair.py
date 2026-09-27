@@ -667,7 +667,7 @@ def _independent_final_validation(fixture: Path) -> dict[str, Any]:
 def _collect_events_live(
     process: subprocess.Popen[bytes], *, started: float, timeout: int,
     preserve_on_failure: bool = False, fixture: Path, before_source: bytes | None,
-    observation: dict[str, Any],
+    observation: dict[str, Any], max_tokens: int | None = None,
 ) -> tuple[list[str], list[float], str | None]:
     """Collect bounded events and snapshot changed source at rank-start receipt."""
     if process.stdout is None:
@@ -678,19 +678,35 @@ def _collect_events_live(
     lines: list[str] = []
     times: list[float] = []
     total = 0
+    observed_usage_tokens = 0
     failure = None
     deadline = started + timeout
 
+    if max_tokens is not None and (
+        isinstance(max_tokens, bool) or not isinstance(max_tokens, int)
+        or not 1 <= max_tokens <= engine.core.MAX_EVENT_TOKEN_BUDGET
+    ):
+        raise ValueError("invalid per-arm token budget")
+
     def append_line(raw: bytes) -> None:
+        nonlocal observed_usage_tokens, failure
         line = raw.decode("utf-8", errors="replace")
         lines.append(line)
         observed_at = time.monotonic()
         times.append(observed_at)
-        if observation.get("rank_source_snapshot_observed"):
+        if observation.get("rank_source_snapshot_observed") and max_tokens is None:
             return
         try:
             event = json.loads(line)
         except (TypeError, ValueError, json.JSONDecodeError):
+            return
+        if isinstance(event, dict) and event.get("type") == "turn.completed" and max_tokens is not None:
+            usage_status, usage = engine.core._safe_turn_usage(event)
+            if usage_status == "available" and usage is not None:
+                observed_usage_tokens += usage["input_tokens"] + usage["output_tokens"]
+                if observed_usage_tokens > max_tokens:
+                    failure = "token_budget_exceeded"
+        if observation.get("rank_source_snapshot_observed"):
             return
         if not isinstance(event, dict) or event.get("type") != "item.started":
             return
@@ -726,6 +742,10 @@ def _collect_events_live(
                         break
                     append_line(bytes(pending[:newline]))
                     del pending[:newline + 1]
+                    if failure:
+                        break
+                if failure:
+                    break
             if failure:
                 break
         if pending and failure is None:
@@ -755,11 +775,17 @@ def _run_arm(**kwargs: Any) -> dict[str, Any]:
     original_event_receipts = engine._event_receipts
 
     def collect(process: subprocess.Popen[bytes], *, started: float, timeout: int,
-                preserve_on_failure: bool = False):
+                preserve_on_failure: bool = False, max_tokens: int | None = None):
+        collect_kwargs = {
+            "preserve_on_failure": preserve_on_failure,
+            "fixture": fixture,
+            "before_source": before_source,
+            "observation": observation,
+        }
+        if max_tokens is not None:
+            collect_kwargs["max_tokens"] = max_tokens
         return _collect_events_live(
-            process, started=started, timeout=timeout,
-            preserve_on_failure=preserve_on_failure, fixture=fixture,
-            before_source=before_source, observation=observation,
+            process, started=started, timeout=timeout, **collect_kwargs,
         )
 
     def collect_receipts(lines, event_times, started):

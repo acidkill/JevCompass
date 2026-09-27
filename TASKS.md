@@ -1,3 +1,8 @@
+## VCR295 — Per-arm budgets connected to pair engines
+
+- Added optional max_tokens to the shared pretask/test-order engine and the target-coverage live collector, forwarding the same cap to both arms while preserving defaults and mandatory validation. Receipts identify completed-turn monitoring rather than a provider-side limit.
+- Eight targeted forwarding/default tests pass. Parent reproduced a split-JSON stream bug, then verified its correction with a real subprocess: one complete event is retained and token_budget_exceeded is reported. No live agent pair or benefit claim.
+
 ## VCR292 — Offline cohort execution inventory
 
 - Added an offline manifest inventory for the fixed six feasibility and twenty main pairs. Eleven targeted tests pass after parent review of schedules, artifact completeness, paths, identity and limits. It does not launch agents or establish efficacy.

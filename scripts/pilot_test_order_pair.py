@@ -357,6 +357,7 @@ def _cli_command(codex: str, model: str, reasoning_effort: str, prompt: str, *, 
 def _run_arm(
     *, codex: str, model: str, reasoning_effort: str, prompt: str,
     fixture: Path, home: Path, timeout: int, allow_openrouter_key: bool,
+    max_tokens: int | None = None,
 ) -> dict[str, Any]:
     codex_home = home / ".codex"
     codex_home.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -374,9 +375,10 @@ def _run_arm(
             cwd=fixture, env=env, stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
         )
-        lines, times, failure = core._collect_events(
-            process, started=started, timeout=timeout,
-        )
+        collect_kwargs = {"started": started, "timeout": timeout}
+        if max_tokens is not None:
+            collect_kwargs["max_tokens"] = max_tokens
+        lines, times, failure = core._collect_events(process, **collect_kwargs)
     except OSError:
         return {"cli_status": "failed", "failure": "codex_unavailable"}
     wall_ms = round((time.monotonic() - started) * 1000, 2)
@@ -417,10 +419,18 @@ def run_pair(
     allow_openrouter_key: bool = False,
     baseline_prompt: str | None = None,
     treatment_prompt_suffix: str | None = None,
+    max_tokens: int | None = None,
 ) -> dict[str, Any]:
     """Run both isolated arms and write private, redacted receipts/artifact."""
     if not 1 <= timeout <= MAX_TIMEOUT:
         raise ValueError(f"timeout must be between 1 and {MAX_TIMEOUT} seconds")
+    if max_tokens is not None and (
+        isinstance(max_tokens, bool) or not isinstance(max_tokens, int)
+        or not 1 <= max_tokens <= core.MAX_EVENT_TOKEN_BUDGET
+    ):
+        raise ValueError(
+            f"max_tokens must be between 1 and {core.MAX_EVENT_TOKEN_BUDGET}"
+        )
     if baseline_prompt is not None and (
         not isinstance(baseline_prompt, str) or not baseline_prompt.strip()
         or len(baseline_prompt.encode("utf-8")) > 32 * 1024
@@ -464,10 +474,18 @@ def run_pair(
         except OSError:
             auth_ok = False
         if not auth_ok:
-            return {
+            receipt = {
                 "schema_version": 1, "run_id": run_id, "status": "failed",
                 "failure": "auth_unavailable", "arms": {},
             }
+            if max_tokens is not None:
+                receipt["max_tokens_per_arm"] = max_tokens
+                receipt["token_budget_usage_limitation"] = (
+                    "The cap is checked only when valid completed-turn usage is observed; "
+                    "it is not a provider per-request hard cap. If completed-turn usage is "
+                    "missing or malformed, budget usage is unknown."
+                )
+            return receipt
 
         fixtures: dict[str, Path] = {}
         homes: dict[str, Path] = {}
@@ -478,10 +496,18 @@ def run_pair(
             digests[true_arm] = _copy_identical_fixture(fixture_source, fixtures[true_arm])
             arm_auth = homes[true_arm] / ".codex" / "auth.json"
             if not core._copy_auth(auth_snapshot, arm_auth):
-                return {
+                receipt = {
                     "schema_version": 1, "run_id": run_id, "status": "failed",
                     "failure": "auth_setup_failed", "arms": {},
                 }
+                if max_tokens is not None:
+                    receipt["max_tokens_per_arm"] = max_tokens
+                    receipt["token_budget_usage_limitation"] = (
+                        "The cap is checked only when valid completed-turn usage is observed; "
+                        "it is not a provider per-request hard cap. If completed-turn usage is "
+                        "missing or malformed, budget usage is unknown."
+                    )
+                return receipt
         if digests["baseline"] != digests["treatment"]:
             raise RuntimeError("fixture parity verification failed")
 
@@ -489,12 +515,23 @@ def run_pair(
         for true_arm in true_order:
             prompt = base_prompt + (treatment_suffix if true_arm == "treatment" else "")
             label = arm_labels[true_arm]
-            arms[label] = _run_arm(
+            arm_kwargs = dict(
                 codex=codex, model=model, reasoning_effort=reasoning_effort,
                 prompt=prompt, fixture=fixtures[true_arm], home=homes[true_arm],
                 timeout=timeout, allow_openrouter_key=allow_openrouter_key,
             )
+            if max_tokens is not None:
+                arm_kwargs["max_tokens"] = max_tokens
+            arms[label] = _run_arm(**arm_kwargs)
             arms[label]["fixture_sha256_before"] = digests[true_arm]
+            if max_tokens is not None:
+                arms[label]["max_tokens_per_arm"] = max_tokens
+                usage_status = arms[label].get("token_usage_status")
+                arms[label]["token_budget_status"] = (
+                    "exceeded" if arms[label].get("failure") == "token_budget_exceeded"
+                    else "within_observed_budget" if usage_status == "available"
+                    else "usage_unknown"
+                )
 
         original = _safe_final_artifact(fixture_source)
         artifacts_captured: dict[str, bool] = {}
@@ -535,6 +572,13 @@ def run_pair(
             "artifacts_captured": artifacts_captured,
             "arms": arms,
         }
+        if max_tokens is not None:
+            receipt["max_tokens_per_arm"] = max_tokens
+            receipt["token_budget_usage_limitation"] = (
+                "The cap is checked only when valid completed-turn usage is observed; "
+                "it is not a provider per-request hard cap. If completed-turn usage is "
+                "missing or malformed, budget usage is unknown."
+            )
         _private_write(
             output_dir / "receipt.json",
             (json.dumps(receipt, sort_keys=True, indent=2) + "\n").encode("utf-8"),
@@ -549,6 +593,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--model", required=True)
     parser.add_argument("--reasoning-effort", required=True)
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
+    parser.add_argument(
+        "--max-tokens", type=int,
+        help=("optional per-arm observed usage ceiling; enforced after completed-turn "
+              "usage events, not a provider per-request hard cap"),
+    )
     parser.add_argument("--seed", type=int)
     parser.add_argument(
         "--output-dir", type=Path, required=True,
@@ -570,6 +619,7 @@ def main(argv: list[str] | None = None) -> int:
             codex=codex, model=args.model, reasoning_effort=args.reasoning_effort,
             timeout=args.timeout, seed=args.seed, output_dir=args.output_dir,
             allow_openrouter_key=args.allow_openrouter_key,
+            max_tokens=args.max_tokens,
         )
     except (OSError, ValueError, RuntimeError):
         print(json.dumps({"status": "failed", "failure": "runner_setup_failed"}))
