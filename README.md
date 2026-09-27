@@ -229,6 +229,8 @@ JevCompass is licensed under the [Apache License 2.0](LICENSE). Copyright 2026 T
 
 ### Optional typed-decision cache
 
+**Source-build feature:** this cache and its readable provenance labels are present on `main`, but are not included in the currently published PyPI 0.1.22 artifact. A private wheel built from current source may still report version 0.1.22; that does not make it the published artifact.
+
 Set `JEVCOMPASS_TYPED_DECISION_CACHE=1` to reuse validated strategy, test-order and triage choices across CLI processes for up to 24 hours. It is disabled by default. The cache is bounded to 128 records and uses private files under `~/.cache/jevcompass/typed-decisions-v1`; `JEVCOMPASS_TYPED_CACHE_DIR` can select a dedicated private directory. An existing directory with broader permissions is skipped, not modified.
 
 Keys cover the exact sanitized request, model, caller policy and confidence threshold. Records contain only fixed choice tokens, confidence and creation time: no prompts, commands, source, memory, credentials or backend prose. Every hit is validated again and mapped to the current local candidates. Local resolutions still take precedence; injected clients bypass this cache.
