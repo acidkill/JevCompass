@@ -1,3 +1,7 @@
+## VCR317 — Isolated distribution validation
+
+Built wheel and sdist from commit 1d44c4c7a1aef5b77160158392bcbb787ee444a7 (version 0.1.22) and installed the wheel through isolated pipx. Artifact scans detected no private/cache/log files or credential patterns; the CLI entry point and five bundled skills were present. CLI help and installed triage-enum import passed. Temporary-profile installation preserved two synthetic smem markers and registered exactly two advisory hooks, with no PreToolUse group; all five installed skills matched package resources. No Node or provider API call was used. Actual doctor was not run because it performs a public metadata lookup. This is artifact/isolated CLI evidence, not an updated production installation, registry release or fresh Desktop delivery test.
+
 ## VCR315 — Required-suite component diagnostics
 
 Unmatched completed test commands now retain aggregate-only presence categories for an exact required-suite component in bounded shell segments. Component presence never grants required-suite credit or changes exit-status gates. Compound commands, wrappers, malformed/newline input and privacy regressions pass; 25 focused tests and the full 677-test suite passed. Graph refreshed. This prospective diagnostic does not rescore T-F1 or establish coding efficacy.
