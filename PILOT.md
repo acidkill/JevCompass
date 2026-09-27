@@ -1,3 +1,7 @@
+## VCR291 — Installed catalog parity
+
+The local pipx development installation now comes from clean source 9efac29555ce0215c732caba56b362251d14d7c9, wheel SHA-256 6a9a03a44dbd28927f7641e7b79b3eb1da3af7d4b4acb1bce6f0e85b66f11edf. Its catalog marks the discovered coding-workflow skill available; all five installed skills match bundled resources. Configuration, hooks and smem fingerprints are unchanged. This closes the earlier installed catalog gap, but does not establish native advice delivery, adoption or benefit. No provider request was made.
+
 ## VCR289 — Local workflow installation evidence
 
 A clean development wheel from 00b87ba installed all five bundled skills. Three were new, one recognized historical file was refreshed with a verified backup, and all installed bytes match the bundle. Repeat dry-run reports five unchanged; config, hooks and smem fingerprints are unchanged. This Desktop session exposes the five skill entries and the primary agent read coding-workflow. Skill discovery is distinct from delivered hook advice or task adoption. No native A/B or provider test was performed. The installed wheel still predates the separately merged catalog entry, so source/installed catalog parity remains a follow-up.
