@@ -1,3 +1,7 @@
+## VCR322 — Worker-queue local-resolution control
+
+Added a bounded FIFO queue fixture and six offline verifier tests. The starter fails focused and full fixture suites; the reference notification repair passes both; notification, ordering and consumption mutants are rejected. Shared coarse observations alone leave the wait condition unknown, but source inspection reveals crossed condition notifications. This is explicitly a local-resolution/no-call control, not a remote-choice or efficacy result. Graph rebuilt to 2,826 nodes and 5,672 edges. No coding-agent pair or provider request was executed for this fixture.
+
 ## VCR318 — New roster test-order fixture
 
 Added a separately frozen roster-import CLI task with unit/domain and integration/public-JSON checks, a mandatory full suite and a black-box oracle. Offline reference and partial/order/first-record/type mutants distinguish correct and incomplete repairs. The baseline can choose either focused candidate; treatment requests one post-edit ordering to establish exposure but may reject it. Abstention/adoption and task correctness remain separate from delivery gates. Eight focused tests and an isolated 685-test suite passed; graph rebuild succeeded. Local alternating timings document candidate costs without artificial delays. No live pair has run; historical cohorts remain unchanged and no efficacy is claimed.
