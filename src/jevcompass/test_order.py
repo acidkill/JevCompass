@@ -286,6 +286,22 @@ def rank_tests(
             decision_reason=DecisionReason.LOCAL_RESOLUTION,
         )
 
+    # Equal known runtime buckets leave no encoded cost/coverage tradeoff.
+    # Do not apply this shortcut when explicit signals or targets may compete.
+    direct = [item for item in local_candidates if item.coverage is Coverage.DIRECT]
+    runtimes = {item.runtime for item in local_candidates}
+    if (not normalized_signals and not any(item.coverage_targets for item in local_candidates)
+            and len(direct) == 1 and len(runtimes) == 1
+            and RuntimeBucket.UNKNOWN not in runtimes
+            and all(item is direct[0] or item.coverage is Coverage.INDIRECT
+                    for item in local_candidates)):
+        winner = direct[0]
+        return TestOrderResult(
+            (winner,) + tuple(item for item in fallback if item is not winner),
+            mandatory, NO_REMOTE_CHOICE,
+            decision_reason=DecisionReason.LOCAL_RESOLUTION,
+        )
+
     signatures = {
         (candidate.kind, candidate.coverage, candidate.runtime,
          tuple(target.value for target in candidate.coverage_targets))
