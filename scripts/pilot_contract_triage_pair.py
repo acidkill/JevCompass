@@ -348,6 +348,28 @@ def load_case_profile(path: Path) -> CaseProfile:
         rank_hypotheses, outcome, oracle_script, expected_hash,
     )
 
+def _case_base_prompt(profile: CaseProfile | None) -> str:
+    """Build the shared profiled prompt with exact mandatory validation commands."""
+    if profile is None:
+        return BASE_PROMPT
+    prompt = profile.task_prompt
+    if profile.outcome_mode != "repair":
+        return prompt
+
+    focused_command = shlex.join(profile.focused_command)
+    full_command = shlex.join(shlex.split(REQUIRED_COMMAND))
+    diff_command = shlex.join(("git", "diff", "--check"))
+    return (
+        prompt
+        + "\n\nMandatory validation for both arms. Run every command as a separate "
+        "standalone command, without changing arguments or substituting an equivalent. "
+        "Before editing source, run the initial focused test and record its exit code: "
+        + f"`{focused_command}`. "
+        "After edits, run these commands separately in this order: focused test "
+        + f"`{focused_command}`, full test suite `{full_command}`, and diff check "
+        + f"`{diff_command}`. Preserve each observed exit code in your report."
+    )
+
 
 def _profile_bridge_spec(
     profile: CaseProfile, *, include_observations: bool = True,
@@ -371,6 +393,7 @@ def _case_treatment_prompt(
     triage_stage: str = "evidence-reviewed",
 ) -> str:
     include_observations = triage_stage != "initial-failure"
+    base_prompt = _case_base_prompt(profile)
     evidence_paths = ", ".join(profile.evidence_files.values())
     triage_command = shlex.join(_triage_argv(
         1, profile, include_observations=include_observations,
@@ -413,13 +436,13 @@ def _case_treatment_prompt(
         )
     if advice_policy == "nonbinding":
         return (
-            profile.task_prompt + "\n\nBefore using a tool, make your first assistant message contain this "
+            base_prompt + "\n\nBefore using a tool, make your first assistant message contain this "
             "exact line: " + WORKFLOW_ACK_LINE
             + " If you request triage, after its result and before using another tool, "
             + "make your next assistant message contain this exact line: "
             + PROFILE_TRIAGE_RESULT_ACK_LINE + guidance
         )
-    return profile.task_prompt + guidance
+    return base_prompt + guidance
 
 
 def _matches_useful_failure(output: Any, profile: CaseProfile | None = None) -> bool:
@@ -1428,7 +1451,7 @@ def run_pair(
         answers: dict[str, str | None] = {}
         for true_arm in order:
             label = labels[true_arm]
-            prompt = (BASE_PROMPT if case_profile is None else case_profile.task_prompt)
+            prompt = (BASE_PROMPT if case_profile is None else _case_base_prompt(case_profile))
             if true_arm == "treatment":
                 prompt = (
                     NONBINDING_TREATMENT_PROMPT if case_profile is None and advice_policy == "nonbinding"
