@@ -1,3 +1,7 @@
+## VCR296 — Local-only timeout triage comparison
+
+Added a prospective nonbinding timeout runner with identical complete diagnostics and mandatory focused/full validation in both arms. Thirteen targeted tests pass; parent corrected literal newline escapes in shared instructions. The agent receives no advisor API key and network access is disabled: this profile measures local fallback only, not remote Jev advice. No live pair ran. A trusted remote route remains a separate prerequisite.
+
 ## VCR295 — Per-arm budgets connected to pair engines
 
 - Added optional max_tokens to the shared pretask/test-order engine and the target-coverage live collector, forwarding the same cap to both arms while preserving defaults and mandatory validation. Receipts identify completed-turn monitoring rather than a provider-side limit.
