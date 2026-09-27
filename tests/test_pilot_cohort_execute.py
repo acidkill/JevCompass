@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import unittest
+import tempfile
 from unittest import mock
 from pathlib import Path
 
@@ -175,6 +176,94 @@ def test_timeout_quality_gate_rejects_missing_or_failed_required_checks():
     assert execute._quality_passed(receipt, "ambiguous_failure_triage")
     receipt["independent_validation"]["arm-b"]["full"]["status"] = "failed"
     assert not execute._quality_passed(receipt, "ambiguous_failure_triage")
+
+
+def _synthetic_cohort_manifest():
+    rows = [
+        ("P-F1", "pretask_strategy"), ("P-F2", "pretask_strategy"),
+        ("T-F1", "post_change_test_order"), ("T-F2", "post_change_test_order"),
+        ("A-F1", "ambiguous_failure_triage"), ("A-F2", "ambiguous_failure_triage"),
+    ]
+    return {
+        "schema_version": 1, "execution_status": "ready_partial",
+        "settings": {
+            "total_runtime_seconds": 1000, "total_agent_token_budget": 10000,
+            "per_arm_timeout_seconds": 60, "per_arm_agent_token_budget": 500,
+        },
+        "cases": {case: {"status": "ready"} for case in execute.CASE_ORDER},
+        "schedules": {
+            "feasibility": [
+                {"pair": pair, "case": case, "seed": index + 1,
+                 "first_arm": "baseline"}
+                for index, (pair, case) in enumerate(rows)
+            ],
+            "main": [],
+        },
+    }
+
+
+def _synthetic_pair_result(status):
+    return {
+        "receipt": {
+            "status": status,
+            "arms": {
+                label: {"token_usage_status": "available",
+                       "token_usage": {"input_tokens": 4, "output_tokens": 2}}
+                for label in ("arm-a", "arm-b")
+            },
+        },
+        "arm_map": {"arm-a": "baseline", "arm-b": "treatment"},
+    }
+
+
+def test_prefilled_stopped_pair_is_skipped_and_other_case_continues():
+    manifest = _synthetic_cohort_manifest()
+    calls = []
+
+    def launcher(case, row, **kwargs):
+        calls.append(row["pair"])
+        status = "failed" if row["pair"] == "T-F1" else "completed"
+        return _synthetic_pair_result(status), status, 0.1
+
+    with mock.patch.object(execute, "_current_fingerprint", return_value=[]):
+        with tempfile.TemporaryDirectory() as directory:
+            state = execute.run_cohort(
+                manifest, cohort="feasibility", output_dir=Path(directory) / "out",
+                launcher=launcher,
+            )
+            ledger = execute._load_json(Path(directory) / "out" / "cohort-ledger.json")
+
+    assert calls == ["P-F1", "P-F2", "T-F1", "A-F1", "A-F2"]
+    assert state["pairs"]["T-F2"]["status"] == "not_run_case_stopped"
+    assert ledger["pairs"]["P-F1"]["status"] == "completed"
+    assert ledger["pairs"]["T-F2"]["status"] == "not_run_case_stopped"
+    assert state["pairs"]["A-F1"]["status"] == "completed"
+
+
+def test_launcher_exception_checkpoints_started_pair_and_prior_records():
+    manifest = _synthetic_cohort_manifest()
+    calls = []
+
+    def launcher(case, row, **kwargs):
+        calls.append(row["pair"])
+        if row["pair"] == "P-F2":
+            raise OSError("synthetic failure")
+        return _synthetic_pair_result("completed"), "completed", 0.1
+
+    with mock.patch.object(execute, "_current_fingerprint", return_value=[]):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "out"
+            state = execute.run_cohort(
+                manifest, cohort="feasibility", output_dir=output, launcher=launcher,
+            )
+            ledger = execute._load_json(output / "cohort-ledger.json")
+
+    assert calls == ["P-F1", "P-F2"]
+    assert state["terminal_status"] == "stopped"
+    assert ledger["pairs"]["P-F1"]["status"] == "completed"
+    assert ledger["pairs"]["P-F2"]["status"] == "runner_exception_stop"
+    assert ledger["pairs"]["P-F2"]["receipt_path"] is None
+    assert ledger["pairs"]["T-F1"]["status"] == "not_run_after_cohort_stop"
 
 
 def load_tests(loader, tests, pattern):

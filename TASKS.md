@@ -1,3 +1,7 @@
+## VCR304 — Durable cohort checkpoints and stopped-case handling
+
+Fixed the crash on a coordinator-premarked skipped pair. Explicit unattempted stop records are skipped; recorded attempts remain protected against reruns. State is atomically written at startup, around launches, after results and on launcher exceptions. Eleven targeted tests pass, including failed-slice continuation. Existing three receipts remain unchanged; recovery must retain original limits and execute only unattempted cases. No new live pair yet.
+
 ## VCR305 — First frozen feasibility results retained
 
 Three pairs ran once before a coordinator failure. P-F1: baseline 19139.22 ms, treatment 22968.10 ms; P-F2: baseline 30443.22 ms, treatment 29982.84 ms. Both pretask pairs passed frozen independent and mandatory checks and acknowledged remote advice before tools. Results are mixed; combined treatment time is 3368.50 ms higher. Each treatment request reported 368 input / 44 output tokens and USD 0.000015456.
