@@ -1,3 +1,9 @@
+## VCR276-A — Enriched autonomous comparison runner ready for CI
+
+`scripts/pilot_target_coverage_test_order_pair.py` reuses the cross-layer runner with per-run prompts and an explicit either-candidate baseline policy. It checks reviewed fixture hashes before creating an enriched copy; original task files remain unchanged. Both arms receive identical target metadata: unit internal logic; integration internal logic, boundary mapping, and public contract. These labels are nonexhaustive, overlapping coverage descriptors, not dominance claims.
+
+The shared prompt lets baseline choose independently and permits only an explicitly instructed optional ranking request to use external services. Required full-suite, focused-suite, changed-source, immutable-file, independent-validation, and treatment post-edit ranking checks remain. Legacy default unit-first behavior is unchanged. Parent validation: 584 tests passed, including per-run prompt isolation and modified-evidence rejection. No model-backed run has occurred for this profile, and no benefit is inferred from these offline tests.
+
 ## VCR276 — Autonomous baseline comparison requirements
 
 Historical cross-layer test-order trials prescribed baseline unit-first and checked that policy. Their results compare an advisor against that fixed sequence; they do not establish an advantage over an autonomous Codex test-order decision. Those receipts remain unchanged.
