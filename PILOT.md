@@ -1,3 +1,9 @@
+## VCR305 — First frozen feasibility results retained
+
+Three pairs ran once before a coordinator failure. P-F1: baseline 19139.22 ms, treatment 22968.10 ms; P-F2: baseline 30443.22 ms, treatment 29982.84 ms. Both pretask pairs passed frozen independent and mandatory checks and acknowledged remote advice before tools. Results are mixed; combined treatment time is 3368.50 ms higher. Each treatment request reported 368 input / 44 output tokens and USD 0.000015456.
+
+T-F1 failed required observational gates: baseline focused/full checks were not verified and treatment advice phase was unverified. Independent source checks passing does not override these failures. The coordinator then raised on its own premarked T-F2 skip before writing its ledger. Attempted pairs remain retained; no retries, historical rescoring or efficacy claim. T-F2 and both triage pairs were not executed. VCR304 repairs checkpoint/skip handling before any recovery of unattempted cases under the original limits. The main 20-pair cohort has not started.
+
 ## VCR302 — All three remote routes wired into coordinator
 
 The frozen coordinator now forwards the opt-in supervisor timeout bridge, validates its route contract and requires key presence without recording credentials. Pretask remains supervisor-selected/keyless-agent; test ordering retains equal-arm API environments. Source execution identity is distinguished from informational installed package metadata. Nine targeted coordinator tests pass. No live paired task or benefit claim yet; the fixed feasibility schedule is the next execution gate.
