@@ -95,6 +95,8 @@ For assertion failures, the source candidate also accepts verified `--assertion-
 
 For timeouts, the source CLI also accepts repeatable `--timeout-observation` enum facts verified locally. An unsatisfiable wait condition selects the existing wait-condition check locally; observed contention **together with** progress and a satisfiable wait selects the resource-contention check. Conflicting facts abstain. Partial facts can inform an already eligible ambiguous choice; they do not create an API call by themselves. These are next-check suggestions, not confirmed causes, and the original failing exit remains unchanged. Example: `jevcompass triage --exit-code 1 --kind timeout --hypothesis timeout_contention --hypothesis timeout_nonterminating --timeout-observation wait_condition_unsatisfiable --json`.
 
+Triage JSON now includes a fixed `decision_reason` and each step's `selection_source`: a remotely preferred next action, locally resolved guidance, or an unranked local fallback. `hypothesis_ranking_status` remains `not_established`: choosing the next diagnostic action does not establish which cause is most likely. These fields describe the source checkout; the published package remains unchanged.
+
 ## Add your own installed skill
 
 The built-in catalog cannot know when a private skill fits your work. Register a short, generic description explicitly, after reading its `SKILL.md` and checking the fields you are willing to share:

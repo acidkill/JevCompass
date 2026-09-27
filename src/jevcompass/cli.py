@@ -412,7 +412,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "recommend":
         return _recommend(args.category, args.domain, args.role)
     if args.command == "triage":
-        from .triage import triage_failure
+        from .triage import TriageDecisionReason, triage_failure
         result = triage_failure(
             tuple(FailureKind(item) for item in args.kind),
             tuple(HypothesisId(item) for item in args.hypothesis),
@@ -427,22 +427,56 @@ def main(argv: list[str] | None = None) -> int:
                 TimeoutObservation(item) for item in (args.timeout_observation or ())
             ),
         )
-        payload = {"observed_exit_status": result.observed_exit_status,
-                   "test_failed": result.test_failed, "status": result.status,
-                   "steps": [{"id": step.id.value, "title": step.title,
-                              "instruction": step.instruction} for step in result.steps],
-                   "executed": False,
-                   "decision_usage": ({"input_tokens": result.decision_usage.input_tokens,
-                                       "output_tokens": result.decision_usage.output_tokens,
-                                       "cost_usd": result.decision_usage.cost_usd}
-                                      if result.decision_usage is not None else None)}
+        try:
+            reason_value = TriageDecisionReason(result.decision_reason).value
+        except (TypeError, ValueError):
+            reason_value = None
+        steps = []
+        for index, step in enumerate(result.steps):
+            if reason_value == TriageDecisionReason.ACCEPTED.value and index == 0:
+                selection_source = "remote_preferred_next_step"
+            elif reason_value == TriageDecisionReason.LOCAL_RESOLUTION.value:
+                selection_source = "locally_resolved_guidance"
+            else:
+                selection_source = "unranked_local_fallback"
+            steps.append({
+                "id": step.id.value,
+                "title": step.title,
+                "instruction": step.instruction,
+                "selection_source": selection_source,
+            })
+        payload = {
+            "observed_exit_status": result.observed_exit_status,
+            "test_failed": result.test_failed,
+            "status": result.status,
+            "decision_reason": reason_value,
+            "hypothesis_ranking_status": "not_established",
+            "steps": steps,
+            "executed": False,
+            "decision_usage": (
+                {
+                    "input_tokens": result.decision_usage.input_tokens,
+                    "output_tokens": result.decision_usage.output_tokens,
+                    "cost_usd": result.decision_usage.cost_usd,
+                } if result.decision_usage is not None else None
+            ),
+        }
         if args.json:
             print(json.dumps(payload))
         else:
-            print(f"Observed test exit: {result.observed_exit_status}; diagnostic order ({result.status}):")
-            for step in result.steps:
-                print(f"- {step.id.value}: {step.instruction}")
-            if not result.steps:
+            print(
+                f"Observed test exit: {result.observed_exit_status}; "
+                f"next diagnostic action ({result.status}); "
+                "hypothesis ranking not established:"
+            )
+            for step in steps:
+                label = {
+                    "remote_preferred_next_step": "Preferred next action",
+                    "locally_resolved_guidance": "Locally resolved guidance",
+                    "unranked_local_fallback": "Unranked fallback",
+                }[step["selection_source"]]
+                print(f"- {label} [{step['id']}]: {step['instruction']}")
+            if not steps:
                 print("No safe diagnostic choice; inspect the original failure locally.")
         return 0
     if args.command == "strategy":
