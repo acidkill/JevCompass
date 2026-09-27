@@ -1000,3 +1000,10 @@ This pair is excluded from successful-completion efficacy claims. It used copied
 Added an explicit `jevcompass install --strategy-advice` hook option for conservative pretask strategy guidance on eligible coding prompts; default install remains unchanged and reinstall preserves the opt-in until `--disable-strategy-advice`. The bridge sends only allowlisted request-scope signals to the typed selector, never infers verified contract or test facts, and does not make a second generic catalog decision call. Cached choice is labeled separately; local tool/skill advice is retained only when it fits the existing context bound. The selector and hook keep existing timeout/fail-soft behavior and apply across permission modes.
 
 Focused bridge/install/advisor/product-contract tests passed (73 tests). Full-suite and graph verification are tracked in the corresponding PILOT entry. No paid API call or effectiveness claim.
+
+
+## VCR365 — Hook-to-selector transport integration test
+
+Added an offline integration test that runs the opted-in hook through the real typed strategy selector and a fake DecisionsClient transport. It verifies the allowlisted request excludes prompt/private text, only one transport request occurs, the generic selector is not called, and remote acceptance, invalid choice, low confidence, transport failure and a validated cache hit receive the expected provenance. Focused command passed 3 tests; no product code, live API request or efficacy claim.
+
+Parent validation: full unittest discovery passed 742 tests in 30.386 seconds; graph refresh completed with 3,035 nodes, 6,090 edges and 190 communities.
