@@ -38,6 +38,56 @@ class ContractEvidenceTests(unittest.TestCase):
                 self.assertEqual([item.id for item in result.recommendations],
                                  [StrategyId.DEFINE_CONTRACT_THEN_IMPLEMENT])
 
+    def test_conflicting_evidence_advice_supports_plan_resolution(self):
+        for evidence in (ContractEvidence.CONFLICTING.value, ContractEvidence.ABSENT.value):
+            with self.subTest(evidence=evidence):
+                result = self.local_choice(evidence)
+                rationale = result.recommendations[0].rationale.lower()
+                self.assertIn("establish the required behavior and precedence", rationale)
+                self.assertIn("resolving any conflict explicitly", rationale)
+                self.assertIn("if a failure is provided", rationale)
+                self.assertIn("preserve its original test and symptom", rationale)
+                self.assertIn("regression that distinguishes", rationale)
+                self.assertIn("mandatory validation commands", rationale)
+                self.assertNotIn("the failing test", rationale)
+
+    def test_contract_resolution_guidance_stays_out_of_scope(self):
+        consistent = self.local_choice(ContractEvidence.CONSISTENT.value)
+        self.assertNotIn(
+            "establish the required behavior",
+            consistent.recommendations[0].rationale.lower(),
+        )
+
+        with patch("jevcompass.strategy.DecisionsClient", side_effect=AssertionError("client constructed")) as factory:
+            other_kind = choose_strategies(
+                "testing", CODING_PAIR, contract_evidence=ContractEvidence.CONFLICTING,
+            )
+        factory.assert_not_called()
+        self.assertEqual(other_kind.status, "no-remote-choice")
+        self.assertEqual(len(other_kind.recommendations), 1)
+        self.assertNotIn(
+            "establish the required behavior",
+            other_kind.recommendations[0].rationale.lower(),
+        )
+
+        client = Mock()
+        client.decide.return_value = {
+            "strategy": {
+                "type": "choice",
+                "choice": StrategyId.DEFINE_CONTRACT_THEN_IMPLEMENT.value,
+                "confidence": 0.9,
+            }
+        }
+        remote = choose_strategies(
+            "coding", CODING_PAIR, client=client,
+            contract_evidence=ContractEvidence.UNKNOWN,
+        )
+        self.assertEqual(remote.status, "remote-choice")
+        self.assertNotIn(
+            "establish the required behavior",
+            remote.recommendations[0].rationale.lower(),
+        )
+
     def test_explicit_resolution_must_agree_with_contract_evidence(self):
         agreed = self.local_choice(
             ContractEvidence.CONSISTENT.value,

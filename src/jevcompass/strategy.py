@@ -233,7 +233,8 @@ class _MeteredAnswers:
 
 
 def _recommendation(
-    strategy: _Strategy, signals: frozenset[TaskSignal],
+    strategy: _Strategy, signals: frozenset[TaskSignal], *,
+    resolve_contract_evidence: bool = False,
 ) -> StrategyRecommendation:
     rationale = strategy.rationale
     if (
@@ -241,6 +242,14 @@ def _recommendation(
         and TaskSignal.DEPENDENCY_CHANGE in signals
     ):
         rationale = f"{rationale} {_DEPENDENCY_MIGRATION_GUIDANCE}"
+    if resolve_contract_evidence:
+        rationale = (
+            f"{rationale} Before editing, establish the required behavior and "
+            "precedence from available evidence, resolving any conflict explicitly. "
+            "If a failure is provided, preserve its original test and symptom; add "
+            "a regression that distinguishes the plausible rules, and retain all "
+            "mandatory validation commands."
+        )
     return StrategyRecommendation(id=strategy.id, rationale=rationale)
 
 
@@ -303,7 +312,15 @@ def choose_strategies(
         for strategy, _score in ranked:
             if strategy.id == resolved_id:
                 return StrategyResult(
-                    (_recommendation(strategy, signal_set),),
+                    (_recommendation(
+                        strategy, signal_set,
+                        resolve_contract_evidence=(
+                            contract_resolution is StrategyId.DEFINE_CONTRACT_THEN_IMPLEMENT
+                            and evidence_id in {
+                                ContractEvidence.CONFLICTING, ContractEvidence.ABSENT,
+                            }
+                        ),
+                    ),),
                     "no-remote-choice",
                 )
         return StrategyResult((), "no-remote-choice")
