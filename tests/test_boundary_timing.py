@@ -22,6 +22,10 @@ class BoundaryTimingTests(unittest.TestCase):
         self.assertEqual(result["first_useful_error_ms"], 2000)
         self.assertEqual(result["first_useful_error_status"], "observed")
 
+    def test_complete_frozen_suite_summary_without_names(self):
+        result = self.receipt(0, "Ran 2 tests in 0.2s\n\nOK\n")
+        self.assertEqual(result["first_successful_relevant_check_ms"], 2000)
+
     def test_unrelated_or_partial_output_and_missing_time_are_unscored(self):
         for code, output, times in [
             (0, "OK", [1, 2]),

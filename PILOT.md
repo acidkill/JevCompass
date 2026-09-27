@@ -2,6 +2,10 @@
 
 ## Status
 
+### VCR-256-N event-shape diagnostic (2026-09-27)
+
+A diagnostic pair with identical prompts reported completed exact contract commands with timestamps, exit0 and OK, but no mapping-test name in exposed output. Boolean-only diagnostics retained no raw output. Added alternate success recognition for a complete `Ran 2 tests in ...` plus final OK summary; bare OK is rejected. Exact command correlation, immutable fixture checks and independent validation remain required. Synthetic summary tests do not prove that live output contains this summary; live alternate-path verification is pending. `/tmp/jev-boundary-shape-20260927-01` is diagnostic evidence, not a treatment comparison.
+
 ### VCR-256-M guidance-only pair (2026-09-27)
 
 Seed258 treatment-first, same boundary hash/model/settings; treatment received the full current focused-tests skill in its prompt rather than a forced rank command. Treatment21,035.77ms,92,126 input/84,480 cached/592 output tokens; baseline15,783.06ms,58,397 input/52,224 cached/450 output. Both selected contract, preserved immutable files and passed required/independent validation; ranking was not invoked. Treatment5,252.71ms slower; no benefit or causal overhead claim. Prompt injection is a guidance experiment, not automatic skill discovery. First successful relevant check remained null in both arms despite observed successful contract exits, so real event/output compatibility is not accepted; raw events were not retained and cannot be retrospectively inspected. Billing/blind quality remain unknown. Receipts `/tmp/jev-boundary-skill-20260927-01`. Next: privacy-safe event-shape diagnostics and reassess usefulness beyond this locally obvious task.

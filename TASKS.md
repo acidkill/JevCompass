@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-256-N — live event-shape timing repair
+
+A synthetic diagnostic pair confirmed exact contract completion with output, timestamp, exit0 and OK but no test-name marker. Added a strict alternate success path requiring the complete two-test summary plus final OK for the matched frozen contract command; bare OK remains insufficient. Full task acceptance still requires immutable files and independent suites. Offline summary test passes; live verification of this alternate remains pending. Diagnostic pair had identical guidance, so is not efficacy evidence.
+
 ### VCR-256-M — focused-skill adoption pair
 
 Ran the unchanged boundary task with full updated skill text injected into treatment, without forced ranking. Both arms chose contract and passed all required/independent checks; neither invoked ranking. Treatment21.036s versus baseline15.783s: no benefit established. Timing field remained null despite successful contract execution; real event compatibility must be investigated without claiming instrumentation acceptance. Prompt-injected guidance is not proof of automatic skill discovery.
