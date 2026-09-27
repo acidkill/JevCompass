@@ -1616,3 +1616,9 @@ The process exited 0 after 9,845.24 ms. Raw JSONL assistant event 5 reported adv
 The original receipt retains `strategy_id_before_tool: null`: its parser expected a full hook block rather than the agent's `Strategy ID:` report. The strategy above is a separate raw-event inspection, not a rerun or historical acceptance rescore. The synthetic file contains literal escaped newline sequences, so this read-only fixture does not establish executable Python correctness. The generic catalog metric says `low-signal-skip`; that does not mean the strategy context was absent, and its duration is not total hook latency.
 
 Private evidence SHA-256: events `834c4177ba89f1ec02ea77cec2ab6ea350f50e07641b91f4f53c7ecf946774dc`; original receipt `cd263b3354ba6e68a7c0603b89ae8bf0ebbaec51fb748a80a2c42f65a1d8be95`; runner `31f3448dce6fa1c26835f01102cbf9e7d349359fff6b9d76e2a117fba52a72db`. No replay was performed.
+
+### VCR366 — Opt-in strategy evaluation diagnostic (2026-09-27)
+
+The diagnostic log now records total strategy-enabled `evaluate()` duration separately from the existing generic catalog metric, which can report a low-signal skip even when strategy advice was delivered. This metric is emitted only when both the strategy bridge and diagnostics are enabled; fixed labels distinguish accepted/local-fallback/abstained/error outcomes and local/remote/cached source. No prompt, response prose, paths or usage values are logged. Focused offline tests passed 4 cases, including a controlled four-second selector interval, privacy allowlist, cached/error provenance and unchanged default diagnostics. This verifies measurement scope only; it makes no performance or quality claim.
+
+Parent validation: full discovery passed 746 tests in 30.368 seconds; after the default-call compatibility adjustment, 53 advisor and diagnostic tests passed in 0.152 seconds. Graph refresh completed: 3,048 nodes, 6,123 edges, 196 communities.
