@@ -1540,3 +1540,24 @@ Readable strategy and test-order headings now identify a cached decision and no 
 An immutable archive of source `d4b14ba90bebaa08c4d527cc97a932251cbd2462` built a wheel whose SHA-256 is `3fac2a585b32ccd68d1e093ea6300874d36a71ef87727c68ddcab30e7d3a8cc9`. Installed with `pip install --no-deps --no-index` into a private venv, it passed `pip check`, installed CLI help/version, and inspection for the typed-cache module and readable provenance labels. The source wheel still reports 0.1.22; it is distinct from the existing published 0.1.22 artifact. No release, upload or global installation change occurred.
 
 Offline installed-wheel checks passed: locally resolved strategy used `no-remote-choice` with null usage; local test ordering preserved focused/full required commands and `executed: false`. A guard prohibited remote-client construction. Doctor used a synthetic private profile and stubbed public metadata, so this does not prove live model availability. No live API or paid decision was made. This verifies a private venv installation, not pipx upgrade, native host delivery or coding-time benefit.
+
+## VCR349 — Completed triage coding comparison, negative timing result
+
+A single preregistered pair used source `aeec616634b403a3a274314eaa788a5c2cc036e1`, gpt-6-luna/low, seed 349 (baseline first), equivalent private Git fixtures and cache disabled. Both initial focused/full checks failed. Final preregistration SHA-256 `d411ec49567282bdb94e060066c4b0661c693ad28338034967442f465488ea53`; private summary SHA-256 `b030f242ca8cb7ef1e29958de88ceb69c90d4ccd30cce8a54bbd300a19879520`. Initial preregistration preceded the one decision request; returned advice was recorded before either arm. No retry or historical rescoring.
+
+Both CLI runs exited 0. Raw completed-command events confirm separate focused test, full test and `git diff --check` invocations, all exit 0 in both arms; the generic summary classifier recognized only the full check. Independent frozen focused/full/diff checks also passed and tests stayed unchanged. Advice was inserted before execution through the private wrapper; this does not establish native hook delivery or agent acknowledgment.
+
+| Observation | Baseline | JevCompass |
+|---|---:|---:|
+| Agent elapsed | 28,262.31 ms | 30,553.60 ms |
+| Per-arm profile/Git setup | 55.71 ms | 51.64 ms |
+| Independent validation | 178.40 ms | 181.89 ms |
+| First tool from agent start | 6,103.55 ms | 9,165.64 ms |
+| First source read from agent start | 9,715.92 ms | 14,167.68 ms |
+| Input tokens | 123,870 | 125,631 |
+| Cached input subset | 101,888 | 102,912 |
+| Output tokens | 786 | 661 |
+
+Treatment had an additional **611 ms** accepted remote decision selecting `assertion_expectation_drift`, with 400 input/53 output tokens and provider-reported USD 0.0000168. This selected a diagnostic next step, not an established ranking of hypothesis likelihood. Agent time was 2,291.29 ms longer with advice; measured setup + advice + agent + independent validation totaled 28,496.42 ms baseline and 31,398.13 ms treatment. Overall shared/manual preparation was not instrumented, first useful error was not established, and coding-provider cost is unknown. Cache tokens are a subset of input, not additional tokens.
+
+Both final implementations passed the frozen tests, but this pair shows no speed or demonstrated quality gain. Retain the negative result. One sequential pair with differing model-cache usage cannot establish causal or general effects.
