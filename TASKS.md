@@ -1,3 +1,7 @@
+## VCR329 — Plan-quality assessment protocol
+
+Prepared [plan quality protocol](tests/evaluation/plan_quality_protocol.md): equal task evidence, predeclared task-specific scoring, critical mandatory-check failures, blinded assessment, separate implementation validation and explicit timing scopes. A concrete task design is still pending; no plan-quality comparison or benefit is claimed. This documentation does not start or repeat any trial.
+
 ## VCR326 — Prospective preparation timing
 
 Separate monotonic shared setup/authentication, fixture preparation per arm, fixture parity, arm execution and base gate validation. Preserve existing agent completion fields and unknown measurements; shared costs are not divided between variants. Extended arm execution includes independent checks performed inside that call, but wrapper postprocessing and receipt serialization require their own scope. Two mocked-clock timing tests pass, including exact preparation-inclusive elapsed time and missing-completion preservation. Graphify refreshed (2860 nodes, 5724 edges). All 700 Python tests passed in 29.907 seconds; hosted CI remains the merge gate. No new live pair or historical rescore.
