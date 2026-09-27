@@ -354,6 +354,74 @@ def _cli_command(codex: str, model: str, reasoning_effort: str, prompt: str, *, 
     return [*command, prompt]
 
 
+def _elapsed_ms_since(started: float) -> float | None:
+    """Measure a duration from a monotonic start, or retain unknown as None."""
+    try:
+        ended = time.monotonic()
+        elapsed = (ended - started) * 1000
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if not math.isfinite(elapsed) or elapsed < 0:
+        return None
+    return round(elapsed, 2)
+
+
+def _known_nonnegative_finite_ms(value: Any) -> float | None:
+    """Normalize a supplied duration without turning malformed/huge values into zero."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if not math.isfinite(numeric) or numeric < 0:
+        return None
+    return round(numeric, 2)
+
+
+def _pair_timing_receipt(
+    pair_started: float, *,
+    shared_setup_ms: float | None,
+    shared_auth_preparation_ms: float | None,
+    fixture_parity_check_ms: float | None,
+    per_arm_fixture_auth_preparation_ms: dict[str, float | None],
+    per_arm_run_arm_ms: dict[str, float | None],
+    per_arm_validation_status: dict[str, str | None],
+    per_arm_validation_ms: dict[str, float | None],
+    post_run_gate_validation_ms: float | None,
+) -> dict[str, Any]:
+    """Expose only measured monotonic durations and explicit unavailable validation."""
+    return {
+        "clock": "time.monotonic",
+        "total_pair_elapsed_ms": _elapsed_ms_since(pair_started),
+        "shared_setup_elapsed_ms": shared_setup_ms,
+        "shared_auth_preparation_elapsed_ms": shared_auth_preparation_ms,
+        "fixture_parity_check_elapsed_ms": fixture_parity_check_ms,
+        "per_arm_fixture_auth_preparation_elapsed_ms": {
+            label: per_arm_fixture_auth_preparation_ms.get(label)
+            for label in ("arm-a", "arm-b")
+        },
+        "per_arm_run_arm_elapsed_ms": {
+            label: per_arm_run_arm_ms.get(label) for label in ("arm-a", "arm-b")
+        },
+        "per_arm_independent_validation_status": {
+            label: per_arm_validation_status.get(label) for label in ("arm-a", "arm-b")
+        },
+        "per_arm_independent_validation_elapsed_ms": {
+            label: per_arm_validation_ms.get(label) for label in ("arm-a", "arm-b")
+        },
+        "post_run_gate_validation_elapsed_ms": post_run_gate_validation_ms,
+        "independent_validation_timing_scope": (
+            "Any validation performed inside _run_arm is included in that arm's run-arm "
+            "duration; separate validation duration is reported only when the runner returns it."
+        ),
+        "total_elapsed_scope": (
+            "base runner through gate evaluation before receipt serialization; excludes "
+            "wrapper postprocessing and serialization"
+        ),
+    }
+
+
 def _run_arm(
     *, codex: str, model: str, reasoning_effort: str, prompt: str,
     fixture: Path, home: Path, timeout: int, allow_openrouter_key: bool,
@@ -450,6 +518,7 @@ def run_pair(
         raise FileNotFoundError("synthetic coding fixture is unavailable")
     if allow_openrouter_key and not os.environ.get("OPENROUTER_API_KEY"):
         raise ValueError("the opted-in API key is unavailable")
+    pair_started = time.monotonic()
     try:
         output_dir.mkdir(mode=0o700, parents=True, exist_ok=False)
     except FileExistsError as error:
@@ -464,19 +533,43 @@ def run_pair(
         arm_labels = {"treatment": "arm-a", "baseline": "arm-b"}
     run_id = uuid.uuid4().hex
     source_auth = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")) / "auth.json"
+    shared_setup_ms: float | None = None
+    shared_auth_preparation_ms: float | None = None
+    fixture_parity_check_ms: float | None = None
+    per_arm_fixture_auth_preparation_ms: dict[str, float | None] = {
+        "arm-a": None, "arm-b": None,
+    }
+    per_arm_run_arm_ms: dict[str, float | None] = {"arm-a": None, "arm-b": None}
+    per_arm_validation_status: dict[str, str | None] = {"arm-a": None, "arm-b": None}
+    per_arm_validation_ms: dict[str, float | None] = {"arm-a": None, "arm-b": None}
+    post_run_gate_validation_ms: float | None = None
+    shared_setup_started = time.monotonic()
 
     with tempfile.TemporaryDirectory(prefix="jev-test-order-pair-") as temporary:
         private_root = Path(temporary)
         os.chmod(private_root, 0o700)
+        shared_setup_ms = _elapsed_ms_since(shared_setup_started)
         auth_snapshot = private_root / "auth-snapshot.json"
+        shared_auth_started = time.monotonic()
         try:
             auth_ok = core._copy_auth(source_auth, auth_snapshot)
         except OSError:
             auth_ok = False
+        shared_auth_preparation_ms = _elapsed_ms_since(shared_auth_started)
         if not auth_ok:
             receipt = {
                 "schema_version": 1, "run_id": run_id, "status": "failed",
                 "failure": "auth_unavailable", "arms": {},
+                "timing": _pair_timing_receipt(
+                    pair_started, shared_setup_ms=shared_setup_ms,
+                    shared_auth_preparation_ms=shared_auth_preparation_ms,
+                    fixture_parity_check_ms=fixture_parity_check_ms,
+                    per_arm_fixture_auth_preparation_ms=per_arm_fixture_auth_preparation_ms,
+                    per_arm_run_arm_ms=per_arm_run_arm_ms,
+                    per_arm_validation_status=per_arm_validation_status,
+                    per_arm_validation_ms=per_arm_validation_ms,
+                    post_run_gate_validation_ms=post_run_gate_validation_ms,
+                ),
             }
             if max_tokens is not None:
                 receipt["max_tokens_per_arm"] = max_tokens
@@ -491,14 +584,28 @@ def run_pair(
         homes: dict[str, Path] = {}
         digests: dict[str, str] = {}
         for true_arm in ("baseline", "treatment"):
+            label = arm_labels[true_arm]
+            arm_prep_started = time.monotonic()
             fixtures[true_arm] = private_root / f"{true_arm}-fixture"
             homes[true_arm] = private_root / f"{true_arm}-home"
             digests[true_arm] = _copy_identical_fixture(fixture_source, fixtures[true_arm])
             arm_auth = homes[true_arm] / ".codex" / "auth.json"
-            if not core._copy_auth(auth_snapshot, arm_auth):
+            auth_ready = core._copy_auth(auth_snapshot, arm_auth)
+            per_arm_fixture_auth_preparation_ms[label] = _elapsed_ms_since(arm_prep_started)
+            if not auth_ready:
                 receipt = {
                     "schema_version": 1, "run_id": run_id, "status": "failed",
                     "failure": "auth_setup_failed", "arms": {},
+                    "timing": _pair_timing_receipt(
+                        pair_started, shared_setup_ms=shared_setup_ms,
+                        shared_auth_preparation_ms=shared_auth_preparation_ms,
+                        fixture_parity_check_ms=fixture_parity_check_ms,
+                        per_arm_fixture_auth_preparation_ms=per_arm_fixture_auth_preparation_ms,
+                        per_arm_run_arm_ms=per_arm_run_arm_ms,
+                        per_arm_validation_status=per_arm_validation_status,
+                        per_arm_validation_ms=per_arm_validation_ms,
+                        post_run_gate_validation_ms=post_run_gate_validation_ms,
+                    ),
                 }
                 if max_tokens is not None:
                     receipt["max_tokens_per_arm"] = max_tokens
@@ -508,7 +615,10 @@ def run_pair(
                         "missing or malformed, budget usage is unknown."
                     )
                 return receipt
-        if digests["baseline"] != digests["treatment"]:
+        parity_started = time.monotonic()
+        parity_verified = digests["baseline"] == digests["treatment"]
+        fixture_parity_check_ms = _elapsed_ms_since(parity_started)
+        if not parity_verified:
             raise RuntimeError("fixture parity verification failed")
 
         arms: dict[str, dict[str, Any]] = {}
@@ -522,8 +632,33 @@ def run_pair(
             )
             if max_tokens is not None:
                 arm_kwargs["max_tokens"] = max_tokens
+            arm_run_started = time.monotonic()
             arms[label] = _run_arm(**arm_kwargs)
+            per_arm_run_arm_ms[label] = _elapsed_ms_since(arm_run_started)
             arms[label]["fixture_sha256_before"] = digests[true_arm]
+            raw_validation_ms = arms[label].get(
+                "independent_validation_elapsed_ms",
+                arms[label].get("independent_validation_ms"),
+            )
+            per_arm_validation_status[label] = (
+                "included_in_run_arm_elapsed"
+                if "independent_validation" in arms[label]
+                else "not_reported_by_runner"
+            )
+            per_arm_validation_ms[label] = _known_nonnegative_finite_ms(raw_validation_ms)
+            completion_ms = arms[label].get("completion_ms")
+            completion_observed = _known_nonnegative_finite_ms(completion_ms) is not None
+            arms[label]["timing"] = {
+                "fixture_auth_preparation_elapsed_ms": (
+                    per_arm_fixture_auth_preparation_ms[label]
+                ),
+                "run_arm_elapsed_ms": per_arm_run_arm_ms[label],
+                "agent_completion_status": (
+                    "observed" if completion_observed else "unavailable"
+                ),
+                "independent_validation_status": per_arm_validation_status[label],
+                "independent_validation_elapsed_ms": per_arm_validation_ms[label],
+            }
             if max_tokens is not None:
                 arms[label]["max_tokens_per_arm"] = max_tokens
                 usage_status = arms[label].get("token_usage_status")
@@ -533,6 +668,7 @@ def run_pair(
                     else "usage_unknown"
                 )
 
+        post_run_validation_started = time.monotonic()
         original = _safe_final_artifact(fixture_source)
         artifacts_captured: dict[str, bool] = {}
         for true_arm in ("baseline", "treatment"):
@@ -559,6 +695,7 @@ def run_pair(
             and all(item["exit_code"] == 0 for item in result["focused_test_exits"])
             for result in arms.values()
         )
+        post_run_gate_validation_ms = _elapsed_ms_since(post_run_validation_started)
         receipt = {
             "schema_version": 1,
             "run_id": run_id,
@@ -571,6 +708,16 @@ def run_pair(
             "required_gate_id": "full",
             "artifacts_captured": artifacts_captured,
             "arms": arms,
+            "timing": _pair_timing_receipt(
+                pair_started, shared_setup_ms=shared_setup_ms,
+                shared_auth_preparation_ms=shared_auth_preparation_ms,
+                fixture_parity_check_ms=fixture_parity_check_ms,
+                per_arm_fixture_auth_preparation_ms=per_arm_fixture_auth_preparation_ms,
+                per_arm_run_arm_ms=per_arm_run_arm_ms,
+                per_arm_validation_status=per_arm_validation_status,
+                per_arm_validation_ms=per_arm_validation_ms,
+                post_run_gate_validation_ms=post_run_gate_validation_ms,
+            ),
         }
         if max_tokens is not None:
             receipt["max_tokens_per_arm"] = max_tokens

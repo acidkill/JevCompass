@@ -1,3 +1,7 @@
+## VCR326 — Prospective preparation timing
+
+The upcoming receipt separates measured shared preparation from each arm's fixture/authentication preparation and complete runner call. Existing agent completion remains separate. Unknown independent-validation breakdowns stay null even when included in arm elapsed time. Base-runner elapsed time excludes outer wrapper postprocessing and serialization; it is not an invented end-to-end duration. Two mocked-clock timing tests passed; graphify refreshed (2860 nodes, 5724 edges). All 700 Python tests passed in 29.907 seconds; hosted CI remains the merge gate. VCR323 preparation remains unrecorded and its failed result is unchanged; no live trial has been restarted.
+
 ## VCR324 — Local test-order audit
 
 Reviewed the roster candidates against existing local dominance rules. Both checks are direct, but the faster unit check targets internal behavior while integration also targets the changed public contract. Curated target metadata is not exhaustive coverage evidence, so timing alone cannot establish dominance. No production rule or confidence threshold changed. VCR323 remains a failed, abstained pair excluded from efficacy comparisons; its latency does not justify forcing a local or remote choice. Mandatory checks remain unchanged. The audit checkpoint was confirmed in smem.
