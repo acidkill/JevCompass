@@ -550,3 +550,13 @@ Important limits: the Codex event has no reliable task objective; the article th
 - [x] Close merged guidance/fixture delivery gates using authoritative PR CI results.
 - [x] Distinguish pending runners, measured local outcome, remote efficacy and native Desktop acceptance.
 - [ ] Merge documentation after green hosted CI. Overall goal remains incomplete.
+
+
+## VCR-264-C — condition timeout correctness fixture
+
+- [x] Add stdlib condition-backed FIFO fixture with stale readiness state, one allowed source file and immutable behavior contract.
+- [x] Verify five fixture guards: original defect, correct queue predicate, false payload, FIFO and consumption mutants.
+- [x] Check Python condition semantics against CPython documentation through Context7; use bounded real waits without sleeps.
+- [x] Validate exact archived committed scope: all 497 tests passed; graph refreshed in the shared source worktree.
+- [ ] Merge only after green hosted CI.
+- [ ] Freeze a future local triage comparison; this inspectable defect does not prove remote-choice value or benefit.
