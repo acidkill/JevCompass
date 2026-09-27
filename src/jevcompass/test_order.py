@@ -57,6 +57,18 @@ class RuntimeBucket(str, Enum):
     UNKNOWN = "unknown"
 
 
+class DecisionReason(str, Enum):
+    """Bounded explanation for the local test-order decision path."""
+
+    NO_CHOICE_NEEDED = "no_choice_needed"
+    LOCAL_RESOLUTION = "local_resolution"
+    INVALID_RESPONSE = "invalid_response"
+    UNKNOWN_CHOICE = "unknown_choice"
+    INSUFFICIENT_CONFIDENCE = "insufficient_confidence"
+    PROVIDER_ERROR = "provider_error"
+    ACCEPTED = "accepted"
+
+
 KIND_DESCRIPTORS: dict[TestKind, str] = {
     TestKind.UNIT: "unit test suite",
     TestKind.INTEGRATION: "integration test suite",
@@ -100,6 +112,7 @@ class TestOrderResult:
     required: tuple[RequiredTest, ...]
     status: Literal["remote-choice", "no-remote-choice"]
     usage: DecisionUsage | None = None
+    decision_reason: DecisionReason | None = None
 
     @property
     def ordered_ids(self) -> tuple[str, ...]:
@@ -193,7 +206,10 @@ def rank_tests(
     mandatory = tuple(_required(item) for item in required)
     fallback = _local_order(local_candidates)
     if len(local_candidates) < 2:
-        return TestOrderResult(fallback, mandatory, NO_REMOTE_CHOICE)
+        return TestOrderResult(
+            fallback, mandatory, NO_REMOTE_CHOICE,
+            decision_reason=DecisionReason.NO_CHOICE_NEEDED,
+        )
 
     # Keep the established Python unit-before-contract rule only for legacy
     # inputs without informative coverage/runtime metadata.
@@ -205,7 +221,10 @@ def rank_tests(
         unit = next(item for item in local_candidates if item.kind is TestKind.UNIT)
         contract = next(item for item in local_candidates if item.kind is TestKind.CONTRACT)
         if unit.relevance >= contract.relevance:
-            return TestOrderResult((unit, contract), mandatory, NO_REMOTE_CHOICE)
+            return TestOrderResult(
+                (unit, contract), mandatory, NO_REMOTE_CHOICE,
+                decision_reason=DecisionReason.LOCAL_RESOLUTION,
+            )
 
     # Skip the remote choice only for the specifically evidenced direct+fast
     # candidate against alternatives that are all indirect+slow.
@@ -220,8 +239,11 @@ def rank_tests(
     ]
     if len(dominant) == 1:
         winner = dominant[0]
-        return TestOrderResult((winner,) + tuple(item for item in fallback if item is not winner),
-                               mandatory, NO_REMOTE_CHOICE)
+        return TestOrderResult(
+            (winner,) + tuple(item for item in fallback if item is not winner),
+            mandatory, NO_REMOTE_CHOICE,
+            decision_reason=DecisionReason.LOCAL_RESOLUTION,
+        )
 
     # With an explicit boundary change and no runtime evidence, prioritize the
     # sole direct check over purely indirect regression checks locally.
@@ -237,6 +259,7 @@ def rank_tests(
         return TestOrderResult(
             (winner,) + tuple(item for item in fallback if item is not winner),
             mandatory, NO_REMOTE_CHOICE,
+            decision_reason=DecisionReason.LOCAL_RESOLUTION,
         )
 
     signatures = {
@@ -244,8 +267,16 @@ def rank_tests(
         for candidate in local_candidates
     }
     scores = sorted((candidate.relevance for candidate in local_candidates), reverse=True)
-    if len(signatures) < 2 or scores[0] - scores[1] > 0.20:
-        return TestOrderResult(fallback, mandatory, NO_REMOTE_CHOICE)
+    if len(signatures) < 2:
+        return TestOrderResult(
+            fallback, mandatory, NO_REMOTE_CHOICE,
+            decision_reason=DecisionReason.NO_CHOICE_NEEDED,
+        )
+    if scores[0] - scores[1] > 0.20:
+        return TestOrderResult(
+            fallback, mandatory, NO_REMOTE_CHOICE,
+            decision_reason=DecisionReason.LOCAL_RESOLUTION,
+        )
 
     opaque_ids = {f"t{index}": candidate for index, candidate in enumerate(local_candidates, start=1)}
     criteria = {
@@ -277,33 +308,73 @@ def rank_tests(
         }
     }
 
+    usage = None
     try:
         decision_client = client if client is not None else DecisionsClient()
-        usage = None
         if isinstance(decision_client, _USAGE_CLIENT_TYPE):
             response = decision_client.decide_with_usage(state, questions)
             if not isinstance(response, DecisionResponse):
-                return TestOrderResult(fallback, mandatory, NO_REMOTE_CHOICE)
+                return TestOrderResult(
+                    fallback, mandatory, NO_REMOTE_CHOICE,
+                    decision_reason=DecisionReason.INVALID_RESPONSE,
+                )
             answers, usage = response.answers, response.usage
         else:
             answers = decision_client.decide(state, questions)
+
         if not isinstance(answers, Mapping) or set(answers) != set(questions):
-            return TestOrderResult(fallback, mandatory, NO_REMOTE_CHOICE, usage)
+            return TestOrderResult(
+                fallback, mandatory, NO_REMOTE_CHOICE, usage,
+                decision_reason=DecisionReason.INVALID_RESPONSE,
+            )
         answer = answers.get("first")
         if not isinstance(answer, Mapping) or answer.get("type") != "choice":
-            return TestOrderResult(fallback, mandatory, NO_REMOTE_CHOICE, usage)
+            return TestOrderResult(
+                fallback, mandatory, NO_REMOTE_CHOICE, usage,
+                decision_reason=DecisionReason.INVALID_RESPONSE,
+            )
         selected_id = answer.get("choice")
+        if not isinstance(selected_id, str):
+            return TestOrderResult(
+                fallback, mandatory, NO_REMOTE_CHOICE, usage,
+                decision_reason=DecisionReason.INVALID_RESPONSE,
+            )
+        if selected_id not in opaque_ids:
+            return TestOrderResult(
+                fallback, mandatory, NO_REMOTE_CHOICE, usage,
+                decision_reason=DecisionReason.UNKNOWN_CHOICE,
+            )
         confidence = answer.get("confidence")
-        if selected_id not in opaque_ids or isinstance(confidence, bool):
-            return TestOrderResult(fallback, mandatory, NO_REMOTE_CHOICE, usage)
-        if not isinstance(confidence, (int, float)):
-            return TestOrderResult(fallback, mandatory, NO_REMOTE_CHOICE, usage)
-        confidence_value = float(confidence)
-        if (not math.isfinite(confidence_value) or confidence_value < CONFIDENCE_THRESHOLD
-                or confidence_value > 1.0):
-            return TestOrderResult(fallback, mandatory, NO_REMOTE_CHOICE, usage)
+        if isinstance(confidence, bool) or not isinstance(confidence, (int, float)):
+            return TestOrderResult(
+                fallback, mandatory, NO_REMOTE_CHOICE, usage,
+                decision_reason=DecisionReason.INVALID_RESPONSE,
+            )
+        try:
+            confidence_value = float(confidence)
+        except (OverflowError, TypeError, ValueError):
+            return TestOrderResult(
+                fallback, mandatory, NO_REMOTE_CHOICE, usage,
+                decision_reason=DecisionReason.INVALID_RESPONSE,
+            )
+        if not math.isfinite(confidence_value) or confidence_value > 1.0:
+            return TestOrderResult(
+                fallback, mandatory, NO_REMOTE_CHOICE, usage,
+                decision_reason=DecisionReason.INVALID_RESPONSE,
+            )
+        if confidence_value < CONFIDENCE_THRESHOLD:
+            return TestOrderResult(
+                fallback, mandatory, NO_REMOTE_CHOICE, usage,
+                decision_reason=DecisionReason.INSUFFICIENT_CONFIDENCE,
+            )
         selected = opaque_ids[selected_id]
         ordered = (selected,) + tuple(candidate for candidate in fallback if candidate is not selected)
-        return TestOrderResult(ordered, mandatory, REMOTE_CHOICE, usage)
+        return TestOrderResult(
+            ordered, mandatory, REMOTE_CHOICE, usage,
+            decision_reason=DecisionReason.ACCEPTED,
+        )
     except Exception:
-        return TestOrderResult(fallback, mandatory, NO_REMOTE_CHOICE)
+        return TestOrderResult(
+            fallback, mandatory, NO_REMOTE_CHOICE,
+            decision_reason=DecisionReason.PROVIDER_ERROR,
+        )
