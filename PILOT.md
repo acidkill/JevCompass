@@ -1731,3 +1731,9 @@ This integration is an offline measurement capability, not delivery or efficacy 
 ## VCR391 — Profile advice acknowledgment timing
 
 The profile event parser now observes acknowledgment after both legacy and configured valid triage results. A real synthetic event stream verifies acknowledgment before the next tool and distinguishes missing or late acknowledgment. This fixes delivery measurement only; it does not establish native delivery or efficacy.
+
+## VCR389 — Prospective query migration repair fixture
+
+Staged a new synthetic URL query migration task with versioned contracts, historical evidence, immutable tests, and an external hash-pinned oracle. Offline checks establish the expected initial failure, a source-only reference repair, and rejection of protected-file tampering or unexpected files. The oracle independently runs focused/full checks and checks the source patch.
+
+This is preparation, not a launched pair or efficacy evidence. Launch remains gated on symmetric arm Git initialization and observed agent diff validation. The accepted diagnostic metadata includes contract confirmation, but the current runner does not yet request that candidate; causal ranking and diagnostic selection require separate integration.
