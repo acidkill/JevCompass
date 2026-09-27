@@ -1697,3 +1697,11 @@ Frozen evidence SHA-256: preregistration `df0682712651e2f5016931a55c6c9ee13f163e
 ### VCR380 — Prospective strict JSON helper
 
 The new receipt helper accepts a complete JSON object or command output ending in one, while rejecting malformed/nested salvage, duplicate keys, non-finite values (including `1e309`), and trailing prose. Four focused helper tests pass. It does not rewrite or rescore historical receipts and was not used to reinterpret VCR374; no API call or efficacy claim.
+
+### VCR373 — Ranked-triage one-shot measurement error
+
+**Status: paired outcome unavailable.** Only the treatment arm ran; the baseline was not started and no independent checks or pair summary were written. Receipt construction failed after event capture because the runner requested first_action from parse_codex_json_events(), which returns first_tool_start. No retry, rerun, or rescore was performed.
+
+The retained event stream describes an initial focused failure (exit 1), focused rerun (0), full command (0), and diff check (0), without acceptance. No ranked-triage CLI command was observed; provider call count, Jev usage and cost are unavailable. One Codex turn reported 121,386 input tokens (112,640 cached), 720 output, and 0 reasoning tokens. CLI-created config, skills and plugin/cache artifacts were present in the isolated profile; presence does not establish they were enabled or used, and no baseline exists for comparison.
+
+Evidence SHA256: treatment raw JSONL f35f467b4cfc9546e53dd9bb6d01ca078b6776830593f2b4ebff2f4341695221; measurement-error receipt 47e3f12ce2f957fb5d079c98cc515d91088f2b9e984ca216a8f15f832904c3bc. No acceptance or efficacy conclusion.
