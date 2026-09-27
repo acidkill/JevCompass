@@ -96,6 +96,7 @@ class TestCandidate:
     relevance: float = 0.0
     coverage: Coverage | str = Coverage.UNKNOWN
     runtime: RuntimeBucket | str = RuntimeBucket.UNKNOWN
+    coverage_targets: tuple[ChangeSignal | str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -132,19 +133,34 @@ def _enum_value(value: Any, enum_type: type[Enum], fallback: Enum | None) -> Enu
         return fallback
 
 
-def _candidate(item: TestCandidate | Mapping[str, Any]) -> TestCandidate:
+def _coverage_targets(value: Any) -> tuple[tuple[ChangeSignal, ...], bool]:
+    """Normalize only known target enums; report malformed input without retaining it."""
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        return (), False
+    normalized: set[ChangeSignal] = set()
+    for item in value:
+        signal = _enum_value(item, ChangeSignal, None)
+        if signal is None:
+            return (), False
+        normalized.add(signal)
+    return tuple(sorted(normalized, key=lambda signal: signal.value)), True
+
+
+def _candidate(item: TestCandidate | Mapping[str, Any]) -> tuple[TestCandidate, bool]:
     if isinstance(item, TestCandidate):
         kind = _enum_value(item.kind.value if isinstance(item.kind, TestKind) else item.kind,
                            TestKind, TestKind.OTHER)
         coverage = _enum_value(item.coverage, Coverage, Coverage.UNKNOWN)
         runtime = _enum_value(item.runtime, RuntimeBucket, RuntimeBucket.UNKNOWN)
+        targets, targets_valid = _coverage_targets(item.coverage_targets)
         return TestCandidate(kind, str(item.command), item.candidate_id,
-                             _safe_relevance(item.relevance), coverage, runtime)
+                             _safe_relevance(item.relevance), coverage, runtime, targets), targets_valid
     if not isinstance(item, Mapping):
         raise TypeError("invalid-test-candidate")
     kind = _enum_value(item.get("kind"), TestKind, TestKind.OTHER)
     coverage = _enum_value(item.get("coverage"), Coverage, Coverage.UNKNOWN)
     runtime = _enum_value(item.get("runtime"), RuntimeBucket, RuntimeBucket.UNKNOWN)
+    targets, targets_valid = _coverage_targets(item.get("coverage_targets", ()))
     relevance = item.get("relevance", 0.0)
     candidate_id = item.get("id", item.get("candidate_id"))
     return TestCandidate(
@@ -154,7 +170,8 @@ def _candidate(item: TestCandidate | Mapping[str, Any]) -> TestCandidate:
         _safe_relevance(relevance),
         coverage,
         runtime,
-    )
+        targets,
+    ), targets_valid
 
 
 def _required(item: RequiredTest | Mapping[str, Any]) -> RequiredTest:
@@ -195,16 +212,21 @@ def rank_tests(
         signal.value for item in signal_items
         if (signal := _enum_value(item, ChangeSignal, None)) is not None
     }))
-    normalized_candidates = tuple(_candidate(item) for item in candidates)
+    candidate_records = tuple(_candidate(item) for item in candidates)
+    normalized_candidates = tuple(candidate for candidate, _ in candidate_records)
+    coverage_targets_valid = all(valid for _, valid in candidate_records)
     local_candidates = tuple(
         candidate if candidate.candidate_id is not None else TestCandidate(
             candidate.kind, candidate.command, f"t{index}", candidate.relevance,
-            candidate.coverage, candidate.runtime,
+            candidate.coverage, candidate.runtime, candidate.coverage_targets,
         )
         for index, candidate in enumerate(normalized_candidates, start=1)
     )
     mandatory = tuple(_required(item) for item in required)
     fallback = _local_order(local_candidates)
+    if not coverage_targets_valid:
+        # Invalid caller metadata abstains locally; its value is never serialized.
+        return TestOrderResult(fallback, mandatory, NO_REMOTE_CHOICE)
     if len(local_candidates) < 2:
         return TestOrderResult(
             fallback, mandatory, NO_REMOTE_CHOICE,
@@ -293,6 +315,8 @@ def rank_tests(
                 "descriptor": KIND_DESCRIPTORS[candidate.kind],
                 "coverage": candidate.coverage.value,
                 "runtime": candidate.runtime.value,
+                **({"coverage_targets": [target.value for target in candidate.coverage_targets]}
+                   if candidate.coverage_targets else {}),
             }
             for opaque_id, candidate in opaque_ids.items()
         ],

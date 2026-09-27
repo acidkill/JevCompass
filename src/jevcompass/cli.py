@@ -233,7 +233,7 @@ def doctor(*, test_jev: bool = False) -> dict[str, Any]:
 
 
 def _display_test_order(result: Any, as_json: bool) -> int:
-    from .test_order import DecisionReason
+    from .test_order import ChangeSignal, DecisionReason
 
     reason = getattr(result, "decision_reason", None)
     try:
@@ -247,6 +247,9 @@ def _display_test_order(result: Any, as_json: bool) -> int:
             "id": item.candidate_id, "kind": item.kind.value,
             "coverage": item.coverage.value, "runtime": item.runtime.value,
             "command": item.command,
+            **({"coverage_targets": [target.value for target in item.coverage_targets
+                                      if isinstance(target, ChangeSignal)]}
+               if item.coverage_targets else {}),
         } for item in result.ordered_candidates],
         "required": [{"id": item.required_id, "command": item.command}
                      for item in result.required],
