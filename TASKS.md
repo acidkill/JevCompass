@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-256-K — avoid confirmation-only advisor commands
+
+Updated the bundled focused-tests skill to run an evidence-resolved check directly and skip confirmation-only advisor CLI calls. Boundary coverage example and genuinely unresolved optional ranking are distinguished; unknown metadata remains unknown and required gates retained. This follows negative live extra-command evidence; behavior/speed in fresh agents remains unverified.
+
 ### VCR-256-J — optimized local-path live pair
 
 Completed a keyless pair on the unchanged boundary fixture: local contract/unit order, required and independent checks pass, immutable files preserved. Baseline16.551s versus treatment24.670s; extra advisor CLI still adds work without changing the test choice. No speed benefit. API counters remain unknown in receipt, not zero; code tests establish no request. Next: avoid explicit advisor commands for agent-resolved cases and repair task-specific useful-action timing.

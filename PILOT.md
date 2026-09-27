@@ -2,6 +2,10 @@
 
 ## Status
 
+### VCR-256-K execution guidance (2026-09-27)
+
+Bundled focused-test guidance now explicitly avoids a separate ranking command when local coverage evidence already resolves the choice. Optional advice is reserved for materially different unresolved alternatives; mandatory validation remains required. The local-path pair showed that removing API alone did not remove extra agent work. Fresh-agent adoption and measurable benefit remain to be tested; no efficacy claim.
+
 ### VCR-256-J local-path pair (2026-09-27)
 
 Keyless seed256 pair on unchanged boundary fixture: baseline16,551.38ms,58,409 input/52,224 cached/446 output; treatment24,669.52ms,104,463 input/95,488 cached/683 output. Both chose contract and passed required plus independent unit/contract/full checks; immutable files preserved. Treatment ranking returned no-remote-choice contract/unit. Receipt reports 0ms rank latency, which is an event-resolution artifact rather than a measured zero-duration command; API usage is incomplete/null, not proven zero from host events. Offline code tests establish the local skip. One extra CLI step did not demonstrate benefit; treatment was8,118.14ms slower. Do not issue an extra advisor command when the agent has already resolved the direct-coverage choice. Billing, blind quality and useful-action timing remain unscored. Receipts `/tmp/jev-boundary-local-20260927-01`.
