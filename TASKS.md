@@ -1120,3 +1120,8 @@ The runner now writes the bounded redacted measurement to its private output dir
 
 - Completed the offline compatibility audit before any new model/API trial. The existing contract-triage runner remains tied to the VCR349 invoice case: prompts, focused failure signature, evidence paths, triage enums, and unchanged-source acceptance are fixed. Its internal fixture-source parameter alone cannot score a new coding repair faithfully.
 - No fixture was preregistered, no historical trial was rerun, and no efficacy result was produced. VCR384 will add an explicit validated case profile; a prospective repair case must include immutable independent checks and validated completion time.
+
+## VCR387 — Separate causal ranking from diagnostic actions
+
+- Correct the triage ranking contract so `confirm_behavior_contract` remains an eligible diagnostic next step but is excluded from causal hypothesis comparisons and `hypothesis_order`. Rank only when at least two causal candidates remain.
+- Acceptance requires independent validation of the diagnostic answer and the causal ordering, with the original failed test status preserved. Offline tests establish the contract; no live benefit claim follows from this change.

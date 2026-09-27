@@ -1715,3 +1715,7 @@ Evidence SHA256: treatment raw JSONL f35f467b4cfc9546e53dd9bb6d01ca078b677683059
 The offline audit found that replacing the fixture directory in `pilot_contract_triage_pair.py` would leave invoice-specific prompts, failure matching, evidence recognition, triage enums, and no-edit acceptance in place. Such a run would not establish correct completion of a new coding task. No new live trial or preregistration was performed.
 
 The next trial requires a tested explicit case-profile interface, a genuinely new repairable fixture, frozen independent checks, and complete offline receipt serialization. Existing invoice and failed latch trials remain unchanged; this audit adds no acceptance or efficacy evidence.
+
+## VCR387 — Causal ranking contract correction
+
+The source audit found that the diagnostic action `confirm_behavior_contract` could enter the pairwise hypothesis ranking. Prospective rankings must contain causal candidates only; confirming a contract can still be selected as the next diagnostic action. Diagnostic selection and complete causal ordering are validated separately, including malformed or partial provider answers. Historical trial receipts are unchanged. This correction is not agent-delivery or efficacy evidence.

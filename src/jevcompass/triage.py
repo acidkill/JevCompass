@@ -504,10 +504,15 @@ def triage_failure(
                             decision_reason=TriageDecisionReason.LOCAL_ABSTENTION)
 
     ids = [entry.step.id.value for entry in plausible]
+    causal_plausible = [
+        entry for entry in plausible
+        if entry.step.id is not HypothesisId.CONFIRM_BEHAVIOR_CONTRACT
+    ]
+    causal_ids = [entry.step.id.value for entry in causal_plausible]
     state = {
         "test_outcome": "failed",
         "failure_kinds": [kind.value for kind in FailureKind if kind in allowed_kinds],
-        "hypotheses": ids,
+        "hypotheses": causal_ids,
     }
     if import_evidence_applies:
         state["import_observations"] = [item.value for item in observations]
@@ -524,8 +529,8 @@ def triage_failure(
     }
     rank_questions: dict[str, dict[str, Any]] = {}
     rank_pairs: tuple[tuple[str, HypothesisId, HypothesisId], ...] = ()
-    if rank_hypotheses and 2 <= len(plausible) <= 4:
-        rank_questions, rank_pairs = _pairwise_rank_questions(plausible)
+    if rank_hypotheses and 2 <= len(causal_plausible) <= 4:
+        rank_questions, rank_pairs = _pairwise_rank_questions(causal_plausible)
         questions.update(rank_questions)
     expected_question_ids = set(questions)
     ranking_status = "incomplete" if rank_pairs else "not_established"
