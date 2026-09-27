@@ -495,3 +495,12 @@ Important limits: the Codex event has no reliable task objective; the article th
 - [x] Verify equal fixture hashes, preserved immutable files/verifier, early advice acknowledgment and focused/full test order.
 - [x] Record treatment 10/10 independent checks versus baseline 9/10; withhold baseline validated completion and any speed benefit claim.
 - [ ] Merge evidence after green hosted CI. Repeatable benefit and remote Jev efficacy remain unproven.
+
+
+## VCR-260-C — discriminating triage evidence audit
+
+- [x] Inspect timeout request construction and execute a keyless injected-client capture.
+- [x] Confirm that timeout remote state contains only failed outcome, timeout kind and two hypothesis IDs, with no resource/progress observations.
+- [x] Preserve existing failure status and distinguish generic diagnostic prioritization from evidence-based cause discrimination.
+- [ ] Before a prospective timeout paired trial, review allowlisted locally verified observations and freeze a fixture/quality rubric that does not disclose the answer to treatment alone.
+- [ ] Merge audit after green hosted CI.
