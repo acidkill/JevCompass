@@ -1,3 +1,8 @@
+## VCR276 — Autonomous test-order baseline (in progress)
+
+- Recorded the fixed unit-first scope of historical comparisons; no historical rescoring.
+- Implement an explicit per-run prompt/policy and a thin enriched fixture-copy profile. Baseline chooses independently; both arms receive equal overlapping coverage facts. Preserve all validation gates and legacy defaults. No live result yet.
+
 ## VCR275-A — Coverage targets participate in real-choice eligibility
 
 - Candidate signatures now include normalized coverage targets; distinct target sets can represent a genuine choice even for the same test kind. Identical normalized sets retain local abstention. The legacy unit-before-contract shortcut requires absent targets.

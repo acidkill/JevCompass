@@ -1,3 +1,9 @@
+## VCR276 — Autonomous baseline comparison requirements
+
+Historical cross-layer test-order trials prescribed baseline unit-first and checked that policy. Their results compare an advisor against that fixed sequence; they do not establish an advantage over an autonomous Codex test-order decision. Those receipts remain unchanged.
+
+The next enriched profile must let baseline choose either declared focused candidate without an advisor, provide identical reviewed coverage metadata to both arms, and retain required full validation, source-change and immutable-file checks, independent validation, and treatment post-edit ranking. Integration coverage includes arithmetic as well as JSON mapping; target labels are neither disjoint nor exhaustive coverage guarantees. The profile is under implementation and has not produced a live result. Existing profile defaults must remain unchanged.
+
 ## VCR275-A — Correct real-choice detection for coverage targets
 
 Coverage-target metadata now participates in candidate signatures. Same-kind candidates with different reviewed target sets no longer automatically become `no_choice_needed`; identical normalized sets still do. Legacy Python unit-before-contract resolution applies only when targets are absent. Other local resolution rules, confidence thresholds, privacy allowlists, and mandatory validation are unchanged. This fixes eligibility semantics; it does not establish a speed or quality gain. Forty-five module tests passed; future equivalent-task evaluation must retain all existing correctness gates.
