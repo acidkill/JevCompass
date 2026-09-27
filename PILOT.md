@@ -1010,3 +1010,16 @@ The VCR-257-H comparison exposed preparation overhead without improved correctne
 This is an integration affordance for an already available local decision. An agent that has resolved the approach should act directly, not spend a command confirming it. Offline tests prove no backend call for explicit local resolution, not a reduction in real agent completion time. Historical paid trials remain unchanged; no new easy-fixture efficacy repetition is justified by this change. Native Desktop, genuinely unresolved strategy applicability and broader acceptance remain open.
 
 Verification: six new resolution tests and440 total tests pass. Source CLI smoke returns exactly `define_contract_then_implement`, `no-remote-choice`, usage null for the documented local-resolution example. Graph rebuilt1746nodes/3399edges. Offline client spies establish absence of backend calls for the local route; the smoke alone is not network instrumentation or agent timing evidence. No hook configuration, test ordering or mandatory checks changed.
+
+
+## VCR-258-A — strategy information and retry validation audit (2026-09-27)
+
+Read-only audit of source at 4899418; no live model request or efficacy score was added. The current pretask runner supplies coding/existing_symbol/behavior_change. Both inspection and contract-first strategies have one matching signal; the backend receives the same coarse evidence for tasks whose verified contracts differ. Delivery and valid catalog IDs do not establish an informed first-step choice.
+
+A proposed optional contract-evidence enum (consistent/conflicting/absent/unknown) requires a separate implementation and validation task. Populate it only from verified local evidence; never infer it from a desired strategy or evaluator answer. If that evidence resolves the first step locally, bypass Jev using the existing local resolution route. Additional metadata must not force a paid call. Test genuinely unresolved cases separately from locally resolved cases.
+
+The historical VCR-249-S2 retry pair remains a negative result, not a newly scored experiment. Its fixture contract permits HTTP 429 and 500–599 only, and requires returning the last HTTP response on exhaustion. Existing starter tests cover 200, 404, and 503 followed by success, so passing them cannot prove the upper bound or exhaustion identity. The historical assessment recorded both arms retrying statuses above 599 and treatment missing the last-response assertion.
+
+Before any new retry comparison, freeze independent checks for 499/500/599/600, HTTP exhaustion response identity, ConnectionError exhaustion, immediate propagation of other exceptions, Retry-After handling, maximum attempt count, and no final sleep. Freeze scoring before calls and score final artifacts independently of agent-reported success. Preserve deliberately incomplete starter tests rather than silently rewriting historical fixtures or scores. Record first-step evidence, full validation, time, usage and available cost; include preparation latency.
+
+Next: establish which verified metadata remains genuinely ambiguous, then implement that contract and its negative tests before a new paired run. No speed or quality gain is established by this audit.
