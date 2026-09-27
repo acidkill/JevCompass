@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-269-A — observed first-command timing
+
+Cross-layer receipts now retain first_command_start_ms from the first identified started command event only. Reasoning/completed-only events do not count; missing or invalid first timestamps remain null rather than borrowing a later command. This is an observation proxy, not semantic usefulness or proof of all tool coverage. Nineteen focused tests pass. Historical receipts are not filled retrospectively; future matched runs can measure this scoped timing.
+
 ### VCR-268-A — post-fix provider-backed pair retained
 
 Completed once, run `b83c1d2710e4473383b8d0dbdfc5a81e`. Treatment native edit/changed snapshot/rank-before-focus phase verified and required tests pass. Baseline focused/full invocations unobserved invalidate comparison despite independent final correctness. Treatment25,195.20ms baseline16,599.03ms, no useful failure. Provider457input34output/USD0.000019194, but retained no-remote-choice; no accepted model selection or efficacy claim. Missing fallback reason is a distinct observability gap, not an inferred provider error. Old failed pair unchanged.
