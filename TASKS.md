@@ -1,3 +1,8 @@
+## VCR284 — Phase-aware coding workflow skill
+
+- Added an opt-in English skill routing genuine unresolved strategy choices, competing focused checks and observed ambiguous failures to the three verified CLI APIs. Clear local choices skip advice; recommendations remain nonbinding and mandatory checks remain required.
+- Three example-contract tests exercise actual CLI parsing and mocked decision routes, required-check preservation and failure-status retention. Parent full suite: 593 tests passed. Supported installer registration/refresh is a separate pending task; no installed skill delivery or benefit claim.
+
 ## VCR286 — Align prospective prompt with nonbinding advice
 
 - The enriched test-order prompt now explicitly permits either declared focused candidate whether an ordering is returned or not. The separate default cross-layer prompt and all historical receipts remain unchanged. Required ranking timing and mandatory validation stay intact.

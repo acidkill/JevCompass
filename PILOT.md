@@ -1,3 +1,7 @@
+## VCR284 — Coding workflow entrypoint prepared
+
+The new opt-in coding-workflow skill connects strategy, test order and triage phases using safe CLI metadata. It skips unambiguous decisions and preserves observed failures and every required check. Its three documented examples pass real CLI contract tests with mocked transport; the full local suite passed 593 tests. Installer registration/refresh and fresh-session delivery remain pending. This is a prepared workflow artifact, not agent-use or efficacy evidence.
+
 ## VCR286 — Optional instruction aligned with optional scoring
 
 The prospective enriched runner previously inherited an instruction to follow valid ordering despite nonbinding scoring. Its own prompt now makes adoption optional and allows either declared focused candidate while retaining post-edit ranking and mandatory full validation. Historical default instructions and receipts remain unchanged. Twelve targeted tests passed; no new live efficacy result.
