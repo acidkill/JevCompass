@@ -61,6 +61,7 @@ TRIAGE_SUFFIX = (
 )
 TRIAGE_IDS = ("confirm_behavior_contract",)
 ADVICE_POLICIES = ("legacy-required-step", "nonbinding")
+TRIAGE_STAGES = ("evidence-reviewed", "initial-failure")
 WORKFLOW_ACK_LINE = "JevCompass triage workflow instructions received."
 TRIAGE_RESULT_ACK_LINE = (
     "JevCompass local triage result received: confirm_behavior_contract."
@@ -348,7 +349,9 @@ def load_case_profile(path: Path) -> CaseProfile:
     )
 
 
-def _profile_bridge_spec(profile: CaseProfile) -> profile_bridge.ProfileTriageSpec:
+def _profile_bridge_spec(
+    profile: CaseProfile, *, include_observations: bool = True,
+) -> profile_bridge.ProfileTriageSpec:
     hypotheses = list(profile.triage_hypotheses)
     for identifier in profile.triage_accepted_ids:
         if identifier not in hypotheses:
@@ -356,21 +359,45 @@ def _profile_bridge_spec(profile: CaseProfile) -> profile_bridge.ProfileTriageSp
     return profile_bridge.ProfileTriageSpec(
         failure_kinds=profile.triage_kinds,
         hypotheses=tuple(hypotheses),
-        allowed_observations=profile.triage_observations,
+        allowed_observations=(
+            profile.triage_observations if include_observations else {}
+        ),
         rank_hypotheses=profile.rank_hypotheses,
     )
 
 
-def _case_treatment_prompt(profile: CaseProfile, advice_policy: str) -> str:
+def _case_treatment_prompt(
+    profile: CaseProfile, advice_policy: str,
+    triage_stage: str = "evidence-reviewed",
+) -> str:
+    include_observations = triage_stage != "initial-failure"
     evidence_paths = ", ".join(profile.evidence_files.values())
-    triage_command = shlex.join(_triage_argv(1, profile))
-    guidance = (
-        f"\n\nAfter the initial focused test, inspect these configured evidence files: {evidence_paths}. "
-        "Use only the locally observed exit code and allowlisted enums in any JevCompass triage command; "
-        "never pass file contents, paths, diagnostics, or source text to triage. "
-        "Triage is optional: skip it when local evidence resolves the choice. "
-        f"If you invoke triage, use this exact command: {triage_command}. "
-    )
+    triage_command = shlex.join(_triage_argv(
+        1, profile, include_observations=include_observations,
+    ))
+    if triage_stage == "initial-failure":
+        guidance = (
+            "\n\nAfter the initial focused test fails, inspect its result and one "
+            "relevant configured evidence item as a cheap local discriminator. "
+            "Only if the failure is confirmed and at least two configured causal "
+            "hypotheses still fit, you may request the exact enum-only triage "
+            "command now, before reviewing the remaining evidence. The request "
+            "is optional; skip it when local evidence resolves the choice. Use "
+            "only the observed exit code and configured enums. Do not include "
+            "observation flags that have not been locally verified, or pass "
+            "file contents, paths, diagnostics, or source text. Continue to "
+            "inspect all configured evidence before completing the repair: "
+            f"{evidence_paths}. "
+            f"If you invoke triage, use this exact command: {triage_command}. "
+        )
+    else:
+        guidance = (
+            f"\n\nAfter the initial focused test, inspect these configured evidence files: {evidence_paths}. "
+            "Use only the locally observed exit code and allowlisted enums in any JevCompass triage command; "
+            "never pass file contents, paths, diagnostics, or source text to triage. "
+            "Triage is optional: skip it when local evidence resolves the choice. "
+            f"If you invoke triage, use this exact command: {triage_command}. "
+        )
     if profile.outcome_mode == "repair":
         guidance += (
             f"Complete the requested behavior change in {profile.source_file}. "
@@ -419,7 +446,10 @@ def _full(item: dict[str, Any], profile: CaseProfile | None = None) -> bool:
     return common._command_argv(item) == shlex.split(REQUIRED_COMMAND)
 
 
-def _triage_argv(exit_code: int, profile: CaseProfile | None = None) -> list[str]:
+def _triage_argv(
+    exit_code: int, profile: CaseProfile | None = None, *,
+    include_observations: bool = True,
+) -> list[str]:
     if isinstance(exit_code, bool) or not isinstance(exit_code, int) or exit_code == 0:
         raise ValueError("triage requires an observed nonzero focused exit")
     if profile is None:
@@ -436,22 +466,28 @@ def _triage_argv(exit_code: int, profile: CaseProfile | None = None) -> list[str
             suffix.extend(("--hypothesis", hypothesis))
         if profile.rank_hypotheses:
             suffix.append("--rank-hypotheses")
-        observation_flags = {
-            "import": "--import-observation",
-            "assertion": "--assertion-observation",
-            "timeout": "--timeout-observation",
-        }
-        for category, values in profile.triage_observations.items():
-            for value in values:
-                suffix.extend((observation_flags[category], value))
+        if include_observations:
+            observation_flags = {
+                "import": "--import-observation",
+                "assertion": "--assertion-observation",
+                "timeout": "--timeout-observation",
+            }
+            for category, values in profile.triage_observations.items():
+                for value in values:
+                    suffix.extend((observation_flags[category], value))
         suffix.append("--json")
     return [*TRIAGE_PREFIX, str(exit_code), *suffix]
 
 
-def _is_triage(item: dict[str, Any], exit_code: int | None,
-               profile: CaseProfile | None = None) -> bool:
+def _is_triage(
+    item: dict[str, Any], exit_code: int | None,
+    profile: CaseProfile | None = None, *,
+    include_observations: bool = True,
+) -> bool:
     return exit_code is not None and exit_code != 0 and (
-        common._command_argv(item) == _triage_argv(exit_code, profile)
+        common._command_argv(item) == _triage_argv(
+            exit_code, profile, include_observations=include_observations,
+        )
     )
 
 
@@ -582,6 +618,7 @@ def _event_receipts(
     profile: CaseProfile | None = None,
     accepted_triage_statuses: tuple[str, ...] | None = None,
     profile_bridge_receipt: dict[str, Any] | None = None,
+    triage_stage: str = "evidence-reviewed",
 ) -> tuple[dict[str, Any], str | None]:
     lines = list(lines)
     pending: dict[str, tuple[str, str | None]] = {}
@@ -594,6 +631,9 @@ def _event_receipts(
     useful_failure_observed = False
     triage_seen = False
     triage_after_evidence = False
+    triage_after_local_discriminator = False
+    triage_before_evidence_complete = False
+    triage_stage_eligible_before_request = False
     triage_invalid = False
     triage_exit: int | None = None
     triage_choice = {"status": "unscored", "candidate_ids": [],
@@ -683,14 +723,33 @@ def _event_receipts(
                 pending[event_id] = ("git-diff-check", None)
             if argv and "jevcompass" in argv:
                 triage_seen = True
-                exact = _is_triage(item, focused_exits[0] if focused_exits else None, profile)
+                exact = _is_triage(
+                    item, focused_exits[0] if focused_exits else None, profile,
+                    include_observations=triage_stage != "initial-failure",
+                )
                 required_evidence = frozenset(profile.evidence_files) if profile else _REQUIRED_EVIDENCE
                 evidence_before_triage = required_evidence.issubset(evidence)
+                stage_eligible = (
+                    evidence_before_triage if triage_stage == "evidence-reviewed"
+                    else bool(evidence)
+                )
                 accepted = (
                     exact and bool(focused_exits) and focused_exits[0] == 1
-                    and useful_failure_observed and evidence_before_triage
+                    and useful_failure_observed and stage_eligible
                 )
-                triage_after_evidence = triage_after_evidence or accepted
+                triage_stage_eligible_before_request = (
+                    triage_stage_eligible_before_request or accepted
+                )
+                triage_after_evidence = triage_after_evidence or (
+                    accepted and evidence_before_triage
+                )
+                triage_after_local_discriminator = (
+                    triage_after_local_discriminator or (accepted and bool(evidence))
+                )
+                triage_before_evidence_complete = (
+                    triage_before_evidence_complete
+                    or (accepted and not evidence_before_triage)
+                )
                 triage_invalid = triage_invalid or not accepted
                 pending[event_id] = ("triage-accepted" if accepted else "triage-invalid", None)
                 if not accepted:
@@ -770,8 +829,12 @@ def _event_receipts(
         "policy_check_timing_status": "unscored",
         "evidence_categories_verified": sorted(evidence),
         "evidence_complete_before_triage": evidence_before_triage and triage_after_evidence,
+        "triage_stage": triage_stage,
+        "triage_stage_eligible_before_request": triage_stage_eligible_before_request,
         "triage_invocation_observed": triage_seen,
         "triage_after_evidence": triage_after_evidence,
+        "triage_after_local_discriminator": triage_after_local_discriminator,
+        "triage_before_evidence_complete": triage_before_evidence_complete,
         "triage_invalid_invocation_observed": triage_invalid,
         "triage_exit_code": triage_exit,
         "triage_output_status": triage_output_status,
@@ -879,6 +942,7 @@ def _run_arm(
     allow_network: bool = False,
     max_tokens: int | None = None,
     retain_private_events: bool = False,
+    triage_stage: str = "evidence-reviewed",
 ) -> tuple[dict[str, Any], str | None]:
     (home / ".codex").mkdir(mode=0o700, parents=True, exist_ok=True)
     measurement_path = measurement_path or (home / ".codex" / "agent-measurement.json")
@@ -1040,6 +1104,7 @@ def _run_arm(
             lines, times, started, advice_policy=advice_policy, profile=profile,
             accepted_triage_statuses=accepted_triage_statuses,
             profile_bridge_receipt=bridge_summary,
+            triage_stage=triage_stage,
         )
     except Exception:
         failed = _empty_arm("event_parser_error")
@@ -1230,6 +1295,7 @@ def run_pair(
     accepted_remote_statuses: tuple[str, ...] = (),
     max_tokens: int | None = None,
     retain_private_events: bool = False,
+    triage_stage: str = "evidence-reviewed",
 ) -> dict[str, Any]:
     """Run both local-only CLI arms and save private blind artifacts/receipts."""
     if case_profile is not None:
@@ -1265,6 +1331,20 @@ def run_pair(
         raise ValueError("max_tokens is outside the supported event-token budget")
     if type(retain_private_events) is not bool:
         raise ValueError("retain_private_events must be boolean")
+    if not isinstance(triage_stage, str) or triage_stage not in TRIAGE_STAGES:
+        raise ValueError("invalid triage stage")
+    if triage_stage == "initial-failure":
+        if (case_profile is None or case_profile.outcome_mode != "repair"
+                or advice_policy != "nonbinding"):
+            raise ValueError(
+                "initial-failure triage requires a nonbinding repair case profile"
+            )
+        causal_hypotheses = {
+            item for item in case_profile.triage_hypotheses
+            if item != "confirm_behavior_contract"
+        }
+        if len(causal_hypotheses) < 2:
+            raise ValueError("initial-failure triage requires multiple causal hypotheses")
     if not _verify_codex_version(codex):
         raise ValueError("Codex CLI 0.157.0 is required")
 
@@ -1338,7 +1418,12 @@ def run_pair(
             )
             return receipt
 
-        bridge_spec = _profile_bridge_spec(case_profile) if remote_profile_triage else None
+        bridge_spec = (
+            _profile_bridge_spec(
+                case_profile, include_observations=triage_stage != "initial-failure",
+            )
+            if remote_profile_triage else None
+        )
         arms: dict[str, dict[str, Any]] = {}
         answers: dict[str, str | None] = {}
         for true_arm in order:
@@ -1348,7 +1433,7 @@ def run_pair(
                 prompt = (
                     NONBINDING_TREATMENT_PROMPT if case_profile is None and advice_policy == "nonbinding"
                     else TREATMENT_PROMPT if case_profile is None
-                    else _case_treatment_prompt(case_profile, advice_policy)
+                    else _case_treatment_prompt(case_profile, advice_policy, triage_stage)
                 )
             arms[label], answers[label] = _run_arm(
                 codex=codex, model=model, reasoning_effort=reasoning_effort,
@@ -1366,6 +1451,8 @@ def run_pair(
                 allow_network=remote_profile_triage,
                 max_tokens=max_tokens,
                 **({"retain_private_events": True} if retain_private_events else {}),
+                **({"triage_stage": triage_stage}
+                   if true_arm == "treatment" and triage_stage != "evidence-reviewed" else {}),
             )
             if repair_profile:
                 arms[label].setdefault("agent_git_diff_check_invocation_observed", False)
@@ -1500,7 +1587,9 @@ def run_pair(
                 required_evidence
             )
             valid_triage = (
-                treatment.get("triage_after_evidence") is True
+                (treatment.get("triage_after_evidence") is True
+                 if triage_stage == "evidence-reviewed"
+                 else treatment.get("triage_after_local_discriminator") is True)
                 and treatment.get("triage_invalid_invocation_observed") is False
                 and treatment.get("triage_exit_code") == 0
                 and treatment.get("triage_output_status") in {
@@ -1573,6 +1662,7 @@ def run_pair(
             "accepted_remote_statuses": list(accepted_remote_statuses),
             "network_access_enabled_for_both_arms": remote_profile_triage,
             "observed_token_budget": max_tokens,
+            "triage_stage": triage_stage,
             "task_outcome_acceptance_status": (
                 "passed" if case_profile and case_profile.outcome_mode == "repair"
                 and repair_task_correctness else "failed" if case_profile and case_profile.outcome_mode == "repair"
@@ -1648,6 +1738,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="observed completed-turn token cap; not a provider-side limit")
     parser.add_argument("--retain-private-events", action="store_true",
                         help="archive bounded raw CLI JSONL locally in each private arm directory")
+    parser.add_argument("--triage-stage", choices=TRIAGE_STAGES,
+                        default="evidence-reviewed",
+                        help="profile triage timing; initial-failure is opt-in and repair-only")
     parser.add_argument("--output-dir", type=Path, required=True,
                         help="new private directory for blind receipts and artifacts")
     args = parser.parse_args(argv)
@@ -1668,6 +1761,7 @@ def main(argv: list[str] | None = None) -> int:
             accepted_remote_statuses=tuple(args.accept_profile_triage_status),
             max_tokens=args.max_tokens,
             retain_private_events=args.retain_private_events,
+            triage_stage=args.triage_stage,
         )
     except (OSError, ValueError, RuntimeError):
         print(json.dumps({"status": "failed", "failure": "runner_setup_failed"}))
