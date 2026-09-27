@@ -1115,3 +1115,8 @@ Added `build_agent_measurement_receipt()` to combine the existing redacted event
 ## VCR382 — Contract-triage arm measurement integration
 
 The runner now writes the bounded redacted measurement to its private output directory immediately after collection and before optional task-event parsing. Collector failures retain observed usage/first-tool metadata while the arm remains failed; empty streams preserve unknown values and do not satisfy acceptance. Focused offline coverage verifies timeout, empty events, parser-exception persistence, secret exclusion, and mode 0600. No live run, historical rescore, or efficacy claim.
+
+## VCR383 — New triage fixture readiness audit
+
+- Completed the offline compatibility audit before any new model/API trial. The existing contract-triage runner remains tied to the VCR349 invoice case: prompts, focused failure signature, evidence paths, triage enums, and unchanged-source acceptance are fixed. Its internal fixture-source parameter alone cannot score a new coding repair faithfully.
+- No fixture was preregistered, no historical trial was rerun, and no efficacy result was produced. VCR384 will add an explicit validated case profile; a prospective repair case must include immutable independent checks and validated completion time.

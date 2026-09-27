@@ -1709,3 +1709,9 @@ Evidence SHA256: treatment raw JSONL f35f467b4cfc9546e53dd9bb6d01ca078b677683059
 ### VCR381 — Prospective shared measurement receipt
 
 `build_agent_measurement_receipt()` combines redacted event parsing with process/collector status while preserving the established `first_tool_start` key and unknown token usage/cost. Five synthetic tests pass, including partial timeout serialization and collector failure overriding exit 0. Completed status means process and collector completed; it does not assert task acceptance. VCR382 wires the helper into contract-triage arm execution: a redacted measurement is written to the private output directory before optional task-event parsing. Focused tests cover success, timeout with retained usage while failed, empty events with unknown usage, parser-exception persistence, secret exclusion, and mode 0600. No live run or historical rescore.
+
+## VCR383 — Prospective fixture compatibility gate
+
+The offline audit found that replacing the fixture directory in `pilot_contract_triage_pair.py` would leave invoice-specific prompts, failure matching, evidence recognition, triage enums, and no-edit acceptance in place. Such a run would not establish correct completion of a new coding task. No new live trial or preregistration was performed.
+
+The next trial requires a tested explicit case-profile interface, a genuinely new repairable fixture, frozen independent checks, and complete offline receipt serialization. Existing invoice and failed latch trials remain unchanged; this audit adds no acceptance or efficacy evidence.
