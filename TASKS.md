@@ -1,3 +1,8 @@
+## VCR297 — Installed timeout decision smoke
+
+- Actual installed CLI request used only timeout kind, exit 124 and two allowlisted hypotheses. It completed in approximately 521 ms with no-remote-choice, two locally composed steps, test_failed true and executed false.
+- Provider-reported usage: 376 input tokens, 44 output tokens, USD 0.000015792. A billed request is not an accepted remote decision; no agent comparison or efficacy claim. Preserve this abstention in prospective triage evaluation.
+
 ## VCR294 — Completed-turn token monitor
 
 - Added opt-in max_tokens to event collection, preserving the default unbudgeted path. Valid completed-turn input plus output counters accumulate; cached input is not counted twice. Crossing the cap stops the process and can preserve events through the exceeded turn.
