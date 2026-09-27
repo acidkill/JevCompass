@@ -353,6 +353,10 @@ def main(argv: list[str] | None = None) -> int:
     triage_parser.add_argument("--timeout-observation", action="append",
                                choices=tuple(item.value for item in TimeoutObservation),
                                help="Allowlisted local timeout observation; may be repeated")
+    triage_parser.add_argument("--diagnostic-cost", action="append",
+                               choices=tuple(f"{item.value}={cost}" for item in HypothesisId
+                                             for cost in ("low", "medium", "high", "unknown")),
+                               help="Caller-verified relative diagnostic check cost, HYPOTHESIS=COST; not causal likelihood")
     triage_parser.add_argument("--rank-hypotheses", action="store_true",
                                help="Opt in to bounded pairwise hypothesis ordering when 2-4 causes remain plausible")
     triage_parser.add_argument("--json", action="store_true", help="Print machine-readable result")
@@ -425,6 +429,20 @@ def main(argv: list[str] | None = None) -> int:
         return _recommend(args.category, args.domain, args.role)
     if args.command == "triage":
         from .triage import TriageDecisionReason, triage_failure
+        triage_options = {}
+        if args.diagnostic_cost:
+            from .triage import DiagnosticCost
+            costs = {}
+            supplied = set(args.hypothesis)
+            for value in args.diagnostic_cost:
+                identifier, cost = value.split("=", 1)
+                if identifier not in supplied:
+                    triage_parser.error("diagnostic cost requires a supplied hypothesis")
+                hypothesis = HypothesisId(identifier)
+                if hypothesis in costs:
+                    triage_parser.error("duplicate diagnostic cost hypothesis")
+                costs[hypothesis] = DiagnosticCost(cost)
+            triage_options["diagnostic_costs"] = costs
         result = triage_failure(
             tuple(FailureKind(item) for item in args.kind),
             tuple(HypothesisId(item) for item in args.hypothesis),
@@ -439,6 +457,7 @@ def main(argv: list[str] | None = None) -> int:
                 TimeoutObservation(item) for item in (args.timeout_observation or ())
             ),
             rank_hypotheses=args.rank_hypotheses,
+            **triage_options,
         )
         try:
             reason_value = TriageDecisionReason(result.decision_reason).value

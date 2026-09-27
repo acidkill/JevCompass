@@ -1837,3 +1837,10 @@ Two new symmetry/compatibility tests, nine profile tests and fifteen triage test
 Simple Bash and POSIX-shell command wrappers are normalized lexically without executing their contents. Compound commands, substitutions, redirections, environment assignments, newline separators and malformed wrappers cannot receive individual test gate credit. Cross-layer aggregate diagnostics remain separate from successful mandatory-suite observations and support both string and argv-list wrappers.
 
 This is prospective instrumentation hardening, not a retrospective explanation or rescore of VCR402. Its original Bash wrapper form was already supported. Twenty-five cross-layer tests and the full 839-test suite pass (40.827 s). Graph refreshed (3439 nodes, 6944 edges, 239 communities). Hosted CI remains required before merge. No new coding efficacy or native-host delivery result is claimed.
+
+
+## VCR405 — Caller-verified diagnostic cost metadata
+
+The triage API and CLI accept optional fixed-enum relative diagnostic costs for supplied candidate IDs. Only locally verified low/medium/high/unknown tokens may reach Jev. Costs guide next-check ordering and are explicitly not causal likelihood evidence. Default requests, local resolution, original failing exits, non-execution and mandatory validation remain unchanged. CLI rejects unknown values, duplicate costs and costs for unsupplied candidates before backend use.
+
+Six API tests, including changed-cost cache invalidation, three new CLI integration tests, ten existing triage CLI tests and the full 848-test suite pass (40.532 s). Graph refreshed (3465 nodes, 7016 edges, 235 communities). Hosted CI remains required before merge. README documents source-only scope; the published version is unchanged. No real-trial speed or quality benefit is claimed.
