@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-257-I — locally resolved strategy route
+
+Add an optional enum-only resolved strategy from verified local evidence. Eligible resolution returns one reviewed strategy without decision-client construction or API usage; invalid/ineligible explicit resolution abstains locally. Unresolved behavior is preserved. Source CLI exposes bounded choices; README explains using the direct local approach rather than a redundant confirmation command. Luna implemented and verified the route; 440 full tests, source CLI smoke and graph refresh (1746nodes/3399edges) passed. Six new tests cover local resolution, invalid/ineligible values, existing remote behavior and CLI validation. Green-only PR follows. No measured agent speed claim; cross-host acceptance remains open.
+
 ### VCR-257-H — compliant supervisor-pretask pair
 
 Run `59eca50bd6c747afbe40eb6fff2615d1` passes current focused/full and independent frozen validation in both arms, zero unmatched commands. Advice acknowledged before first observed tool. Baseline25.188s vs treatment25.942s including676.02ms preparation; treatment753.72ms slower. First successful focused check19.827s vs19.993s. Final artifact bytes identical to previously variant-blind reviewed4/4 repairs. Provider368input/44output tokens, USD0.000015456. No speed or quality benefit demonstrated. This closes current command-observation gap for this run only; native Desktop and broad efficacy remain unverified.

@@ -220,19 +220,39 @@ def choose_strategies(
     signals: Iterable[TaskSignal | str],
     *,
     client: DecisionsClient | None = None,
+    resolved_strategy: StrategyId | str | None = None,
 ) -> StrategyResult:
-    """Return up to two reviewed strategies using only allowlisted task metadata.
+    """Return reviewed strategies from allowlisted metadata.
 
-    The remote service is consulted only when at least two applicable strategies
-    have nearly equal local signal support. Missing, malformed, uncertain, or
-    unavailable decisions leave the stable local ranking in effect.
+    An explicit resolved strategy is a caller-supplied decision derived from
+    verified local evidence. It is never inferred from a prompt and never
+    triggers a client construction, API request, or usage charge. It is returned
+    only when it is a known strategy eligible for the normalized local inputs.
+    With no explicit resolution, ambiguous candidates retain the metered remote
+    choice path and unresolved cases retain the stable local ranking.
     """
+    resolved_id = None
+    if resolved_strategy is not None:
+        try:
+            resolved_id = StrategyId(resolved_strategy)
+        except (TypeError, ValueError):
+            return StrategyResult((), "no-remote-choice")
+
     normalized = _normalize_inputs(task_kind, signals)
     if normalized is None:
         return StrategyResult((), "no-remote-choice")
     kind, signal_set = normalized
     ranked = _rank(kind, signal_set)
     if not ranked:
+        return StrategyResult((), "no-remote-choice")
+
+    if resolved_id is not None:
+        for strategy, _score in ranked:
+            if strategy.id == resolved_id:
+                return StrategyResult(
+                    (StrategyRecommendation(id=strategy.id, rationale=strategy.rationale),),
+                    "no-remote-choice",
+                )
         return StrategyResult((), "no-remote-choice")
 
     usage = None
