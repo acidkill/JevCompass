@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-266-A — cross-layer live outcome retained
+
+One keyless pair completed, run `3e06de6cd7af48579c94f84133b6e4cd`. Both focused/full and independent validations pass; treatment source snapshot changed at rank and ranking preceded focused testing, but edit-event compatibility leaves post-change phase unscored and acceptance failed. Treatment30,275.94ms versus baseline21,271.37ms; same unit-first choice, no useful failure observed, provider usage incomplete, billing unknown. Preserve failed result without rerun or retrospective rescoring. Separate native event compatibility repair remains open; no efficacy claim.
+
 ### VCR-263-B — cross-layer post-change comparison runner
 
 Added an isolated cross-layer comparison runner with frozen unit/integration/full checks, immutable fixture gates, task-specific observed failure markers and unknown billing retained. A supervisor samples source bytes upon receiving the first rank-start event; unchanged/no-op touch stays unscored. Phase credit additionally requires matched edit/rank/focused event order and independent final validation. This proves an observed changed source at rank-event receipt, not an atomic snapshot at command execution or arbitrary shell semantics. Thirteen offline guards pass; live host compatibility and efficacy remain unverified. No model call was made during implementation.
