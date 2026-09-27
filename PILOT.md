@@ -1,3 +1,11 @@
+## VCR286 — Optional instruction aligned with optional scoring
+
+The prospective enriched runner previously inherited an instruction to follow valid ordering despite nonbinding scoring. Its own prompt now makes adoption optional and allows either declared focused candidate while retaining post-edit ranking and mandatory full validation. Historical default instructions and receipts remain unchanged. Twelve targeted tests passed; no new live efficacy result.
+
+## VCR283 — Workflow integration gap
+
+The CLI exposes all three task-specific APIs, but bundled skills do not currently connect them into one routine coding workflow. Only two older skills are installed locally; a differing focused-tests copy causes the supported installer to reject installation rather than overwrite it. A new opt-in phase-aware skill and explicit refresh of verified historical bundled content are in progress. Arbitrary user-edited skills must remain protected. This is an integration gap, not evidence of efficacy or native delivery.
+
 ## VCR281 — Installed CLI readiness
 
 A clean source wheel from commit 6e44df7 was installed locally into pipx. Command help for strategy choose, tests rank and triage passes. This development wheel shares version 0.1.22 with the published artifact but differs in code; version alone is not identity evidence. The supported installer preserved all five smem handlers and both existing advisory commands. Parent verification confirmed absolute hook interpreters and successful module imports, correcting the preliminary interpreter audit. This proves local CLI availability only; generic hooks do not automatically route the three task-specific APIs, and native Desktop delivery remains unverified.
