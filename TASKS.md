@@ -1,3 +1,8 @@
+## VCR293 — Collection-failure local control
+
+- Added a synthetic stdlib cart calculation repair task with a clear contract, four behavior checks and an isolated import-purity guard. Seeded focused check fails during collection; a temporary minimal reference repair passes four focused and five full checks.
+- Complete traceback resolves the import failure locally. This case explicitly requires reading full diagnostics and skipping remote triage when resolved; it is a local control, not evidence of ambiguous remote-choice benefit. Import guard catches attempted reads even when exceptions are swallowed and has a five-second subprocess timeout. No live agent pair yet.
+
 ## VCR290 — Prospective nonbinding local triage profile
 
 - Added an opt-in nonbinding profile; the default legacy required-step contract and historical receipts remain unchanged. Workflow acknowledgement, actual result delivery, task correctness and adoption are recorded separately; invoking triage does not prove adoption.

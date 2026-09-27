@@ -1,0 +1,1 @@
+"""Fictional CartCalc package."""

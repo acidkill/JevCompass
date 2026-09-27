@@ -1,3 +1,7 @@
+## VCR293 — Collection local-resolution control
+
+CartCalc supplies a clear behavior/import contract, varied arithmetic checks and a separate import-purity check. The seeded focused test exits 1 during collection, and full traceback resolves an eager configuration read. Both arms must see complete diagnostics and skip remote ranking once resolved. A temporary minimal reference repair passes four focused and five full checks; caught read attempts still fail the purity guard. This fixture is a local control, not a remotely ambiguous triage case. No live pair or benefit claim.
+
 ## VCR290 — Optional local triage assessment
 
 The prospective nonbinding profile separates acknowledgement of workflow instructions from acknowledgement of a valid triage result before the next tool. Invocation alone leaves adoption unscored. Local abstention may preserve task correctness; missing or late delivery fails the delivery gate independently. Immutable fixture and mandatory red test-status checks remain enforced. Thirteen focused tests passed. The default legacy profile and historical results are unchanged. This local-only contract fixture does not establish accepted remote choice or benefit; no new live pair was run.
