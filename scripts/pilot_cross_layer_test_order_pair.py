@@ -42,6 +42,10 @@ CANDIDATES = (
 )
 REQUIRED = ({"command": REQUIRED_COMMAND, "id": "full"},)
 CHOICE_IDS = ("unit", "integration")
+_BASELINE_FIRST_CANDIDATES = {
+    "unit": frozenset({"unit"}),
+    "either": frozenset(CHOICE_IDS),
+}
 BASE_PROMPT = (
     "Implement the documented two-percent half-up checkout service fee. Read "
     "README.md, CONTRACT.md, TESTING.md, and test-options.json. Change only "
@@ -59,7 +63,8 @@ TREATMENT_RANKING = (
     f"{RANK_COMMAND}\n"
     "The rank command does not execute tests. Follow its first candidate when "
     "the returned order is valid. If it abstains, fails, or returns invalid "
-    "data, use the shared faster-unit-first local policy. Then run the required "
+    "data, choose one focused candidate locally using the task and candidate "
+    "metadata. Then run the required "
     "full suite. Do not call Jev before changing checkout/service.py."
 )
 engine.FIXTURE = FIXTURE
@@ -833,6 +838,10 @@ def _private_receipt_update(output_dir: Path, receipt: dict[str, Any]) -> None:
 
 
 def run_pair(**kwargs: Any) -> dict[str, Any]:
+    baseline_policy = kwargs.pop("baseline_first_candidate_policy", "unit")
+    if (not isinstance(baseline_policy, str)
+            or baseline_policy not in _BASELINE_FIRST_CANDIDATES):
+        raise ValueError("invalid baseline first-candidate policy")
     kwargs.setdefault("fixture_source", FIXTURE)
     receipt = _original_pair(**kwargs)
     arms = receipt.get("arms")
@@ -874,9 +883,13 @@ def run_pair(**kwargs: Any) -> dict[str, Any]:
         gates.append("treatment_post_change_rank_phase_unverified")
     if treatment.get("choice_follow_status") != "followed":
         gates.append("treatment_choice_not_followed")
-    if baseline.get("first_focused_candidate") != "unit":
-        gates.append("baseline_unit_first_policy_not_observed")
+    if baseline.get("first_focused_candidate") not in _BASELINE_FIRST_CANDIDATES[baseline_policy]:
+        gates.append(
+            "baseline_unit_first_policy_not_observed" if baseline_policy == "unit"
+            else "baseline_declared_candidate_policy_not_observed"
+        )
 
+    receipt["baseline_first_candidate_policy"] = baseline_policy
     receipt["quality_gate_status"] = "passed" if not gates else "failed"
     receipt["quality_gate_failures"] = sorted(set(gates))
     receipt["status"] = "completed" if not gates else "failed"

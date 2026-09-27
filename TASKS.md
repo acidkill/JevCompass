@@ -1,3 +1,8 @@
+## VCR276-A — Autonomous enriched test-order profile implemented
+
+- Thin runner stages an enriched copy of reviewed fixture files, verifies SHA-256 evidence, and provides identical overlapping coverage targets to both arms. Baseline independently chooses either candidate; treatment ranks after editing. Scoped prompt parameters preserve legacy defaults without new global mutation.
+- Required/focused/independent validation, source change, immutable-file, and treatment phase gates remain. Modified evidence is rejected before arm creation. Parent full suite: 584 tests passed. No live result or efficacy claim yet.
+
 ## VCR276 — Autonomous test-order baseline (in progress)
 
 - Recorded the fixed unit-first scope of historical comparisons; no historical rescoring.

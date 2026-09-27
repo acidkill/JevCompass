@@ -415,10 +415,27 @@ def run_pair(
     *, codex: str, model: str, reasoning_effort: str, timeout: int = DEFAULT_TIMEOUT,
     seed: int | None = None, output_dir: Path, fixture_source: Path = FIXTURE,
     allow_openrouter_key: bool = False,
+    baseline_prompt: str | None = None,
+    treatment_prompt_suffix: str | None = None,
 ) -> dict[str, Any]:
     """Run both isolated arms and write private, redacted receipts/artifact."""
     if not 1 <= timeout <= MAX_TIMEOUT:
         raise ValueError(f"timeout must be between 1 and {MAX_TIMEOUT} seconds")
+    if baseline_prompt is not None and (
+        not isinstance(baseline_prompt, str) or not baseline_prompt.strip()
+        or len(baseline_prompt.encode("utf-8")) > 32 * 1024
+    ):
+        raise ValueError("baseline prompt must be nonempty and bounded")
+    if treatment_prompt_suffix is not None and (
+        not isinstance(treatment_prompt_suffix, str) or not treatment_prompt_suffix.strip()
+        or len(treatment_prompt_suffix.encode("utf-8")) > 16 * 1024
+    ):
+        raise ValueError("treatment prompt suffix must be nonempty and bounded")
+    base_prompt = BASE_PROMPT if baseline_prompt is None else baseline_prompt
+    treatment_suffix = (
+        TREATMENT_RANKING if treatment_prompt_suffix is None
+        else treatment_prompt_suffix
+    )
     if not fixture_source.is_dir():
         raise FileNotFoundError("synthetic coding fixture is unavailable")
     if allow_openrouter_key and not os.environ.get("OPENROUTER_API_KEY"):
@@ -470,7 +487,7 @@ def run_pair(
 
         arms: dict[str, dict[str, Any]] = {}
         for true_arm in true_order:
-            prompt = BASE_PROMPT + (TREATMENT_RANKING if true_arm == "treatment" else "")
+            prompt = base_prompt + (treatment_suffix if true_arm == "treatment" else "")
             label = arm_labels[true_arm]
             arms[label] = _run_arm(
                 codex=codex, model=model, reasoning_effort=reasoning_effort,
