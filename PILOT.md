@@ -1,3 +1,7 @@
+## VCR341 — Explicit triage selection provenance
+
+The source CLI distinguishes a remotely preferred diagnostic action from locally resolved guidance and unranked fallback steps. JSON exposes fixed decision reasons and explicitly states that hypothesis ranking is not established. Original exit status, usage and non-execution remain intact; no provider prose is introduced. All ten focused CLI tests and 712 Python tests passed; receipt consumers remain compatible. Graphify refreshed. This is not a release or measured task benefit; hosted CI remains the merge gate.
+
 ## VCR338 — Prospective independent-validation timing status
 
 Future timing receipts recognize the dependency wrapper's independent contract-validation record and valid finite duration, instead of labeling a measured validation as unreported. Missing or malformed durations remain unknown; historical VCR336 receipts, gates and scores are unchanged. Four focused timing tests and all 710 Python tests pass (29.802 s); graphify refreshed (2911 nodes, 5822 edges). Hosted CI remains the merge gate. No live retry or benefit claim.

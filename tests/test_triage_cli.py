@@ -25,7 +25,11 @@ class TriageCliTests(unittest.TestCase):
         self.assertTrue(result["test_failed"])
         self.assertEqual(result["observed_exit_status"], 1)
         self.assertEqual(result["status"], "remote-choice")
+        self.assertEqual(result["decision_reason"], "accepted")
+        self.assertEqual(result["hypothesis_ranking_status"], "not_established")
         self.assertEqual(result["steps"][0]["id"], "import_path_changed")
+        self.assertEqual(result["steps"][0]["selection_source"], "remote_preferred_next_step")
+        self.assertEqual(result["steps"][1]["selection_source"], "unranked_local_fallback")
         self.assertFalse(result["executed"])
 
     def test_json_reports_provider_usage_without_response_identifiers(self):
@@ -53,7 +57,11 @@ class TriageCliTests(unittest.TestCase):
         with mock.patch("jevcompass.triage.DecisionsClient") as client, contextlib.redirect_stdout(output):
             main(["triage", "--exit-code", "0", "--kind", "import",
                   "--hypothesis", "import_module_missing", "--hypothesis", "import_path_changed", "--json"])
-        self.assertFalse(json.loads(output.getvalue())["test_failed"])
+        result = json.loads(output.getvalue())
+        self.assertFalse(result["test_failed"])
+        self.assertEqual(result["decision_reason"], "local_resolution")
+        self.assertEqual(result["hypothesis_ranking_status"], "not_established")
+        self.assertEqual(result["steps"], [])
         client.assert_not_called()
 
     def test_confirmed_import_layout_skips_backend_and_rules_out_missing_package(self):
@@ -75,6 +83,53 @@ class TriageCliTests(unittest.TestCase):
         self.assertEqual(result["status"], "no-remote-choice")
         self.assertEqual(result["observed_exit_status"], 1)
         self.assertEqual([step["id"] for step in result["steps"]], ["import_path_changed"])
+        self.assertEqual(result["decision_reason"], "local_resolution")
+        self.assertEqual(result["steps"][0]["selection_source"], "locally_resolved_guidance")
+        client.assert_not_called()
+
+    def test_provider_failure_is_reported_as_unranked_fallback_and_text_label(self):
+        output = io.StringIO()
+        private_error = "PRIVATE_PROVIDER_ERROR"
+        with mock.patch("jevcompass.triage.DecisionsClient") as client, \
+             contextlib.redirect_stdout(output):
+            client.return_value.decide.side_effect = RuntimeError(private_error)
+            main(["triage", "--exit-code", "1", "--kind", "import",
+                  "--hypothesis", "import_module_missing",
+                  "--hypothesis", "import_path_changed", "--json"])
+        result = json.loads(output.getvalue())
+        self.assertEqual(result["decision_reason"], "provider_error")
+        self.assertEqual(result["hypothesis_ranking_status"], "not_established")
+        self.assertTrue(all(step["selection_source"] == "unranked_local_fallback"
+                            for step in result["steps"]))
+        self.assertNotIn(private_error, output.getvalue())
+
+        output = io.StringIO()
+        with mock.patch("jevcompass.triage.DecisionsClient") as client, \
+             contextlib.redirect_stdout(output):
+            client.return_value.decide.side_effect = RuntimeError(private_error)
+            main(["triage", "--exit-code", "1", "--kind", "import",
+                  "--hypothesis", "import_module_missing",
+                  "--hypothesis", "import_path_changed"])
+        self.assertIn("Unranked fallback", output.getvalue())
+        self.assertIn("hypothesis ranking not established", output.getvalue())
+        self.assertNotIn(private_error, output.getvalue())
+
+    def test_contradictory_observations_abstain_without_steps(self):
+        output = io.StringIO()
+        with mock.patch("jevcompass.triage.DecisionsClient") as client, \
+             contextlib.redirect_stdout(output):
+            main([
+                "triage", "--exit-code", "1", "--kind", "assertion",
+                "--hypothesis", "assertion_expectation_drift",
+                "--hypothesis", "assertion_behavior_regression",
+                "--hypothesis", "confirm_behavior_contract",
+                "--assertion-observation", "contract_underspecified",
+                "--assertion-observation", "contract_confirmed", "--json",
+            ])
+        result = json.loads(output.getvalue())
+        self.assertEqual(result["decision_reason"], "local_abstention")
+        self.assertEqual(result["hypothesis_ranking_status"], "not_established")
+        self.assertEqual(result["steps"], [])
         client.assert_not_called()
 
     def test_invalid_import_observation_is_rejected_by_cli(self):
