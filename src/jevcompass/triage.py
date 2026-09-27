@@ -95,6 +95,18 @@ class DiagnosticStep:
     instruction: str
 
 
+class TriageDecisionReason(str, Enum):
+    """Fixed local outcome labels; never contains provider or exception text."""
+
+    LOCAL_RESOLUTION = "local_resolution"
+    LOCAL_ABSTENTION = "local_abstention"
+    INVALID_RESPONSE = "invalid_response"
+    INSUFFICIENT_CONFIDENCE = "insufficient_confidence"
+    PROVIDER_TIMEOUT = "provider_timeout"
+    PROVIDER_ERROR = "provider_error"
+    ACCEPTED = "accepted"
+
+
 @dataclass(frozen=True)
 class TriageResult:
     """A bounded recommendation that retains the observed test outcome."""
@@ -103,6 +115,7 @@ class TriageResult:
     steps: tuple[DiagnosticStep, ...]
     status: str
     decision_usage: DecisionUsage | None = None
+    decision_reason: TriageDecisionReason | None = None
 
     @property
     def test_failed(self) -> bool:
@@ -201,14 +214,25 @@ CATALOG: Mapping[HypothesisId, _CatalogEntry] = {
 
 
 def _empty_result(exit_status: int) -> TriageResult:
-    return TriageResult(exit_status, (), NO_REMOTE_CHOICE)
+    return TriageResult(
+        exit_status, (), NO_REMOTE_CHOICE,
+        decision_reason=TriageDecisionReason.LOCAL_RESOLUTION,
+    )
 
 
-def _valid_confidence(value: Any) -> bool:
+def _confidence_reason(value: Any) -> TriageDecisionReason | None:
+    """Classify confidence without retaining malformed values."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return False
-    confidence = float(value)
-    return math.isfinite(confidence) and CONFIDENCE_THRESHOLD <= confidence <= 1.0
+        return TriageDecisionReason.INVALID_RESPONSE
+    try:
+        confidence = float(value)
+    except (OverflowError, ValueError):
+        return TriageDecisionReason.INVALID_RESPONSE
+    if not math.isfinite(confidence) or confidence < 0.0 or confidence > 1.0:
+        return TriageDecisionReason.INVALID_RESPONSE
+    if confidence < CONFIDENCE_THRESHOLD:
+        return TriageDecisionReason.INSUFFICIENT_CONFIDENCE
+    return None
 
 
 def _normalize_import_observations(
@@ -310,6 +334,7 @@ def triage_failure(
     confirmation step; contradictory contract observations abstain. A legacy
     fixture conflict may be ranked remotely using only its enum token. Raw names,
     paths, output, prompts, commands, and free-form descriptions are never accepted.
+    The optional decision reason is a fixed safe enum and retains no exception text.
     """
     if isinstance(observed_exit_status, bool) or not isinstance(observed_exit_status, int):
         raise TypeError("observed-exit-status-must-be-int")
@@ -331,11 +356,12 @@ def triage_failure(
     timeout_fact_set = set(timeout_facts)
     timeout_evidence_applies = FailureKind.TIMEOUT in allowed_kinds and bool(timeout_facts)
     import_evidence_applies = FailureKind.IMPORT in allowed_kinds and bool(observations)
-    if (timeout_evidence_applies
-            and _contradictory_timeout_observations(timeout_facts)):
-        return TriageResult(observed_exit_status, (), NO_REMOTE_CHOICE)
+    if timeout_evidence_applies and _contradictory_timeout_observations(timeout_facts):
+        return TriageResult(observed_exit_status, (), NO_REMOTE_CHOICE,
+                            decision_reason=TriageDecisionReason.LOCAL_ABSTENTION)
     if import_evidence_applies and _contradictory_import_observations(observations):
-        return TriageResult(observed_exit_status, (), NO_REMOTE_CHOICE)
+        return TriageResult(observed_exit_status, (), NO_REMOTE_CHOICE,
+                            decision_reason=TriageDecisionReason.LOCAL_ABSTENTION)
 
     assertion_evidence_applies = (
         FailureKind.ASSERTION in allowed_kinds and bool(assertion_facts)
@@ -344,7 +370,8 @@ def triage_failure(
     if (assertion_evidence_applies
             and AssertionObservation.CONTRACT_UNDERSPECIFIED in assertion_fact_set
             and AssertionObservation.CONTRACT_CONFIRMED in assertion_fact_set):
-        return TriageResult(observed_exit_status, (), NO_REMOTE_CHOICE)
+        return TriageResult(observed_exit_status, (), NO_REMOTE_CHOICE,
+                            decision_reason=TriageDecisionReason.LOCAL_ABSTENTION)
 
     locally_confirmed_path = (
         import_evidence_applies and _import_path_is_locally_confirmed(observations)
@@ -352,9 +379,11 @@ def triage_failure(
     if (assertion_evidence_applies
             and AssertionObservation.CONTRACT_UNDERSPECIFIED in assertion_fact_set):
         if HypothesisId.CONFIRM_BEHAVIOR_CONTRACT not in hypotheses:
-            return TriageResult(observed_exit_status, (), NO_REMOTE_CHOICE)
+            return TriageResult(observed_exit_status, (), NO_REMOTE_CHOICE,
+                                decision_reason=TriageDecisionReason.LOCAL_ABSTENTION)
         contract_entry = CATALOG[HypothesisId.CONFIRM_BEHAVIOR_CONTRACT]
-        return TriageResult(observed_exit_status, (contract_entry.step,), NO_REMOTE_CHOICE)
+        return TriageResult(observed_exit_status, (contract_entry.step,), NO_REMOTE_CHOICE,
+                            decision_reason=TriageDecisionReason.LOCAL_RESOLUTION)
 
     plausible: list[_CatalogEntry] = []
     seen: set[HypothesisId] = set()
@@ -379,6 +408,7 @@ def triage_failure(
                 observed_exit_status,
                 (CATALOG[HypothesisId.TIMEOUT_NONTERMINATING].step,),
                 NO_REMOTE_CHOICE,
+                decision_reason=TriageDecisionReason.LOCAL_RESOLUTION,
             )
         contention_progress_wait = {
             TimeoutObservation.RESOURCE_CONTENTION_OBSERVED,
@@ -391,11 +421,16 @@ def triage_failure(
                 observed_exit_status,
                 (CATALOG[HypothesisId.TIMEOUT_CONTENTION].step,),
                 NO_REMOTE_CHOICE,
+                decision_reason=TriageDecisionReason.LOCAL_RESOLUTION,
             )
 
     fallback = tuple(entry.step for entry in plausible[:2])
-    if locally_confirmed_path or not failure_kinds or len(plausible) < 2:
-        return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE)
+    if locally_confirmed_path:
+        return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE,
+                            decision_reason=TriageDecisionReason.LOCAL_RESOLUTION)
+    if not failure_kinds or len(plausible) < 2:
+        return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE,
+                            decision_reason=TriageDecisionReason.LOCAL_ABSTENTION)
 
     ids = [entry.step.id.value for entry in plausible]
     state = {
@@ -423,22 +458,36 @@ def triage_failure(
         if isinstance(decision_client, _USAGE_CLIENT_TYPE):
             response = decision_client.decide_with_usage(state, questions)
             if not isinstance(response, DecisionResponse):
-                return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE)
+                return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE,
+                                    decision_reason=TriageDecisionReason.INVALID_RESPONSE)
             answers, usage = response.answers, response.usage
         else:
             # Existing injected clients can implement the historical answers-only API.
             answers = decision_client.decide(state, questions)
         if not isinstance(answers, Mapping) or set(answers) != {"diagnostic"}:
-            return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE, usage)
+            return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE, usage,
+                                TriageDecisionReason.INVALID_RESPONSE)
         answer = answers.get("diagnostic")
         if not isinstance(answer, Mapping) or answer.get("type") != "choice":
-            return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE, usage)
+            return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE, usage,
+                                TriageDecisionReason.INVALID_RESPONSE)
         selected_id = answer.get("choice")
-        if selected_id not in ids or not _valid_confidence(answer.get("confidence")):
-            return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE, usage)
+        confidence = answer.get("confidence")
+        if selected_id not in ids:
+            return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE, usage,
+                                TriageDecisionReason.INVALID_RESPONSE)
+        reason = _confidence_reason(confidence)
+        if reason is not None:
+            return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE, usage, reason)
         selected = CATALOG[HypothesisId(selected_id)].step
         ordered = (selected,) + tuple(step for step in fallback if step.id != selected.id)
-        return TriageResult(observed_exit_status, ordered[:2], REMOTE_CHOICE, usage)
+        return TriageResult(observed_exit_status, ordered[:2], REMOTE_CHOICE, usage,
+                            TriageDecisionReason.ACCEPTED)
+    except TimeoutError:
+        return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE,
+                            decision_reason=TriageDecisionReason.PROVIDER_TIMEOUT)
     except Exception:
-        # Do not retain or surface transport exceptions; they can contain unsafe data.
-        return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE)
+        # DecisionsClient folds multiple transport failures into a safe generic
+        # unavailable error; only an unwrapped TimeoutError is called a timeout.
+        return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE,
+                            decision_reason=TriageDecisionReason.PROVIDER_ERROR)

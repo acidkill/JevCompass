@@ -93,6 +93,7 @@ class _SupervisorBridge:
         self._requests = 0
         self._state = "not_requested"
         self._triage_status = "not_attempted"
+        self._decision_reason: str | None = None
         self._server = self._make_server()
         self._thread = threading.Thread(
             target=self._server.serve_forever, kwargs={"poll_interval": 0.05},
@@ -236,10 +237,19 @@ class _SupervisorBridge:
             with self._lock:
                 self._state = "fallback"
                 self._triage_status = "local_fallback"
+                self._decision_reason = "provider_error"
             payload = _local_timeout_payload(status)
         else:
+            reason = payload.pop("decision_reason", None)
+            if reason not in {
+                "local_resolution", "local_abstention", "invalid_response",
+                "insufficient_confidence", "provider_timeout", "provider_error", "accepted",
+            }:
+                reason = "invalid_response"
+                payload = _local_timeout_payload(status)
             parsed = _validated_triage(json.dumps(payload), status)
             with self._lock:
+                self._decision_reason = reason
                 self._triage_status = (
                     "remote_choice" if parsed["status"] == "remote-choice"
                     else "local_fallback"
@@ -275,6 +285,7 @@ class _SupervisorBridge:
                 "request_count": min(self._requests, 2),
                 "state": self._state,
                 "advisor_result": self._triage_status,
+                "decision_reason": self._decision_reason,
                 "observed_timeout_exit": self.observed_exit is not None,
             }
 
@@ -297,11 +308,11 @@ def _local_timeout_payload(exit_code: int) -> dict[str, Any]:
 
 
 def _production_timeout_payload(exit_code: int) -> dict[str, Any] | None:
-    """Call JevCompass' actual enum-only triage function in the supervisor."""
+    """Call enum-only triage and attach its fixed reason for bridge-only receipt use."""
     try:
         from jevcompass.triage import (
             CATALOG, FailureKind, HypothesisId, REMOTE_CHOICE,
-            TriageResult, triage_failure,
+            TriageDecisionReason, TriageResult, triage_failure,
         )
         result = triage_failure(
             (FailureKind.TIMEOUT,),
@@ -312,10 +323,16 @@ def _production_timeout_payload(exit_code: int) -> dict[str, Any] | None:
             return None
         if result.status not in {"remote-choice", "no-remote-choice"}:
             return None
+        if not isinstance(result.decision_reason, TriageDecisionReason):
+            return None
         ids = [step.id.value for step in result.steps]
         if len(ids) > 2 or len(set(ids)) != len(ids) or any(i not in TIMEOUT_CANDIDATES for i in ids):
             return None
-        if result.status == REMOTE_CHOICE and not ids:
+        if result.status == REMOTE_CHOICE and (
+            not ids or result.decision_reason is not TriageDecisionReason.ACCEPTED
+        ):
+            return None
+        if result.status != REMOTE_CHOICE and result.decision_reason is TriageDecisionReason.ACCEPTED:
             return None
         usage = result.decision_usage
         safe_usage = None
@@ -345,6 +362,7 @@ def _production_timeout_payload(exit_code: int) -> dict[str, Any] | None:
                       for identifier in ids],
             "executed": False,
             "decision_usage": safe_usage,
+            "decision_reason": result.decision_reason.value,
         }
     except Exception:
         return None
