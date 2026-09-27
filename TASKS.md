@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-268-A — post-fix provider-backed pair retained
+
+Completed once, run `b83c1d2710e4473383b8d0dbdfc5a81e`. Treatment native edit/changed snapshot/rank-before-focus phase verified and required tests pass. Baseline focused/full invocations unobserved invalidate comparison despite independent final correctness. Treatment25,195.20ms baseline16,599.03ms, no useful failure. Provider457input34output/USD0.000019194, but retained no-remote-choice; no accepted model selection or efficacy claim. Missing fallback reason is a distinct observability gap, not an inferred provider error. Old failed pair unchanged.
+
 ### VCR-267-A — native edit-event compatibility
 
 Cross-layer runner now recognizes bounded completed native file_change events without requiring shell start/exit fields. Target and allowed change-kind checks, duplicate guards and path-free counters retain the changed-source snapshot gate. Failed/unrelated/empty changes do not qualify. Seventeen focused and537 full tests pass; graph refreshed2125nodes4165edges. No live call, no VCR-266-A rescoring, no efficacy claim. Observation of a rank-start receipt remains distinct from atomic command execution.
