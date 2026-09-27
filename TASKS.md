@@ -1131,3 +1131,7 @@ The runner now writes the bounded redacted measurement to its private output dir
 - Added a bounded JSON case-profile interface to the existing runner: fixture/task paths, focused command, evidence and failure markers, reviewed triage enums, and a supervisor-owned SHA-256-pinned oracle outside the agent fixture. The default invoice protocol remains available without a profile.
 - Both repair arms receive the same task and independent oracle. Acceptance requires the initial observed failure, a successful post-edit focused test/full suite, an allowed source-only repair, immutable tests and other fixture files, and a passing oracle. Validated completion includes agent and independent validation time.
 - Optional advice delivery is scored separately from task correctness; abstaining from triage cannot turn a failed repair into success. Current profiles run with provider credentials and network access disabled: remote triage comparisons need a separately verified transport integration. No new model trial or historical rescore occurred.
+
+## VCR391 — Profile advice acknowledgment timing
+
+The profile event parser now observes acknowledgment after both legacy and configured valid triage results. A real synthetic event stream verifies acknowledgment before the next tool and distinguishes missing or late acknowledgment. This fixes delivery measurement only; it does not establish native delivery or efficacy.

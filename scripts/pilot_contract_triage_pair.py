@@ -682,7 +682,9 @@ def _event_receipts(
                             triage_output_status = "valid_local_step"
                         else:
                             triage_output_status = "valid_configured_choice"
-                        if triage_output_status == "valid_local_step":
+                        if triage_output_status in {
+                            "valid_local_step", "valid_configured_choice",
+                        }:
                             triage_result_index = index
                 else:
                     triage_output_status = "out_of_order_or_unverified"

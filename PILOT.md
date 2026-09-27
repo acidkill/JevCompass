@@ -1727,3 +1727,7 @@ The source audit found that the diagnostic action `confirm_behavior_contract` co
 Per-arm task correctness and validated completion time are independent of optional advisory delivery. Changed tests, protected fixture files, an incorrect repair, unavailable validation, or an incomplete agent run prevent acceptance. The original failed focused result remains recorded even after a successful repair. Existing invoice trial data are unchanged.
 
 This integration is an offline measurement capability, not delivery or efficacy evidence. Provider access remains disabled for these profiles; no receipt may label local fallback or abstention as accepted remote ranking. A subsequent remote trial requires verified credential isolation and typed ranking receipts before preregistration.
+
+## VCR391 — Profile advice acknowledgment timing
+
+The profile event parser now observes acknowledgment after both legacy and configured valid triage results. A real synthetic event stream verifies acknowledgment before the next tool and distinguishes missing or late acknowledgment. This fixes delivery measurement only; it does not establish native delivery or efficacy.
