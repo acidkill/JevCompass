@@ -1,3 +1,7 @@
+## VCR303 — Actual supervisor bridge smoke
+
+A real seeded focused timeout (exit 1) enabled the supervisor bridge. The keyless child shim received a production remote-choice in 561.57 ms, exit 0, executed false and test_failed true. Reported provider usage: 376 input / 44 output tokens, USD 0.000015792. This single integration check is separate from the earlier direct-CLI abstention; it proves neither advice delivery to a Codex agent nor improved task completion. No retries or paired task ran.
+
 ## VCR299 — Supervisor-only timeout triage route
 
 Added opt-in one-shot loopback bridge for the timeout comparison. The supervisor holds the API key and permits only the observed nonzero focused timeout plus two fixed hypothesis IDs; the child receives locally composed production triage JSON. Both arms use the same network setup. Network access is enabled and external egress is not independently restricted; this limitation is recorded. Twenty-one focused tests pass, including actual child-shim HTTP requests with a fake backend. No live advisor comparison or benefit claim yet; coordinator integration is a separate step.
