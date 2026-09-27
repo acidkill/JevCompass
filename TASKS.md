@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-257-F — live supervisor advice delivery, comparison rejected
+
+Run `f1b09ba19ef14a1b9162bdf30019d4a7` confirms treatment acknowledged known strategy IDs before its first observed tool; preparation601.76ms. Both final repairs pass independent unit/contract/full checks and immutable-file checks. Baseline has no observed focused invocation, so pair acceptance fails despite full-suite success. Completion26.062s treatment vs18.756s baseline is not a valid compliant efficacy comparison. Provider368input/44output tokens, USD0.000015456. Native Desktop hook delivery and qualitative strategy benefit remain unproven. Variant-blind static review scored both final artifacts4/4 on rounding, exact weights, validation and minimal shape-preserving repair; no quality difference. This is not blind strategy/process assessment.
+
 ### VCR-257-E — supervisor-prepared pretask comparison
 
 Added a separate pilot preparing safe strategy advice before agent launch, without an agent-side selector command. Only validated IDs render fixed local guidance. Both arms use the same acknowledgment instruction and keep agent network/key access disabled; provider key is confined to opt-in supervisor preparation. Total completion and first-action/check times include preparation. Timeout or malformed output skips advice. Existing independent frozen validation is retained. Five offline tests cover privacy, placement, timing, baseline, failure paths and accurate supervisor-only CLI help. This harness does not establish native Desktop hook delivery or efficacy; live confirmation remains pending.

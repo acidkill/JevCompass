@@ -945,3 +945,27 @@ python scripts/pilot_pretask_strategy_pair.py --live --model gpt-6-luna --reason
 ```
 
 Historical explicit-CLI comparisons remain separate; do not retroactively reinterpret their timing or delivery.
+
+
+## VCR-257-F — live supervisor delivery; pair not accepted (2026-09-27)
+
+Run `f1b09ba19ef14a1b9162bdf30019d4a7`, seed258, gpt-6-luna/low, treatment then baseline, same starting fixture hash `db47b815d401bf3e05809215c993532254e80d2f18013c72c660b6a07b7cff13`. Treatment received fixed guidance for symbol inspection then contract definition in its initial prompt and acknowledged exact IDs before its first observed tool. This is verified supervisor-prepared CLI placement/acknowledgment, not native Desktop hook delivery.
+
+| Measure | Baseline | Treatment |
+| --- | ---: | ---: |
+| Completion including preparation ms | 18755.58 | 26061.50 |
+| Agent-only completion ms | 18755.58 | 25459.74 |
+| Preparation ms | 0.00 | 601.76 |
+| First observed tool start ms | 5372.16 | 8645.47 |
+| First successful relevant focused check ms | unscored | 19355.17 |
+| Agent input tokens | 76181 | 93092 |
+| Cached input tokens | 68352 | 79360 |
+| Agent output tokens | 508 | 607 |
+| Observed focused invocations | 0 | 1 |
+| Observed required full-suite exit | 0 | 0 |
+| Independent unit/contract/full exits | 0/0/0 | 0/0/0 |
+| Immutable files preserved | true | true |
+
+Treatment used one accepted remote choice:368input/44output provider tokens, USD0.000015456. Agent billing is unknown. No qualifying useful failure was observed. Baseline has no observed declared focused invocation; raw events were not retained, so omission versus an unrecognized equivalent command cannot be reconstructed. The runner therefore correctly reports pair status `failed`. Do not infer timing or validation-quality benefit from this noncompliant comparison. Independent final correctness passing does not replace the required agent-side focused check.
+
+Private artifacts and receipts: `/tmp/jev-pretask-strategy-vcr257-20260927-01`. A separate evaluator inspected only the two final artifacts and public fixture contract/tests, without maps, receipts, timings or variant labels. Both scored4/4: correct partial-kilogram ceiling, unchanged exact kilograms, preserved input validation, minimal repair retaining Quote fields and integer-cent arithmetic. This static artifact review found no quality difference; it does not establish strategy quality or agent test compliance. Next: close this failed evidence case, then investigate focused-command coverage on a fresh diagnostic with metadata-only event classification; do not silently waive the required check or relabel the pair as accepted.
