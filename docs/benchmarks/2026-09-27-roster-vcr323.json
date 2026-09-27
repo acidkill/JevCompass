@@ -1,0 +1,73 @@
+{
+  "adoption_status": "not_applicable",
+  "arm_map_sha256": "815f1d762b4d54e8e2ac1bebd82c08c94c6112d1035b5b116572b772e0728801",
+  "arms": {
+    "baseline": {
+      "choice_latency_ms": null,
+      "completion_ms": 16242.91,
+      "first_useful_error_ms": null,
+      "focused_invocation_count": 0,
+      "immutable_files_preserved": true,
+      "independent_final_validation_status": "passed",
+      "post_change_rank_phase_status": "not_applicable",
+      "rank_usage": {
+        "input_tokens": null,
+        "invocation_count": 0,
+        "jev_provider_cost_usd": null,
+        "output_tokens": null,
+        "status": "not_invoked"
+      },
+      "required_suite_exit": 0,
+      "required_suite_invocation_observed": true,
+      "token_usage": {
+        "cached_input_tokens": 54272,
+        "input_tokens": 60735,
+        "output_tokens": 430,
+        "uncached_input_proxy": 6463
+      }
+    },
+    "treatment": {
+      "choice_latency_ms": 1342.63,
+      "completion_ms": 28283.8,
+      "first_useful_error_ms": null,
+      "focused_invocation_count": 1,
+      "immutable_files_preserved": true,
+      "independent_final_validation_status": "passed",
+      "post_change_rank_phase_status": "verified",
+      "rank_usage": {
+        "input_tokens": 489,
+        "invocation_count": 1,
+        "jev_provider_cost_usd": 2.0538e-05,
+        "output_tokens": 34,
+        "status": "complete"
+      },
+      "required_suite_exit": 0,
+      "required_suite_invocation_observed": true,
+      "token_usage": {
+        "cached_input_tokens": 69376,
+        "input_tokens": 78035,
+        "output_tokens": 670,
+        "uncached_input_proxy": 8659
+      }
+    }
+  },
+  "cost_semantics": "Jev cost is provider-reported usage, not invoice evidence; Codex billing unknown",
+  "effect_scope": "no_accepted_choice",
+  "efficacy_eligible": false,
+  "preparation_ms": null,
+  "preparation_status": "not_recorded",
+  "preregistration_sha256": "670590f7ec5f81968765a2a005736e67e36578df67bdd7cab54dd2241245aea3",
+  "protocol_delivery_status": "abstained",
+  "quality_gate_failures": [
+    "arm-b_focused_suite_unverified",
+    "baseline_declared_candidate_policy_not_observed"
+  ],
+  "quality_gate_status": "failed",
+  "receipt_sha256": "2c925ba04cfc541e1a61c1929b5b5ae6aa228104f67962a205a898b50239a7ba",
+  "schema": "jevcompass.roster-result.v1",
+  "source_commit": "247a8636b4ebcca8a314bbfc200d5c97c462dc59",
+  "status": "failed",
+  "task_correctness_status": "failed",
+  "timing_limitation": "concurrent_local_validation_possible",
+  "trial_id": "VCR323-roster-1"
+}
