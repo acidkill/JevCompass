@@ -1,3 +1,7 @@
+## VCR326 — Prospective preparation timing
+
+Separate monotonic shared setup/authentication, fixture preparation per arm, fixture parity, arm execution and base gate validation. Preserve existing agent completion fields and unknown measurements; shared costs are not divided between variants. Extended arm execution includes independent checks performed inside that call, but wrapper postprocessing and receipt serialization require their own scope. Two mocked-clock timing tests pass, including exact preparation-inclusive elapsed time and missing-completion preservation. Graphify refreshed (2860 nodes, 5724 edges). All 700 Python tests passed in 29.907 seconds; hosted CI remains the merge gate. No new live pair or historical rescore.
+
 ## VCR324 — Local test-order audit
 
 Reviewed the roster candidates against existing local dominance rules. Both checks are direct, but the faster unit check targets internal behavior while integration also targets the changed public contract. Curated target metadata is not exhaustive coverage evidence, so timing alone cannot establish dominance. No production rule or confidence threshold changed. VCR323 remains a failed, abstained pair excluded from efficacy comparisons; its latency does not justify forcing a local or remote choice. Mandatory checks remain unchanged. The audit checkpoint was confirmed in smem.
