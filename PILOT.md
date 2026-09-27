@@ -1,3 +1,7 @@
+## VCR279-B — Prospective optional-advice evaluation
+
+The next enriched profile separates task correctness, valid post-change ranking delivery, optional adoption, and accepted-choice effect scope. An abstention is not an accepted remote recommendation; an independently selected declared test can still be correct. Mandatory focused/full/independent checks and immutable-source guards remain. Legacy required-order profiles and all historical receipts, including VCR277, are not rescored. The enriched wrapper opts into this policy; the default remains strict required-order. Malformed delivery is rejected safely. Thirty-five focused tests passed; no new live efficacy result exists.
+
 ## VCR277-A — Autonomous baseline, enriched metadata, adherence failure
 
 Run `bb4555c0fa4f45158cffb60dc6db87ba` used seed 277 and fixture parity hash `c2c6d966362b13b28f5fc7296af86aa4843837033ea7ec3809333d3e7047541e`. Treatment arm-a first; baseline arm-b second. Both independently chose/executed allowed tests, completed focused/full checks, preserved immutable files, changed source, and passed independent unit/integration/full validation. Treatment ranked after its edit and before the focused check, but ran integration while the validated returned ordering was unit then integration. Thus `treatment_choice_not_followed` fails the pair; no compliant efficacy result is available.
