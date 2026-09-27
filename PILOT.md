@@ -1,3 +1,7 @@
+## VCR314 — Diagnostic smoke evidence
+
+A post-merge timeout probe returned a result, but the local reporter failed on a nonexistent result attribute; its provider outcome and usage were not retained and it is unscored. After an offline fake-client serialization check, one distinct synthetic assertion probe used the production client with explicit typesafe/jev-1.13 and a 1.5-second timeout. It returned no-remote-choice with insufficient_confidence in 510.54 ms, preserving the failed-test outcome and local fallback. Reported usage: 382 input / 53 output tokens, USD 0.000016044. No private task data was sent. This verifies reason/usage capture for an abstention, not agent delivery or coding efficacy; no benchmark pair was rerun.
+
 ## VCR311 — Prospective triage reason capture
 
 Future supervisor receipts retain only a fixed decision-reason enum. Local resolution and local abstention are separate; invalid confidence values are invalid responses, while valid confidence below the threshold is insufficient confidence. Exception text and provider prose are never retained, and the reason is stripped from agent-facing advice. Wrapped transport failures remain provider_error when their cause is unavailable. Valid reported usage remains attached to abstentions; unknown usage is not zero. Twelve new diagnostic tests, 18 triage tests, 21 timeout-pair tests and the full 676-test suite pass. Graph rebuild succeeded. This does not recover A-F2's lost reason, rescore historical receipts, or establish efficacy.
