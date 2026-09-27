@@ -1,3 +1,8 @@
+## VCR271-B — Fresh completed local triage pair
+
+- Run `3e2bb8664e7b43c59912be2d0a7636d3`: baseline first, treatment second. Both protocol gates pass: focused failure then focused success, required full success, immutable fixtures preserved, and independent frozen focused/full checks pass (5 each).
+- Baseline completion including preparation: 25,658.38 ms; treatment: 28,404.01 ms (2,745.63 ms slower). First useful error: baseline 12,280.54 ms, treatment 6,956.44 ms (5,324.10 ms earlier). One mixed observation, no repeatable benefit claim. Remote calls: zero; billing unknown; native Desktop acceptance unchanged.
+
 ## VCR271-A — Equal triage reproduction protocol
 
 - Implemented explicit initial focused reproduction before editing in both arms, followed by repair, focused rerun, and required full validation. Both arms acknowledge the same workflow before their first tool, with fixed arm tokens.
