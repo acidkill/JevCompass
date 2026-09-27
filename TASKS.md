@@ -1,3 +1,7 @@
+## VCR314 — Diagnostic smoke evidence
+
+A post-merge timeout probe returned a result, but the local reporter failed on a nonexistent result attribute; its provider outcome and usage were not retained and it is unscored. After an offline fake-client serialization check, one distinct synthetic assertion probe used the production client with explicit typesafe/jev-1.13 and a 1.5-second timeout. It returned no-remote-choice with insufficient_confidence in 510.54 ms, preserving the failed-test outcome and local fallback. Reported usage: 382 input / 53 output tokens, USD 0.000016044. No private task data was sent. This verifies reason/usage capture for an abstention, not agent delivery or coding efficacy; no benchmark pair was rerun.
+
 ## VCR311 — Safe triage decision diagnostics
 
 Added allowlisted decision reasons distinguishing local resolution, local abstention, invalid response, insufficient confidence, provider timeout/error and accepted choice. Diagnostics remain in the supervisor receipt and are removed from agent-facing advice; unknown wrapped transport failures remain generic. Twelve new diagnostic, 18 existing triage and 21 timeout-pair tests pass; full suite: 676 tests. Graph refreshed to 2,695 nodes and 5,399 edges. No historical result was rescored or rerun.
