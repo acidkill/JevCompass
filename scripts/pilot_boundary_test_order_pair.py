@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import json
+import math
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -37,6 +40,61 @@ def frozen_files(root):
     }
 
 
+_original_events = engine._event_receipts
+
+
+def _event_receipts(lines, event_times, started):
+    lines = list(lines)
+    result = _original_events(lines, event_times, started)
+    result["first_useful_error_ms"] = None
+    result["first_useful_error_status"] = "not_observed"
+    result["first_successful_relevant_check_ms"] = None
+    pending = set()
+    completed = set()
+    for index, line in enumerate(lines):
+        try:
+            event = json.loads(line)
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(event, dict):
+            continue
+        item = engine._item(event)
+        if not isinstance(item, dict):
+            continue
+        identifier = item.get("id")
+        if not isinstance(identifier, str) or not 0 < len(identifier) <= 128:
+            continue
+        kind = engine._test_kind(item)
+        if event.get("type") == "item.started" and kind == "contract":
+            pending.add(identifier)
+            continue
+        if (event.get("type") != "item.completed" or identifier not in pending
+                or identifier in completed or kind not in {None, "contract"}):
+            continue
+        completed.add(identifier)
+        if index >= len(event_times):
+            continue
+        observed = event_times[index]
+        if (isinstance(observed, bool) or not isinstance(observed, (int, float))
+                or not math.isfinite(observed) or observed < started):
+            continue
+        output = item.get("aggregated_output", item.get("output"))
+        code = item.get("exit_code")
+        if not isinstance(output, str) or isinstance(code, bool) or not isinstance(code, int):
+            continue
+        elapsed = round((observed - started) * 1000, 2)
+        marker = "test_money_representation_json_contract"
+        if code != 0 and re.search(r"(?:FAIL|ERROR):\s*" + marker + r"\b", output):
+            if result["first_useful_error_ms"] is None:
+                result["first_useful_error_ms"] = elapsed
+                result["first_useful_error_status"] = "observed"
+        elif code == 0 and marker in output and re.search(r"^OK\s*$", output, re.MULTILINE):
+            if result["first_successful_relevant_check_ms"] is None:
+                result["first_successful_relevant_check_ms"] = elapsed
+    return result
+
+
+engine._event_receipts = _event_receipts
 _original_arm = engine._run_arm
 
 
@@ -44,6 +102,9 @@ def _run_arm(**kwargs):
     fixture = kwargs["fixture"]
     before = frozen_files(fixture)
     result = _original_arm(**kwargs)
+    result.setdefault("first_useful_error_ms", None)
+    result.setdefault("first_useful_error_status", "unscored")
+    result.setdefault("first_successful_relevant_check_ms", None)
     result["immutable_files_preserved"] = before == frozen_files(fixture)
     independent = {}
     for kind, command in [("unit", engine.UNIT_COMMAND),
@@ -56,10 +117,6 @@ def _run_arm(**kwargs):
         except (OSError, subprocess.TimeoutExpired):
             independent[kind] = None
     result["independent_validation"] = independent
-    # The legacy fixture's error markers do not describe this task.
-    result["first_useful_error_ms"] = None
-    result["first_useful_error_status"] = "unscored_boundary_marker"
-    result["first_successful_relevant_check_ms"] = None
     if not result["immutable_files_preserved"] or any(
         code != 0 for code in independent.values()
     ):
