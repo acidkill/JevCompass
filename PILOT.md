@@ -925,3 +925,8 @@ Treatment returned `remote-choice`: `inspect_dependency_or_symbol_use`, then `de
 Treatment completed1489.17ms slower. No repeatable speed or quality benefit is established. Required invocation receipts are observed agent results, not independent hidden validation. First useful error is null because no qualifying failure was observed. Before-edit ordering and blind quality remain unscored; successful CLI output does not prove either. Final changed-file artifacts were captured locally; raw event streams were not retained. Local receipts: `/tmp/jev-strategy-vcr257-20260927-01/receipt.json` and `arm-map.json`.
 
 Next: verify pre-edit event ordering and independent quality before another efficacy claim. Smem checkpoint confirmed: `bc217b50-f59a-4edd-97d0-31bfcdf5f37c`.
+
+
+## VCR-257-D — independent strategy validation gate
+
+The strategy runner now hashes immutable fixture files before/after the arm, rejects a symlink at the permitted changed file, and reruns frozen unit, contract and required checks with the supervisor Python interpreter. A modified immutable fixture fails and is not executed as trusted validation. Timeout/unavailable validation remains null and fails acceptance. Receipt includes exit codes and status only, no output or source. This detects false agent success and regression in frozen checks; it does not score maintainability or establish blind quality. Historical VCR-257-C is not retroactively upgraded. Before-edit event-order evidence remains unscored.

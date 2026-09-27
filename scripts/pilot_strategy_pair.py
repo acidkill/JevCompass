@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Matched coding-strategy experiment; all advice remains nonbinding."""
+import hashlib
 import importlib.util
+import subprocess
+import sys
 import json
 from pathlib import Path
 
@@ -71,6 +74,57 @@ def _event_receipts(lines, times, started):
 
 
 engine._event_receipts = _event_receipts
+
+
+def frozen_files(root):
+    """Include immutable files and symlinks without following link targets."""
+    result = {}
+    for path in root.rglob("*"):
+        relative = str(path.relative_to(root))
+        if "__pycache__" in path.parts or relative == engine.CHANGED_FILE:
+            continue
+        if path.is_symlink():
+            result[relative] = "symlink:" + str(path.readlink())
+        elif path.is_file():
+            result[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return result
+
+
+_original_arm = engine._run_arm
+
+
+def _run_arm(**kwargs):
+    fixture = kwargs["fixture"]
+    before = frozen_files(fixture)
+    result = _original_arm(**kwargs)
+    changed = fixture / engine.CHANGED_FILE
+    intact = before == frozen_files(fixture) and changed.is_file() and not changed.is_symlink()
+    result["immutable_files_preserved"] = intact
+    independent = {}
+    for kind, command in [("unit", engine.UNIT_COMMAND),
+                          ("contract", engine.CONTRACT_COMMAND),
+                          ("required", engine.REQUIRED_COMMAND)]:
+        code = None
+        if intact:
+            argv = engine.shlex.split(command)
+            argv[0] = sys.executable
+            try:
+                completed = subprocess.run(argv, cwd=fixture, capture_output=True, timeout=10)
+                code = completed.returncode
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+        independent[kind] = code
+    result["independent_validation"] = independent
+    result["independent_quality_status"] = (
+        "frozen_checks_pass" if intact and all(code == 0 for code in independent.values())
+        else "failed_or_unavailable"
+    )
+    if result["independent_quality_status"] != "frozen_checks_pass":
+        result["cli_status"] = "failed"
+    return result
+
+
+engine._run_arm = _run_arm
 
 
 def main(argv=None):
