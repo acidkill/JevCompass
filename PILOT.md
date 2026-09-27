@@ -1656,3 +1656,13 @@ The VCR367 native coding pair exposed a routing deviation: a required `git diff 
 ### VCR370 — Opt-in pairwise hypothesis ordering (2026-09-27)
 
 The opt-in `triage --rank-hypotheses` path adds up to six pairwise `choice` questions for 2–4 plausible enum hypotheses in the same request as the existing diagnostic-step choice. It exposes an order only after exact question-key validation, pair-local ID and confidence validation, and an acyclic complete tournament. A bad or incomplete ranking does not invalidate a separately valid diagnostic choice; failure exit status and local fallback remain unchanged. Ranking attempts bypass the choice-only cache. Focused tests cover transitive completion, cycle/low-confidence/key/ID rejection, independent diagnostic acceptance, local shortcut, cap and CLI default compatibility. This is schema/contract implementation evidence only, not evidence of improved diagnosis quality.
+
+## VCR372 — Native local-strategy CSV pair: failed acceptance
+
+Frozen source `19ae26cb`, seed 372, treatment first; private auth-only vanilla CLI profiles, no MCP/copied skills/OpenRouter key. Treatment used the installed strategy hook, without prompt-injected advice. Preregistration SHA-256: `8faa231ebd8a52629997af27a9e9490af1b6577b65fe8f3eeb41b81cd4793e23`. The reference passed two focused/four full tests and the independent oracle before launch.
+
+Baseline completed with CLI exit 0, exact separate required-command receipts, immutable tests and independent validation: 38,360.59 ms agent time; 38,483.21 ms including independent validation; first shell action 6,989.72 ms; first observed failing test 21,398.58 ms. Usage: 134,497 input tokens including 122,624 cached, 1,091 output; provider cost unknown.
+
+Treatment stopped at the frozen token budget (CLI -9, 50,249.60 ms) and failed acceptance. Independent final focused/full/diff/oracle checks passed, but cannot substitute for missing agent command receipts. The runner omitted `preserve_on_failure=True`; the collector discarded treatment events on failure. Receipt zero token totals therefore mean **missing usage**, not zero usage. Advice delivery, first action/failure, and actual treatment tokens are unknown. Elapsed time plus validation (50,371.57 ms) is censored, not successful completion.
+
+No retry or historical rescore. This is a local-guidance cohort, not remote Jev efficacy or Desktop delivery evidence. Pair acceptance failed; no speed/quality benefit is established. Future runners must explicitly preserve failure events. Raw private artifacts remain at `/tmp/jevcompass-vcr372`; no prompts, authentication or private events are published.
