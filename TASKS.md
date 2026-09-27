@@ -916,3 +916,9 @@ One synthetic metadata attempt per path on code source `7d6fba4`, without retrie
 Triage accepted a preferred diagnostic step after one call (**362.34 ms**, 366 input / 39 output tokens, provider cost **USD 0.000015372**). A fresh process reused it in **0.25 ms**, with zero usage calls and null usage. Both runs preserved observed exit 1 and `test_failed=true`; the step IDs matched. This ranks a next step, not proven hypothesis likelihood.
 
 These are single functional smokes on safe metadata, not coding comparisons or p95 estimates. Times exclude process startup and task execution. Cold preparation costs remain counted; provider cost is not independently verified billing. The unaccepted test-order case is retained, not retried. No test execution, native Desktop delivery or coding-time improvement is established. PR #261 evidence documentation was merged after hosted CI run 36306877179 passed in 1m4s.
+
+## VCR348 — Offline CSV fixture preflight (not a live comparison)
+
+Prepared a new private five-file quoted-comma CSV task. The starter fails focused parsing (four fields instead of three) and full pipeline mapping; a separate private reference passes focused 1/1 and full 2/2 checks. Frozen source hashes exclude bytecode and tooling scaffolding. Both proposed arms have identical focused/full commands and immutable tests. Supported `python` metadata with required checks was validated offline using a mocked provider.
+
+Runtime is honestly `unknown`; this tiny fixture has no established coverage/runtime tradeoff. It is **not promoted to a live remote-choice comparison**. No Codex pair, paid provider call, test-order benefit or completed coding-time comparison occurred. This preflight is preparation evidence only; the fixture/reference remain private local artifacts.
