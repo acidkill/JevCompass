@@ -101,6 +101,8 @@ For timeouts, the source CLI also accepts repeatable `--timeout-observation` enu
 
 Triage JSON now includes a fixed `decision_reason` and each step's `selection_source`: a remotely preferred next action, locally resolved guidance, or an unranked local fallback. `hypothesis_ranking_status` remains `not_established`: choosing the next diagnostic action does not establish which cause is most likely. These fields describe the source checkout; the published package remains unchanged.
 
+For an optional complete hypothesis order, add `--rank-hypotheses` when 2–4 locally plausible causes remain. Jev receives up to six pairwise `choice` questions in the same request as the separate next-step question. The CLI exposes `hypothesis_order` only when every pair has an allowed choice at the confidence threshold and the comparisons form an acyclic complete order. Otherwise the ranking status is `incomplete` or `not_established`, with no order inferred from caller order; the diagnostic step is validated independently. Local resolutions and unambiguous cases still skip remote calls. Opt-in ranking bypasses the choice-only typed cache. This feature is source-only and does not claim improved diagnosis quality.
+
 ## Add your own installed skill
 
 The built-in catalog cannot know when a private skill fits your work. Register a short, generic description explicitly, after reading its `SKILL.md` and checking the fields you are willing to share:

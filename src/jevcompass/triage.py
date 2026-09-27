@@ -118,6 +118,8 @@ class TriageResult:
     decision_usage: DecisionUsage | None = None
     decision_reason: TriageDecisionReason | None = None
     cache_hit: bool = False
+    hypothesis_order: tuple[HypothesisId, ...] = ()
+    hypothesis_ranking_status: str = "not_established"
 
     @property
     def test_failed(self) -> bool:
@@ -237,6 +239,70 @@ def _confidence_reason(value: Any) -> TriageDecisionReason | None:
     return None
 
 
+def _pairwise_rank_questions(
+    plausible: Sequence[_CatalogEntry],
+) -> tuple[dict[str, dict[str, Any]], tuple[tuple[str, HypothesisId, HypothesisId], ...]]:
+    """Build a bounded pairwise choice tournament from fixed hypothesis enums."""
+    questions: dict[str, dict[str, Any]] = {}
+    pairs: list[tuple[str, HypothesisId, HypothesisId]] = []
+    for left_index, left in enumerate(plausible):
+        for right_index in range(left_index + 1, len(plausible)):
+            right = plausible[right_index]
+            question_id = f"hypothesis_pair_{left_index}_{right_index}"
+            left_id, right_id = left.step.id, right.step.id
+            questions[question_id] = {
+                "type": "choice",
+                "instructions": "Which candidate is the more plausible explanation, based only on the supplied allowlisted evidence?",
+                "criteria": {
+                    left_id.value: left.descriptor,
+                    right_id.value: right.descriptor,
+                },
+            }
+            pairs.append((question_id, left_id, right_id))
+    return questions, tuple(pairs)
+
+
+def _validated_pairwise_order(
+    answers: Mapping[str, Any],
+    expected_question_ids: set[str],
+    pairs: Sequence[tuple[str, HypothesisId, HypothesisId]],
+) -> tuple[HypothesisId, ...] | None:
+    """Return a full order only for a complete, confident, acyclic tournament."""
+    if set(answers) != expected_question_ids:
+        return None
+    nodes: set[HypothesisId] = set()
+    outgoing: dict[HypothesisId, set[HypothesisId]] = {}
+    indegree: dict[HypothesisId, int] = {}
+    for question_id, left, right in pairs:
+        nodes.update((left, right))
+        answer = answers.get(question_id)
+        if not isinstance(answer, Mapping) or answer.get("type") != "choice":
+            return None
+        winner_token = answer.get("choice")
+        if not isinstance(winner_token, str) or winner_token not in {left.value, right.value}:
+            return None
+        if _confidence_reason(answer.get("confidence")) is not None:
+            return None
+        winner = left if winner_token == left.value else right
+        loser = right if winner is left else left
+        outgoing.setdefault(winner, set()).add(loser)
+        indegree.setdefault(winner, 0)
+        indegree[loser] = indegree.get(loser, 0) + 1
+    order: list[HypothesisId] = []
+    remaining = set(nodes)
+    while remaining:
+        sources = [node for node in remaining if indegree.get(node, 0) == 0]
+        # An acyclic complete tournament has exactly one source at each step.
+        if len(sources) != 1:
+            return None
+        winner = sources[0]
+        order.append(winner)
+        remaining.remove(winner)
+        for loser in outgoing.get(winner, ()):
+            indegree[loser] -= 1
+    return tuple(order) if len(order) == len(nodes) else None
+
+
 def _normalize_import_observations(
     observations: Sequence[ImportObservation] | None,
 ) -> tuple[ImportObservation, ...]:
@@ -326,6 +392,7 @@ def triage_failure(
     import_observations: Sequence[ImportObservation] | None = None,
     assertion_observations: Sequence[AssertionObservation] | None = None,
     timeout_observations: Sequence[TimeoutObservation] | None = None,
+    rank_hypotheses: bool = False,
 ) -> TriageResult:
     """Return up to two diagnostic steps from allowlisted failure metadata.
 
@@ -348,6 +415,8 @@ def triage_failure(
             or not isinstance(hypotheses, Sequence)
             or any(not isinstance(hypothesis, HypothesisId) for hypothesis in hypotheses)):
         raise TypeError("hypotheses-must-be-enums")
+    if not isinstance(rank_hypotheses, bool):
+        raise TypeError("rank-hypotheses-must-be-bool")
     observations = _normalize_import_observations(import_observations)
     assertion_facts = _normalize_assertion_observations(assertion_observations)
     timeout_facts = _normalize_timeout_observations(timeout_observations)
@@ -453,12 +522,19 @@ def triage_failure(
             "criteria": {entry.step.id.value: entry.descriptor for entry in plausible},
         }
     }
+    rank_questions: dict[str, dict[str, Any]] = {}
+    rank_pairs: tuple[tuple[str, HypothesisId, HypothesisId], ...] = ()
+    if rank_hypotheses and 2 <= len(plausible) <= 4:
+        rank_questions, rank_pairs = _pairwise_rank_questions(plausible)
+        questions.update(rank_questions)
+    expected_question_ids = set(questions)
+    ranking_status = "incomplete" if rank_pairs else "not_established"
 
     try:
         decision_client = client if client is not None else DecisionsClient(timeout=DECISION_TIMEOUT)
         usage = None
         cache = None
-        if client is None and isinstance(decision_client, _USAGE_CLIENT_TYPE):
+        if client is None and isinstance(decision_client, _USAGE_CLIENT_TYPE) and not rank_hypotheses:
             try:
                 cache = TypedDecisionCache(
                     scope="triage", model=decision_client.model,
@@ -479,27 +555,43 @@ def triage_failure(
             response = decision_client.decide_with_usage(state, questions)
             if not isinstance(response, DecisionResponse):
                 return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE,
-                                    decision_reason=TriageDecisionReason.INVALID_RESPONSE)
+                                    decision_reason=TriageDecisionReason.INVALID_RESPONSE,
+                                    hypothesis_ranking_status=ranking_status)
             answers, usage = response.answers, response.usage
         else:
             # Existing injected clients can implement the historical answers-only API.
             answers = decision_client.decide(state, questions)
-        if not isinstance(answers, Mapping) or set(answers) != {"diagnostic"}:
+        if not isinstance(answers, Mapping):
+            return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE, usage,
+                                TriageDecisionReason.INVALID_RESPONSE,
+                                hypothesis_ranking_status=ranking_status)
+        if not rank_pairs and set(answers) != {"diagnostic"}:
             return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE, usage,
                                 TriageDecisionReason.INVALID_RESPONSE)
+        ranked_order = None
+        if rank_pairs:
+            ranked_order = _validated_pairwise_order(answers, expected_question_ids, rank_pairs)
+            if ranked_order is not None:
+                ranking_status = "complete"
         answer = answers.get("diagnostic")
         if not isinstance(answer, Mapping) or answer.get("type") != "choice":
             return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE, usage,
-                                TriageDecisionReason.INVALID_RESPONSE)
+                                TriageDecisionReason.INVALID_RESPONSE,
+                                hypothesis_order=ranked_order or (),
+                                hypothesis_ranking_status=ranking_status)
         selected_id = answer.get("choice")
         confidence = answer.get("confidence")
         if selected_id not in ids:
             return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE, usage,
-                                TriageDecisionReason.INVALID_RESPONSE)
+                                TriageDecisionReason.INVALID_RESPONSE,
+                                hypothesis_order=ranked_order or (),
+                                hypothesis_ranking_status=ranking_status)
         reason = _confidence_reason(confidence)
         if reason is not None:
-            return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE, usage, reason)
-        if cache is not None and not cache_hit:
+            return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE, usage, reason,
+                                hypothesis_order=ranked_order or (),
+                                hypothesis_ranking_status=ranking_status)
+        if cache is not None and not cache_hit and not rank_hypotheses:
             try:
                 cache.put((selected_id,), confidence, eligible_tokens=ids)
             except Exception:
@@ -507,12 +599,16 @@ def triage_failure(
         selected = CATALOG[HypothesisId(selected_id)].step
         ordered = (selected,) + tuple(step for step in fallback if step.id != selected.id)
         return TriageResult(observed_exit_status, ordered[:2], REMOTE_CHOICE, usage,
-                            TriageDecisionReason.ACCEPTED, cache_hit)
+                            TriageDecisionReason.ACCEPTED, cache_hit,
+                            hypothesis_order=ranked_order or (),
+                            hypothesis_ranking_status=ranking_status)
     except TimeoutError:
         return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE,
-                            decision_reason=TriageDecisionReason.PROVIDER_TIMEOUT)
+                            decision_reason=TriageDecisionReason.PROVIDER_TIMEOUT,
+                            hypothesis_ranking_status=ranking_status)
     except Exception:
         # DecisionsClient folds multiple transport failures into a safe generic
         # unavailable error; only an unwrapped TimeoutError is called a timeout.
         return TriageResult(observed_exit_status, fallback, NO_REMOTE_CHOICE,
-                            decision_reason=TriageDecisionReason.PROVIDER_ERROR)
+                            decision_reason=TriageDecisionReason.PROVIDER_ERROR,
+                            hypothesis_ranking_status=ranking_status)

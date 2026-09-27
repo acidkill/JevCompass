@@ -353,6 +353,8 @@ def main(argv: list[str] | None = None) -> int:
     triage_parser.add_argument("--timeout-observation", action="append",
                                choices=tuple(item.value for item in TimeoutObservation),
                                help="Allowlisted local timeout observation; may be repeated")
+    triage_parser.add_argument("--rank-hypotheses", action="store_true",
+                               help="Opt in to bounded pairwise hypothesis ordering when 2-4 causes remain plausible")
     triage_parser.add_argument("--json", action="store_true", help="Print machine-readable result")
     from .strategy import ContractEvidence, StrategyId
     strategy_parser = sub.add_parser("strategy", help="Choose a coding strategy from allowlisted signals")
@@ -436,6 +438,7 @@ def main(argv: list[str] | None = None) -> int:
             timeout_observations=tuple(
                 TimeoutObservation(item) for item in (args.timeout_observation or ())
             ),
+            rank_hypotheses=args.rank_hypotheses,
         )
         try:
             reason_value = TriageDecisionReason(result.decision_reason).value
@@ -463,7 +466,8 @@ def main(argv: list[str] | None = None) -> int:
             "status": result.status,
             "cache_hit": getattr(result, "cache_hit", False) is True,
             "decision_reason": reason_value,
-            "hypothesis_ranking_status": "not_established",
+            "hypothesis_ranking_status": (result.hypothesis_ranking_status
+                                          if args.rank_hypotheses else "not_established"),
             "steps": steps,
             "executed": False,
             "decision_usage": (
@@ -474,13 +478,17 @@ def main(argv: list[str] | None = None) -> int:
                 } if result.decision_usage is not None else None
             ),
         }
+        if args.rank_hypotheses:
+            payload["hypothesis_order"] = [item.value for item in result.hypothesis_order]
         if args.json:
             print(json.dumps(payload))
         else:
+            ranking_text = (f"hypothesis ranking {result.hypothesis_ranking_status}:"
+                            if args.rank_hypotheses else "hypothesis ranking not established:")
             print(
                 f"Observed test exit: {result.observed_exit_status}; "
                 f"next diagnostic action ({result.status}); "
-                "hypothesis ranking not established:"
+                f"{ranking_text}"
             )
             for step in steps:
                 label = {
@@ -492,6 +500,11 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"- {label} [{step['id']}]: {step['instruction']}")
             if not steps:
                 print("No safe diagnostic choice; inspect the original failure locally.")
+            if args.rank_hypotheses:
+                if result.hypothesis_ranking_status == "complete":
+                    print("Hypothesis order: " + " > ".join(item.value for item in result.hypothesis_order))
+                else:
+                    print(f"Hypothesis order {result.hypothesis_ranking_status}; no ordering inferred.")
         return 0
     if args.command == "strategy":
         from .strategy import choose_strategies

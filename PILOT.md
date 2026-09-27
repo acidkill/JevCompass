@@ -1651,3 +1651,8 @@ Private hashes: final preregistration `c6f246e037d91b13b02dacf73ba67aeb9c67712ef
 ## VCR371 — Keep mandatory validation from overriding coding intent
 
 The VCR367 native coding pair exposed a routing deviation: a required `git diff --check` selected the review category and suppressed strategy advice. Classification now ignores that exact whitespace-validation command only when matching review intent; explicit review/audit and other diff requests remain review. A narrowly anchored request to change the behavior/output of an existing symbol is treated as coding before secondary review/test wording. Negated modifications and planning requests retain their original routes. Two focused tests cover six intent examples and the actual opt-in strategy path. The original VCR367 pair remains unchanged and excluded from strategy efficacy; no trial was repeated.
+
+
+### VCR370 — Opt-in pairwise hypothesis ordering (2026-09-27)
+
+The opt-in `triage --rank-hypotheses` path adds up to six pairwise `choice` questions for 2–4 plausible enum hypotheses in the same request as the existing diagnostic-step choice. It exposes an order only after exact question-key validation, pair-local ID and confidence validation, and an acyclic complete tournament. A bad or incomplete ranking does not invalidate a separately valid diagnostic choice; failure exit status and local fallback remain unchanged. Ranking attempts bypass the choice-only cache. Focused tests cover transitive completion, cycle/low-confidence/key/ID rejection, independent diagnostic acceptance, local shortcut, cap and CLI default compatibility. This is schema/contract implementation evidence only, not evidence of improved diagnosis quality.
