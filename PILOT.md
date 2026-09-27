@@ -1705,3 +1705,7 @@ The new receipt helper accepts a complete JSON object or command output ending i
 The retained event stream describes an initial focused failure (exit 1), focused rerun (0), full command (0), and diff check (0), without acceptance. No ranked-triage CLI command was observed; provider call count, Jev usage and cost are unavailable. One Codex turn reported 121,386 input tokens (112,640 cached), 720 output, and 0 reasoning tokens. CLI-created config, skills and plugin/cache artifacts were present in the isolated profile; presence does not establish they were enabled or used, and no baseline exists for comparison.
 
 Evidence SHA256: treatment raw JSONL f35f467b4cfc9546e53dd9bb6d01ca078b6776830593f2b4ebff2f4341695221; measurement-error receipt 47e3f12ce2f957fb5d079c98cc515d91088f2b9e984ca216a8f15f832904c3bc. No acceptance or efficacy conclusion.
+
+### VCR381 — Prospective shared measurement receipt
+
+`build_agent_measurement_receipt()` combines redacted event parsing with process/collector status while preserving the established `first_tool_start` key and unknown token usage/cost. Five synthetic tests pass, including partial timeout serialization and collector failure overriding exit 0. Completed status means process and collector completed; it does not assert task acceptance. The helper is not yet wired into a runner, and no historical receipt was changed or rescored.
