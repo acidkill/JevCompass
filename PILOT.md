@@ -1684,3 +1684,12 @@ The wheel installed into a private venv using no-index/no-deps. Installed CLI ex
 ### VCR379 — Hook strategy transport integration
 
 Three offline tests exercise `evaluate()` through the real strategy selector with a synthetic transport: an accepted choice issues one request containing only allowlisted signals, timeout and low confidence produce local fallback without blocking, and a single-signal local decision issues no request. Focused suite passes 3/3. This validates the integration path and fallback contract, not live service availability or coding efficacy.
+
+
+### VCR374 — Test-order matched pair (measurement error)
+
+**Status: measurement error; paired outcome unavailable.** Parent-reported baseline acceptance was 28,400.35 ms. The runner then terminated in treatment result serialization with `UnboundLocalError: local variable payload referenced before assignment` at line 222. Treatment acceptance, elapsed time, structured ranking result/order, and cost were not recorded. The raw event log does show the exact ranking CLI command exit 0; command success alone does not establish the selected order.
+
+Raw shell-wrapped command observations, recorded without rescoring: both arms' seeded-failure test exited 1; focused unit test, full suite, and `git diff --check` exited 0. Treatment's `python -m jevcompass tests rank --input test-options.json --json` exited 0. Each raw capture contains a completed-turn usage object, but this entry does not report token totals or infer acceptance.
+
+Frozen evidence SHA-256: preregistration `df0682712651e2f5016931a55c6c9ee13f163ea36167edfe22e9db92dc844d81`; baseline raw events `a31e17393882da2a32583314b8ff871eab05d65e92fef188412da5224a02c299`; treatment raw events `a968cb74952d87fdf1bc4c55abc458834ba9ca1a17341abc1b3300f07a98753b`; measurement-error receipt `3908b9068691b5fa7b4187909980b531622ac01a6cb86cd599d3cf1ff8115b56`. No retry or rescore; no efficacy conclusion.
