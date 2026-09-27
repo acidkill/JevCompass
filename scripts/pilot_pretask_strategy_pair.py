@@ -21,6 +21,12 @@ engine.__doc__ = __doc__
 engine.OPENROUTER_KEY_HELP = "opt in to supervisor-only API access; neither agent receives the key"
 MARKER = "\n[SUPERVISOR_PRETASK_STRATEGY]"
 engine.TREATMENT_RANKING = MARKER
+engine.BASE_PROMPT += (
+    "\nDeclared focused checks: " + engine.UNIT_COMMAND + " OR "
+    + engine.CONTRACT_COMMAND + ". Choose one and run it as a separate command, "
+    "then run the required full suite as a separate command. "
+    "Read test-options.json for the same candidate definitions."
+)
 COMMAND = [
     sys.executable, "-m", "jevcompass", "strategy", "choose",
     "--kind", "coding", "--signal", "existing_symbol",
@@ -40,6 +46,8 @@ def _event_receipts(lines, times, started):
     lines = list(lines)
     result = _original_events(lines, times, started)
     acknowledgment = "not_observed"
+    unmatched = {"unittest": 0, "pytest": 0}
+    completed_ids = set()
     first_tool_seen = False
     expected = "JevCompass strategy receipt: " + ",".join(_expected_ids)
     for line in lines:
@@ -49,6 +57,18 @@ def _event_receipts(lines, times, started):
             continue
         if not isinstance(event, dict):
             continue
+        item = engine._item(event)
+        if (event.get("type") == "item.completed" and isinstance(item, dict)
+                and item.get("type") == "command_execution"):
+            identifier = item.get("id")
+            if (isinstance(identifier, str) and 0 < len(identifier) <= 128
+                    and identifier not in completed_ids):
+                completed_ids.add(identifier)
+                argv = engine._command_argv(item) or []
+                if engine._test_kind(item) is None:
+                    for family in unmatched:
+                        if family in argv:
+                            unmatched[family] += 1
         kind, message, _tool = engine.core.extract_event(event)
         if kind == "tool":
             first_tool_seen = True
@@ -57,6 +77,7 @@ def _event_receipts(lines, times, started):
               and acknowledgment == "not_observed"):
             acknowledgment = ("after_first_tool" if first_tool_seen
                               else "before_first_tool")
+    result["unmatched_test_command_counts"] = unmatched
     result["pretask_acknowledgment"] = acknowledgment
     counters = engine.parse_codex_json_events(
         lines, started_at=started, event_times=times)

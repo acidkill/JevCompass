@@ -100,3 +100,25 @@ class PretaskPairTests(unittest.TestCase):
         self.assertEqual(after["pretask_acknowledgment"], "after_first_tool")
         self.assertEqual(before["first_successful_relevant_check_ms"], 3000)
         self.assertNotIn("Ran 3 tests", json.dumps(before))
+
+    def test_unmatched_test_diagnostics_do_not_waive_validation(self):
+        command = "python3 -m unittest discover -s tests -p 'test_unit*.py' -v"
+        completed = command_event("item.completed", "alias", command,
+                                  exit_code=0, aggregated_output="private-log")
+        routine = command_event("item.completed", "read", "cat /private/source",
+                                exit_code=0, aggregated_output="private-code")
+        receipt = runner._event_receipts([completed, completed, routine], [1, 2, 3], 0)
+        self.assertEqual(receipt["unmatched_test_command_counts"], {"unittest": 1, "pytest": 0})
+        self.assertEqual(receipt["focused_invocation_count"], 0)
+        self.assertIsNone(receipt["first_successful_relevant_check_ms"])
+        self.assertNotIn("private-", json.dumps(receipt))
+        self.assertNotIn("/private", json.dumps(receipt))
+
+    def test_known_checks_are_not_unmatched_and_instructions_are_explicit(self):
+        event = command_event("item.completed", "known", runner.engine.UNIT_COMMAND,
+                              exit_code=0)
+        receipt = runner._event_receipts([event], [1], 0)
+        self.assertEqual(receipt["unmatched_test_command_counts"], {"unittest": 0, "pytest": 0})
+        self.assertIn(runner.engine.UNIT_COMMAND, runner.engine.BASE_PROMPT)
+        self.assertIn(runner.engine.CONTRACT_COMMAND, runner.engine.BASE_PROMPT)
+        self.assertIn("separate command", runner.engine.BASE_PROMPT)
