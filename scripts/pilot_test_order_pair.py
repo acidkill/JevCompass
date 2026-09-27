@@ -68,6 +68,7 @@ TREATMENT_RANKING = (
     "locally and preserve the required full suite. Report the rank command "
     "exit status without replacing a test failure with success."
 )
+OPENROUTER_KEY_HELP = "pass the existing OPENROUTER_API_KEY to both isolated arms"
 SAFE_ID = re.compile(r"[A-Za-z0-9_.-]{1,64}")
 SAFE_MODEL = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}")
 
@@ -538,7 +539,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--allow-openrouter-key", action="store_true",
-        help="pass the existing OPENROUTER_API_KEY to both isolated arms",
+        help=OPENROUTER_KEY_HELP,
     )
     args = parser.parse_args(argv)
     if not args.live:

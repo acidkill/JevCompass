@@ -930,3 +930,18 @@ Next: verify pre-edit event ordering and independent quality before another effi
 ## VCR-257-D — independent strategy validation gate
 
 The strategy runner now hashes immutable fixture files before/after the arm, rejects a symlink at the permitted changed file, and reruns frozen unit, contract and required checks with the supervisor Python interpreter. A modified immutable fixture fails and is not executed as trusted validation. Timeout/unavailable validation remains null and fails acceptance. Receipt includes exit codes and status only, no output or source. This detects false agent success and regression in frozen checks; it does not score maintainability or establish blind quality. Historical VCR-257-C is not retroactively upgraded. Before-edit event-order evidence remains unscored.
+
+
+## VCR-257-E — supervisor-prepared strategy experiment
+
+`scripts/pilot_pretask_strategy_pair.py` compares identical coding fixtures with optional advice composed before Codex launch. Preparation invokes only `coding`, `existing_symbol`, `behavior_change`; validated eligible IDs select fixed local guidance. Backend prose is never injected. A two-second subprocess limit bounds preparation; failures skip advice. Agent-side network/key access is disabled in both arms even when supervisor preparation opts into OpenRouter. No daily-tool hook is added.
+
+Both arms report a preflight receipt (`none` for baseline), so the instruction overhead is shared. Receipts distinguish initial-prompt placement from an agent acknowledgment before/after its first observed tool. Placement is a harness property, not native hook evidence. Completion, first-tool start, relevant successful check and useful-failure times include measured preparation; agent-only completion is retained separately. A successful check requires the declared focused command, nonempty unittest summary, exit0 and independent frozen validation. Existing independent correctness checks remain mandatory; qualitative blind review is separate.
+
+Offline tests cover exact safe metadata, local text, no key in agent launch, no baseline selector call, timeout/nonzero exit/malformed/duplicate/unknown output, acknowledgment order and preparation-inclusive timing. No live outcome yet. Command for a fresh opt-in trial:
+
+```bash
+python scripts/pilot_pretask_strategy_pair.py --live --model gpt-6-luna --reasoning-effort low --timeout 180 --seed 258 --allow-openrouter-key --output-dir /tmp/jev-pretask-strategy-fresh
+```
+
+Historical explicit-CLI comparisons remain separate; do not retroactively reinterpret their timing or delivery.
