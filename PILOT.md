@@ -1,3 +1,9 @@
+## VCR319/VCR320 — Triage and host-delivery audits
+
+Read-only review found that production triage already accepts allowlisted timeout observations, while the pilot bridge omits them. A prospective bridge correction is in progress; no new remote efficacy result is claimed. The existing locally resolved condition-timeout fixture remains a no-call control.
+
+Installed Codex CLI 0.157.0 and JevCompass 0.1.22 expose the explicit recommendation path; active configuration has UserPromptSubmit and SubagentStart, with no JevCompass PreToolUse. Configuration and explicit CLI results do not prove fresh native Desktop delivery. That proof requires a fresh native session and an advice ID in the initial agent context before its first tool, correlated with safe hook metadata. No session, configuration or provider call was created by this audit.
+
 ## VCR317 — Isolated distribution validation
 
 Built wheel and sdist from commit 1d44c4c7a1aef5b77160158392bcbb787ee444a7 (version 0.1.22) and installed the wheel through isolated pipx. Artifact scans detected no private/cache/log files or credential patterns; the CLI entry point and five bundled skills were present. CLI help and installed triage-enum import passed. Temporary-profile installation preserved two synthetic smem markers and registered exactly two advisory hooks, with no PreToolUse group; all five installed skills matched package resources. No Node or provider API call was used. Actual doctor was not run because it performs a public metadata lookup. This is artifact/isolated CLI evidence, not an updated production installation, registry release or fresh Desktop delivery test.
