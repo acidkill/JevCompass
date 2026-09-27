@@ -1,3 +1,8 @@
+## VCR294 — Completed-turn token monitor
+
+- Added opt-in max_tokens to event collection, preserving the default unbudgeted path. Valid completed-turn input plus output counters accumulate; cached input is not counted twice. Crossing the cap stops the process and can preserve events through the exceeded turn.
+- Six budget tests and 58 existing collector tests passed. Missing/invalid usage is not counted, so this is an observed-turn monitor rather than a hard provider-request cap. Cohort launch still needs a runtime limit and explicit handling of unknown billing/usage; no live pair or benefit claim.
+
 ## VCR293 — Collection-failure local control
 
 - Added a synthetic stdlib cart calculation repair task with a clear contract, four behavior checks and an isolated import-purity guard. Seeded focused check fails during collection; a temporary minimal reference repair passes four focused and five full checks.
