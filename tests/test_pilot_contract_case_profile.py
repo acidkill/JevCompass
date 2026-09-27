@@ -160,6 +160,10 @@ class PilotContractCaseProfileTests(unittest.TestCase):
                 "first_useful_failure_observed": True,
                 "full_suite_invocation_observed": True,
                 "full_suite_exit": 0 if repair_succeeds else 1,
+                "agent_git_diff_check_invocation_observed": repair_succeeds,
+                "agent_git_diff_check_exit_codes": [0] if repair_succeeds else [],
+                "agent_git_diff_check_exit_code": 0 if repair_succeeds else None,
+                "agent_git_diff_check_passed": repair_succeeds,
             }
             if advice_policy == "nonbinding" and kwargs["treatment"]:
                 result.update({
