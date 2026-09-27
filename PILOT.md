@@ -1,3 +1,7 @@
+## VCR287 — Local-resolution dependency control prepared
+
+The new strategy_dependency_change fixture fully defines adapter behavior and is classified as a local-resolution control. A close catalog score does not establish genuine uncertainty. Its seven checks reject a hardcoded response and accept equivalent bound-import and qualified-import reference repairs in temporary copies. Parent reproduced the seeded failure: seven errors, exit 1. No reference solution is included, no agent pair has run, and this case cannot be counted as an accepted remote-choice efficacy observation.
+
 ## VCR284 — Coding workflow entrypoint prepared
 
 The new opt-in coding-workflow skill connects strategy, test order and triage phases using safe CLI metadata. It skips unambiguous decisions and preserves observed failures and every required check. Its three documented examples pass real CLI contract tests with mocked transport; the full local suite passed 593 tests. Installer registration/refresh and fresh-session delivery remain pending. This is a prepared workflow artifact, not agent-use or efficacy evidence.

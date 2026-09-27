@@ -1,3 +1,8 @@
+## VCR287 — Dependency migration local-resolution control
+
+- Added a synthetic stdlib-only adapter migration with a fully specified application contract. It is explicitly a local-resolution control, not an unresolved remote-strategy case. No advisor instructions or solution are embedded in the fixture.
+- Seeded adapter fails seven tests. Temporary reference repairs pass all seven with both supported import styles; hardcoded output fails three behavioral assertions. Tests cover varied data, filtering, ordering, caller compatibility and fresh per-call lists. No live pair or benefit claim.
+
 ## VCR284 — Phase-aware coding workflow skill
 
 - Added an opt-in English skill routing genuine unresolved strategy choices, competing focused checks and observed ambiguous failures to the three verified CLI APIs. Clear local choices skip advice; recommendations remain nonbinding and mandatory checks remain required.
