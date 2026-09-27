@@ -1,3 +1,7 @@
+## VCR287 — Local-resolution dependency control prepared
+
+The new strategy_dependency_change fixture fully defines adapter behavior and is classified as a local-resolution control. A close catalog score does not establish genuine uncertainty. Its seven checks reject a hardcoded response and accept equivalent bound-import and qualified-import reference repairs in temporary copies. Parent reproduced the seeded failure: seven errors, exit 1. No reference solution is included, no agent pair has run, and this case cannot be counted as an accepted remote-choice efficacy observation.
+
 ## VCR285 — Safe skill installation path
 
 The installer can now explicitly refresh recognized historical focused-tests content while preserving arbitrary user edits. Backups precede replacement and remain available if rollback cannot restore a file. Nine targeted installer tests passed; a real-profile dry-run identified three new, one refreshable and one unchanged skill without writing files. Registration includes the new coding-workflow skill. Production refresh, catalog selection and fresh-session delivery are still pending; these checks do not establish efficacy.
