@@ -100,7 +100,7 @@ def run_arm(*, codex, model, effort, timeout, max_tokens, fixture, home, prompt)
 
 
 def run_pair(*, output_dir: Path, model: str, effort="low", codex="codex",
-             timeout=180, max_tokens=150000, seed=330):
+             timeout=180, max_tokens=150000, seed=330, expected_fixture_sha256=None):
     if not isinstance(model, str) or not model.strip():
         raise ValueError("explicit model required")
     if effort not in {"low", "medium", "high", "xhigh", "max"}:
@@ -108,6 +108,8 @@ def run_pair(*, output_dir: Path, model: str, effort="low", codex="codex",
     if not 1 <= timeout <= 600 or not 1 <= max_tokens <= core.MAX_EVENT_TOKEN_BUDGET:
         raise ValueError("invalid bounded execution settings")
     original = snapshot(FIXTURE)
+    if expected_fixture_sha256 is not None and original != expected_fixture_sha256:
+        raise ValueError("preregistered fixture digest mismatch")
     started = time.monotonic()
     output_dir.mkdir(mode=0o700, parents=True, exist_ok=False)
     os.chmod(output_dir, 0o700)
@@ -177,6 +179,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--model", required=True)
+    parser.add_argument("--expected-fixture-sha256", required=True)
     parser.add_argument("--effort", default="low", choices=["low", "medium", "high", "xhigh", "max"])
     parser.add_argument("--codex", default="codex")
     parser.add_argument("--timeout", type=int, default=180)
