@@ -1761,3 +1761,24 @@ The shared collector supports an optional event observer without changing defaul
 The profile runner now has explicit supervisor opt-in for remote triage and accepted result statuses. Both arms use equal network and token-budget settings; only treatment receives the credential-isolated bridge. The live event observer confirms the focused failure before the bridge can decide. Private agent measurement and typed bridge receipts survive optional parser failure. Diagnostic delivery, causal ranking and measured provider calls remain separate.
 
 Offline integration tests cover the arm pipeline, symmetric configuration, deterministic observer acknowledgment, and receipt preservation after timeout or parser failure. The complete local suite passes: 810 tests in 37.714 seconds. This is not native hook delivery or efficacy evidence. The optional completed-turn token cap is observational, not a provider-side spending limit, and enabled network access is not restricted to loopback. A prospective trial still requires frozen code/profile/oracle and green hosted CI.
+
+## VCR396 — Prospective query migration triage pair
+
+One preregistered pair ran from merged commit `bff9700f7fa572de0daf02edee625c4125fb4593`, using Codex CLI 0.157.0, gpt-6-luna/low, seed 396, 180 seconds per arm and a 300,000 observed completed-turn token cap. Protocol SHA-256: `9de6246641871ce4a0f98b830591f6fe51acd505c640a19ec655e86830b71585`. Treatment ran first. No retry or historical rescoring occurred.
+
+| Measurement | Baseline | Optional JevCompass workflow |
+| --- | ---: | ---: |
+| Agent wall | 94.400 s | 28.223 s |
+| Independent validation | 0.214 s | 0.214 s |
+| Validated completion | 94.614 s | 28.437 s |
+| First observed useful failure | 28.829 s | 6.920 s |
+| Input tokens (cached subset included) | 169,683 | 124,273 |
+| Cached input tokens | 151,808 | 114,688 |
+| Output tokens | 989 | 746 |
+| Reported Codex cost | Unknown | Unknown |
+
+Both arms observed the initial focused failure, repaired only the allowed source, then passed focused tests, the full suite, git diff --check and the immutable independent oracle. Tests and protected fixture files remained unchanged. Task acceptance passed.
+
+The treatment inspected all configured evidence and made **zero bridge requests and zero Jev transport calls**. Local resolution was permitted; no model ranking or diagnostic recommendation was delivered. The exact workflow acknowledgment was invalid, so protocol delivery failed and the overall receipt remains **incomplete**, despite correct repairs. The timing difference is descriptive single-pair evidence only: treatment-first order, unequal observed token/cache usage and extra workflow instructions prevent attribution to Jev. It does not prove native Desktop delivery, repeatable speed or quality improvement. Raw events were not durably archived by this runner; retained measurements and task receipts cannot establish the cause of the missing acknowledgment.
+
+Next: preserve this outcome unchanged, add bounded private event retention for future diagnostic trials, and evaluate genuinely ambiguous cases separately. Do not force remote advice on locally resolved contracts.
