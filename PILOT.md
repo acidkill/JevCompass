@@ -1,3 +1,7 @@
+## VCR288 — Installed workflow catalog eligibility
+
+The curated workflow entry becomes available only after actual skill discovery. Tests cover bundle-only exclusion, installed availability, relevant coding/debugging/testing selection and exclusion from unrelated tasks. The no-failure avoidance rule applies to triage only, preserving pretask/test phases. Two new catalog tests and the full 600-test local suite passed. This proves selector eligibility, not agent adoption or efficacy.
+
 ## VCR287 — Local-resolution dependency control prepared
 
 The new strategy_dependency_change fixture fully defines adapter behavior and is classified as a local-resolution control. A close catalog score does not establish genuine uncertainty. Its seven checks reject a hardcoded response and accept equivalent bound-import and qualified-import reference repairs in temporary copies. Parent reproduced the seeded failure: seven errors, exit 1. No reference solution is included, no agent pair has run, and this case cannot be counted as an accepted remote-choice efficacy observation.
