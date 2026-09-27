@@ -62,6 +62,7 @@ DEFAULT_TIMEOUT = 120
 MAX_TIMEOUT = 300
 MAX_EVENT_BYTES = 4 * 1024 * 1024
 MAX_USAGE_COUNTER = 1_000_000_000
+MAX_EVENT_TOKEN_BUDGET = 10_000_000
 TURN_USAGE_FIELDS = (
     "input_tokens", "cached_input_tokens", "cache_write_input_tokens",
     "output_tokens", "reasoning_output_tokens",
@@ -816,9 +817,21 @@ def _isolated_environment(
 
 def _collect_events(
     process: subprocess.Popen[bytes], *, started: float, timeout: int,
-    preserve_on_failure: bool = False,
+    preserve_on_failure: bool = False, max_tokens: int | None = None,
 ) -> tuple[list[str], list[float], str | None]:
-    """Collect bounded JSONL into memory; never write raw events to a file."""
+    """Collect bounded JSONL, optionally stopping after a completed turn exceeds a token budget.
+
+    Token-budget enforcement is observed at each valid completed-turn usage event;
+    it is not a provider-side per-request limit. Cached input is a subset of
+    input_tokens and is not added a second time.
+    """
+    if max_tokens is not None and (
+        isinstance(max_tokens, bool) or not isinstance(max_tokens, int)
+        or not 1 <= max_tokens <= MAX_EVENT_TOKEN_BUDGET
+    ):
+        raise ValueError(
+            f"max_tokens must be between 1 and {MAX_EVENT_TOKEN_BUDGET}"
+        )
     if process.stdout is None:
         return [], [], "codex_unavailable"
     selector = selectors.DefaultSelector()
@@ -827,8 +840,30 @@ def _collect_events(
     lines: list[str] = []
     times: list[float] = []
     total = 0
+    cumulative_tokens = 0
     failure = None
     deadline = started + timeout
+
+    def append_line(raw: bytes) -> None:
+        nonlocal cumulative_tokens, failure
+        line = raw.decode("utf-8", errors="replace")
+        lines.append(line)
+        times.append(time.monotonic())
+        if max_tokens is None:
+            return
+        try:
+            event = json.loads(line)
+        except (TypeError, json.JSONDecodeError):
+            return
+        if not isinstance(event, dict) or event.get("type") != "turn.completed":
+            return
+        usage_status, usage = _safe_turn_usage(event)
+        if usage_status != "available" or usage is None:
+            return
+        cumulative_tokens += usage["input_tokens"] + usage["output_tokens"]
+        if cumulative_tokens > max_tokens:
+            failure = "token_budget_exceeded"
+
     try:
         while selector.get_map():
             remaining = deadline - time.monotonic()
@@ -849,14 +884,15 @@ def _collect_events(
                     newline = pending.find(b"\n")
                     if newline < 0:
                         break
-                    lines.append(bytes(pending[:newline]).decode("utf-8", errors="replace"))
+                    raw_line = bytes(pending[:newline])
                     del pending[:newline + 1]
-                    times.append(time.monotonic())
+                    append_line(raw_line)
+                    if failure == "token_budget_exceeded":
+                        break
             if failure:
                 break
         if pending and failure is None:
-            lines.append(bytes(pending).decode("utf-8", errors="replace"))
-            times.append(time.monotonic())
+            append_line(bytes(pending))
     finally:
         selector.close()
         process.stdout.close()

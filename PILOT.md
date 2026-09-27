@@ -1,3 +1,7 @@
+## VCR294 — Token monitoring prerequisite
+
+The optional event collector budget sums valid completed-turn input and output counters and stops on token_budget_exceeded, retaining evidence when requested. Cached input is already included; default collection remains unchanged. Six budget cases and 58 existing collector tests passed. Enforcement happens after completed usage appears, not inside a provider request; missing or invalid usage cannot establish a token bound. A runtime deadline remains necessary. No live benchmark was started.
+
 ## VCR293 — Collection local-resolution control
 
 CartCalc supplies a clear behavior/import contract, varied arithmetic checks and a separate import-purity check. The seeded focused test exits 1 during collection, and full traceback resolves an eager configuration read. Both arms must see complete diagnostics and skip remote ranking once resolved. A temporary minimal reference repair passes four focused and five full checks; caught read attempts still fail the purity guard. This fixture is a local control, not a remotely ambiguous triage case. No live pair or benefit claim.
