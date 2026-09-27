@@ -361,6 +361,7 @@ def _case_treatment_prompt(profile: CaseProfile, advice_policy: str) -> str:
         guidance += (
             f"Complete the requested behavior change in {profile.source_file}. "
             f"Do not modify {profile.focused_test_file} or configured evidence files. "
+            "Run git diff --check and require exit code zero after the change. "
             "Run the focused test again and the required full test suite after the change. "
             "The supervisor runs a separate immutable oracle."
         )
@@ -537,6 +538,8 @@ def _event_receipts(
     evidence: set[str] = set()
     focused_exits: list[int] = []
     full_exits: list[int] = []
+    git_diff_check_exits: list[int] = []
+    git_diff_check_invoked = False
     useful_failure_ms: float | None = None
     useful_failure_observed = False
     triage_seen = False
@@ -624,6 +627,10 @@ def _event_receipts(
             if kind:
                 pending[event_id] = (kind, None)
             argv = common._command_argv(item)
+            if (profile is not None and profile.outcome_mode == "repair"
+                    and argv == ["git", "diff", "--check"]):
+                git_diff_check_invoked = True
+                pending[event_id] = ("git-diff-check", None)
             if argv and "jevcompass" in argv:
                 triage_seen = True
                 exact = _is_triage(item, focused_exits[0] if focused_exits else None, profile)
@@ -643,7 +650,9 @@ def _event_receipts(
         elif event_type == "item.completed" and event_id in pending:
             kind, _ = pending.pop(event_id)
             code = item.get("exit_code")
-            if kind == "focused" and isinstance(code, int) and not isinstance(code, bool):
+            if kind == "git-diff-check" and isinstance(code, int) and not isinstance(code, bool):
+                git_diff_check_exits.append(code)
+            elif kind == "focused" and isinstance(code, int) and not isinstance(code, bool):
                 focused_exits.append(code)
                 output = item.get("aggregated_output")
                 if not isinstance(output, str):
@@ -718,6 +727,16 @@ def _event_receipts(
         "codex_billing_estimate": None,
         "event_count": len(list(lines)) if isinstance(lines, list) else None,
     }
+    if profile is not None and profile.outcome_mode == "repair":
+        result["agent_git_diff_check_invocation_observed"] = git_diff_check_invoked
+        result["agent_git_diff_check_exit_codes"] = git_diff_check_exits
+        result["agent_git_diff_check_exit_code"] = (
+            git_diff_check_exits[-1] if git_diff_check_exits else None
+        )
+        result["agent_git_diff_check_passed"] = bool(
+            git_diff_check_invoked and git_diff_check_exits
+            and all(code == 0 for code in git_diff_check_exits)
+        )
     if advice_policy == "nonbinding":
         result["workflow_acknowledgment"] = workflow_acknowledgment
         result["triage_result_acknowledgment"] = triage_result_acknowledgment
@@ -807,8 +826,58 @@ def _run_arm(
     return result, answer
 
 
-def _fixture_digest(root: Path, *, exclude_relative: str | None = None) -> str | None:
-    """Hash fixture files while ignoring generated Python bytecode."""
+def _initialize_private_git_baseline(root: Path) -> bool:
+    """Initialize an isolated Git baseline for one copied repair fixture."""
+    git = shutil.which("git")
+    if not git:
+        return False
+    env = {
+        "PATH": os.environ.get("PATH", ""),
+        "HOME": str(root),
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_AUTHOR_NAME": "JevCompass Fixture",
+        "GIT_AUTHOR_EMAIL": "fixture@example.invalid",
+        "GIT_COMMITTER_NAME": "JevCompass Fixture",
+        "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
+    }
+    commands = (
+        [git, "init", "--quiet"],
+        [git, "add", "-A"],
+        [git, "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null",
+         "commit", "--quiet", "-m", "Immutable synthetic fixture baseline"],
+    )
+    try:
+        for argv in commands:
+            completed = subprocess.run(
+                argv, cwd=root, env=env, stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL, timeout=10, check=False,
+            )
+            if completed.returncode != 0:
+                return False
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return True
+
+
+def _repair_git_diff_check_valid(arm: dict[str, Any]) -> bool:
+    """Require an observed, successful diff check for repair-profile completion."""
+    exits = arm.get("agent_git_diff_check_exit_codes")
+    return bool(
+        arm.get("agent_git_diff_check_invocation_observed") is True
+        and isinstance(exits, list) and exits
+        and all(isinstance(code, int) and not isinstance(code, bool) and code == 0
+                for code in exits)
+        and arm.get("agent_git_diff_check_passed") is True
+    )
+
+
+def _fixture_digest(
+    root: Path, *, exclude_relative: str | None = None,
+    exclude_internal_git: bool = False,
+) -> str | None:
+    """Hash fixture files while ignoring bytecode and optional private .git metadata."""
     digest = hashlib.sha256()
     try:
         for path in sorted(root.rglob("*")):
@@ -816,6 +885,8 @@ def _fixture_digest(root: Path, *, exclude_relative: str | None = None) -> str |
                 continue
             relative_text = path.relative_to(root).as_posix()
             if relative_text == exclude_relative:
+                continue
+            if exclude_internal_git and (relative_text == ".git" or relative_text.startswith(".git/")):
                 continue
             relative = relative_text.encode("utf-8")
             digest.update(len(relative).to_bytes(4, "big"))
@@ -963,9 +1034,11 @@ def run_pair(
             for name in (source_file_rel, test_file_rel)
         }
         initial_fixture_digest = _fixture_digest(fixture_source)
+        repair_profile = bool(case_profile and case_profile.outcome_mode == "repair")
         initial_protected_digest = _fixture_digest(
             fixture_source, exclude_relative=source_file_rel,
-        ) if case_profile and case_profile.outcome_mode == "repair" else initial_fixture_digest
+            exclude_internal_git=repair_profile,
+        ) if repair_profile else initial_fixture_digest
         for true_arm in ("baseline", "treatment"):
             fixtures[true_arm] = private_root / f"{true_arm}-fixture"
             homes[true_arm] = private_root / f"{true_arm}-home"
@@ -982,6 +1055,19 @@ def run_pair(
                 return receipt
         if digests["baseline"] != digests["treatment"]:
             raise RuntimeError("fixture parity verification failed")
+        if repair_profile and not all(
+            _initialize_private_git_baseline(fixtures[name])
+            for name in ("baseline", "treatment")
+        ):
+            receipt = {
+                "schema_version": 1, "run_id": run_id, "status": "failed",
+                "failure": "repair_git_setup_failed", "arms": {},
+            }
+            common._private_write(
+                output_dir / "receipt.json",
+                (json.dumps(receipt, sort_keys=True, indent=2) + "\n").encode("utf-8"),
+            )
+            return receipt
 
         arms: dict[str, dict[str, Any]] = {}
         answers: dict[str, str | None] = {}
@@ -1003,6 +1089,11 @@ def run_pair(
                 measurement_path=output_dir / f"{label}-agent-measurement.json",
                 profile=case_profile,
             )
+            if repair_profile:
+                arms[label].setdefault("agent_git_diff_check_invocation_observed", False)
+                arms[label].setdefault("agent_git_diff_check_exit_codes", [])
+                arms[label].setdefault("agent_git_diff_check_exit_code", None)
+                arms[label].setdefault("agent_git_diff_check_passed", False)
             arms[label]["fixture_sha256_before"] = digests[true_arm]
 
         source_unchanged: dict[str, bool] = {}
@@ -1026,8 +1117,10 @@ def run_pair(
             )
             protected_fixture_unchanged[label] = (
                 initial_protected_digest is not None
-                and _fixture_digest(fixtures[true_arm], exclude_relative=source_file_rel)
-                == initial_protected_digest
+                and _fixture_digest(
+                    fixtures[true_arm], exclude_relative=source_file_rel,
+                    exclude_internal_git=repair_profile,
+                ) == initial_protected_digest
             )
             source_bytes = _safe_artifact(fixtures[true_arm] / source_file_rel)
             if source_bytes is not None:
@@ -1070,6 +1163,7 @@ def run_pair(
                     and source_changed.get(label) is True
                     and tests_unchanged.get(label) is True
                     and protected_fixture_unchanged.get(label) is True
+                    and _repair_git_diff_check_valid(arm)
                 )
                 arm["validated_completion_ms"] = endpoint_ms if completion_valid else None
                 arm["task_outcome_status"] = (

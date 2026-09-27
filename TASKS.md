@@ -1136,6 +1136,10 @@ The runner now writes the bounded redacted measurement to its private output dir
 
 The profile event parser now observes acknowledgment after both legacy and configured valid triage results. A real synthetic event stream verifies acknowledgment before the next tool and distinguishes missing or late acknowledgment. This fixes delivery measurement only; it does not establish native delivery or efficacy.
 
+## VCR392 — Symmetric repair-arm Git validation
+
+Repair-profile arms now receive isolated Git baselines before execution. Setup failure prevents launch. The runner records the agent’s exact diff-check invocation and exit codes; missing or unsuccessful checks prevent task acceptance in both arms. Protected fixture digests exclude only internal Git metadata. Four offline tests cover setup failure, metadata handling, whitespace errors and missing/nonzero checks; existing profile tests remain green. No live delivery or efficacy result is established.
+
 ## VCR389 — Prospective query migration repair fixture
 
 Staged a new synthetic URL query migration task with versioned contracts, historical evidence, immutable tests, and an external hash-pinned oracle. Offline checks establish the expected initial failure, a source-only reference repair, and rejection of protected-file tampering or unexpected files. The oracle independently runs focused/full checks and checks the source patch.
