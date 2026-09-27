@@ -1,3 +1,7 @@
+## VCR333 — Actionable verified-contract advice
+
+For the existing local coding route with verified conflicting or absent contract evidence, strategy advice now asks to resolve behavior and precedence before editing, preserve supplied failure evidence, define a discriminating regression and retain mandatory validation. Other kinds, unknown/partial evidence, IDs and remote payloads remain unchanged. Thirteen focused contract tests and all 707 Python tests passed; graphify refreshed. This improves the locally authored guidance contract, not a demonstrated task outcome. No historical rescore, live retry, release or installed-package update.
+
 ## VCR334 — Grounded planning skill guidance
 
 The bundled implementation-planning skill now asks for local contract/implementation/test evidence, an explicit unresolved precedence question, conditional repairs and a discriminating regression with preserved mandatory validation. Observed failures retain reproduction and actual exit status; no failure is invented for a feature-only task. This is prospective guidance, not measured benefit, a historical rescore or an installed-skill refresh. All 12 existing skill/package checks passed; hosted CI remains the merge gate.
