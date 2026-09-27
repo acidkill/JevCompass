@@ -1035,3 +1035,15 @@ This gate is prospective. The historical retry fixture and VCR-249 scores remain
 
 
 Verification: seven verifier tests and the full 447-test suite pass. Correct synthetic implementation is accepted; the original fixture, upper-bound mutant, wrong exhausted-response mutant, missing fixture and hanging fixture are rejected. Invalid CLI argument values produce aggregate JSON without printing the supplied value. Parent review caught and corrected an initial verifier expectation that wrongly retried HTTP 600; the correct/mutant tests now distinguish this boundary. Graph refresh completed (1772 nodes, 3455 edges). No live model requests or new paired scores were produced.
+
+
+## VCR-259-A — verified contract evidence routing
+
+Prospective source change: optional allowlisted contract evidence augments strategy selection without accepting raw contract text. The reviewed deterministic rule applies only to coding with exactly existing_symbol and behavior_change: consistent evidence selects inspection; conflicting/absent evidence selects contract definition. It returns one local recommendation without client construction. Caller-supplied explicit resolution that contradicts this result abstains. Invalid evidence abstains.
+
+Partial evidence may enrich an existing eligible ambiguous choice with an enum value; it must not create a remote request, expand eligible strategies or override thresholds. Unknown/omitted evidence preserves existing behavior and is omitted from requests. Other task kinds and signal sets retain existing eligibility and routing. The caller must check evidence locally; the API cannot verify that the enum describes reality.
+
+Validation must cover client-construction suppression, conflicting explicit inputs, invalid/private strings, scoped applicability, partial payload allowlisting, unknown omission and CLI choices. No live A/B trial or quality gain is established by these routing tests. A subsequent frozen pair must separate locally resolved cases from genuinely unresolved decisions and include preparation time and independent artifact validation.
+
+
+Validation: 11 dedicated tests and all 458 repository tests pass. Tests patch client construction to fail for deterministic/invalid inputs, inspect exact mocked partial/unknown request state, and preserve ambiguous routing without contract metadata outside the reviewed scope. A source CLI conflicting-contract smoke returned contract-first, no-remote-choice and null usage. Graph refresh completed (1791 nodes, 3500 edges). This establishes routing and privacy behavior, not task-time benefit, caller evidence accuracy or native host delivery.

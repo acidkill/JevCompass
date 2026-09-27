@@ -466,5 +466,15 @@ Important limits: the Codex event has no reliable task objective; the article th
 - [x] Add a prospective supervisor-side retry contract verifier without editing the historical fixture.
 - [x] Verify correct implementation acceptance and rejection of upper-bound/exhaustion mutants, missing input and timeout.
 - [x] Run 447 Python tests and refresh graphify (1772 nodes, 3455 edges).
-- [ ] Deliver through green hosted CI.
+- [x] Delivered in PR #176 after green hosted CI (32 seconds); main 73fdc48.
 - [ ] Integrate this quality gate into a future frozen paired task before collecting efficacy evidence. Standalone validation is not a new A/B result.
+
+
+## VCR-259-A — verified contract evidence for pretask strategy
+
+- [x] Add SDK/CLI enum metadata derived from locally checked contract evidence.
+- [x] Resolve consistent/conflicting/absent evidence locally only for the reviewed coding signal pair; retain conservative eligibility outside that scope.
+- [x] Preserve partial/unknown fallback, reject conflicting explicit resolution and invalid metadata, and test request privacy.
+- [x] Run 458 Python tests and graph refresh (1791 nodes, 3500 edges).
+- [ ] Merge after green hosted CI.
+- [ ] Measure this behavior on frozen equivalent paired tasks; unit tests do not prove agent efficiency.
