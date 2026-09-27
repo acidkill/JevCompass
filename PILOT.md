@@ -1,3 +1,9 @@
+## VCR273-A — Production guidance refinement, efficacy pending
+
+The locally authored `timeout_nonterminating` instruction now links inspection to a contract-supported minimal repair, rerunning the failed focused check, and all mandatory validation. It conditionally refers to local observations and explicitly treats the timeout as a lead rather than a confirmed cause. The same instruction is used after local resolution or validated remote selection; no decision threshold or eligibility changes.
+
+Source inspection confirms the existing condition-timeout runner calls `triage_failure`, returns `step.instruction`, and includes that instruction in the treatment prompt. Its zero remote invocation counter does not mean the local API was skipped. Earlier speculation that only a hardcoded identifier was delivered was incorrect. VCR271 remains a mixed single-pair result; no measured improvement is claimed for this wording change. A fresh equivalent comparison is pending delivery gates.
+
 ## VCR272-A — Observation diagnostics for future test-order trials
 
 Future cross-layer receipts distinguish canonical declared commands from unmatched unittest/pytest aliases, combined or unknown shapes, and unavailable/nonzero/zero exit status through bounded counters only. Duplicate completion IDs count once. Commands, paths, test names, and output are not retained. Counters do not satisfy required validation gates. Valid rank receipts may retain the seven known decision-reason identifiers; unknown values and invalid receipts omit them. Twenty-three focused tests pass. No historical reason, timing, or missing validation is inferred, and this measurement improvement is not evidence of coding benefit.

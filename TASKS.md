@@ -1,3 +1,8 @@
+## VCR273-A — Timeout diagnosis-to-validation guidance
+
+- Updated production nonterminating-timeout advice to check contract support, treat the hypothesis as a lead, make only a supported minimal repair, rerun the same failed focused check, and complete mandatory validation. Local and remote-selected paths share the same conditional wording; remote choice does not claim verified evidence.
+- No eligibility, transport, confidence, or validation policy changes. The timeout runner already forwards actual `step.instruction`; no renderer replacement is needed. Benefit of revised wording remains unmeasured.
+
 ## VCR272-A — Diagnose unmatched test invocations
 
 - Added bounded, path-free counters for completed declared and unmatched unittest/pytest invocations, combined/unknown command shapes, exit-status classes, and duplicate completion IDs. These diagnostics grant no focused/full validation credit.

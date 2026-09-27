@@ -191,7 +191,11 @@ CATALOG: Mapping[HypothesisId, _CatalogEntry] = {
         _entry(FailureKind.TIMEOUT, HypothesisId.TIMEOUT_NONTERMINATING,
                "the test may be waiting on a condition that never completes",
                "Inspect the wait condition",
-               "Check whether the test's completion condition can be satisfied on every path."),
+               "Check whether the wait condition can be satisfied on every path under the written contract. "
+               "If local observations mark it unsatisfiable, inspect that path; treat the timeout as a lead, "
+               "not a confirmed diagnosis. If the contract supports a minimal source fix, "
+               "make it and rerun the same focused check that failed. A passing rerun confirms only that "
+               "check; complete every mandatory validation afterward."),
     )
 }
 
