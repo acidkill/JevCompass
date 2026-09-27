@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "python": "3.14.7",
+  "measurement_inputs_sha256": "22a027dc8737d86287e22471d769905d301a7dfd409a39d0e75e4ef53fec0ad7",
+  "measurement_input_files": [
+    "roster/__init__.py",
+    "roster/__main__.py",
+    "roster/service.py",
+    "test-options.json",
+    "tests/data/roster.json",
+    "tests/test_integration_roster.py",
+    "tests/test_unit_roster.py"
+  ],
+  "measurement_input_hash_method": "SHA-256 over canonical compact JSON mapping sorted runtime-relevant relative paths to their SHA-256 file digests; excludes prose and oracle files not run during candidate timing",
+  "method": "five alternating unit/integration pairs, subprocess wall clock including interpreter startup, no sleeps",
+  "unit": [
+    {"exit_code": 1, "wall_ms": 54.84},
+    {"exit_code": 1, "wall_ms": 55.71},
+    {"exit_code": 1, "wall_ms": 58.23},
+    {"exit_code": 1, "wall_ms": 60.28},
+    {"exit_code": 1, "wall_ms": 58.48}
+  ],
+  "integration": [
+    {"exit_code": 1, "wall_ms": 176.86},
+    {"exit_code": 1, "wall_ms": 168.43},
+    {"exit_code": 1, "wall_ms": 154.46},
+    {"exit_code": 1, "wall_ms": 158.53},
+    {"exit_code": 1, "wall_ms": 163.9}
+  ],
+  "scope": "Seeded implementation only; all ten observations retained. These are local subprocess timings, not model or live pair results."
+}
