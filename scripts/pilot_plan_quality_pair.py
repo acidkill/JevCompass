@@ -86,13 +86,15 @@ def run_arm(*, codex, model, effort, timeout, max_tokens, fixture, home, prompt)
             plan = item["text"]
     # Never persist raw streams, commands, errors or assistant commentary.
     usable = failure is None and completed and bool(plan and plan.strip())
+    first_tool = parsed.get("first_tool")
+    first_tool_ms = first_tool.get("elapsed_ms") if isinstance(first_tool, dict) else None
     result = {
         "status": "completed" if usable else "failed",
         "failure": None if usable else "plan_incomplete",
         "plan_elapsed_ms": elapsed(started),
         "token_usage_status": parsed.get("token_usage_status", "unavailable"),
         "token_usage": parsed.get("token_usage"),
-        "first_observed_tool_ms": parsed.get("first_tool_ms"),
+        "first_observed_tool_ms": first_tool_ms,
         "first_useful_error_ms": None,
         "billing_cost_usd": None,
     }
