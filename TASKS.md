@@ -1099,3 +1099,11 @@ Evidence hashes: preregistration `df0682712651e2f5016931a55c6c9ee13f163ea36167ed
 ## VCR380 — Prospective strict decision-output parser
 
 Added `parse_decision_command_output()` as a reusable helper for future receipts. It accepts a complete JSON object, including pretty output or leading command chatter; rejects malformed/non-object payloads, duplicate keys, non-finite values including exponent overflow, and trailing prose. Four focused helper tests pass (11 including existing receipt tests). The helper is not wired into historical receipts; no historical reconstruction/rescore, API call, or quality claim.
+
+## VCR373 — One-shot ranked-triage trial measurement error
+
+The run is **not assessable as a pair**. Only the treatment arm started; no baseline, per-arm receipt, independent validation, or summary was produced. After preserving the treatment event stream, receipt serialization raised KeyError('first_action'): the archived parse_codex_json_events() returns first_tool_start, while the runner indexed first_action. The raw-event file is retained; no retry, rerun, or rescore was made.
+
+Observed shell-wrapped command events (descriptive only, not accepted results): initial focused exit 1, focused rerun exit 0, full command exit 0, and git diff --check exit 0. No ranked-triage CLI command was observed; bridge/provider call count and Jev decision usage are unavailable. The one Codex turn reported 121,386 input, 112,640 cached input, 720 output, and 0 reasoning tokens; provider cost remains unknown. The isolated profile contains CLI-created config, skill, and plugin/cache artifacts; their presence does not establish that they were enabled or used. With no baseline, profile parity is unavailable.
+
+Evidence: treatment raw JSONL /tmp/jevcompass-vcr373/live-run-01/treatment/events.private.jsonl, SHA256 f35f467b4cfc9546e53dd9bb6d01ca078b6776830593f2b4ebff2f4341695221; measurement-error receipt /tmp/jevcompass-vcr373/measurement_error_receipt.json, SHA256 47e3f12ce2f957fb5d079c98cc515d91088f2b9e984ca216a8f15f832904c3bc. The missing parser-key mapping and receipt failure do not support an acceptance or efficacy conclusion.
