@@ -1,3 +1,7 @@
+## VCR310 — Post-change phase tracking correction
+
+Treatment phase tracking now uses explicit per-run profile inputs and the paired baseline/treatment prompt values instead of searching prompt text for a marker. Phase credit still requires the observed source change before ranking and the recorded event order. Thirty-six focused tests and the copied 664-test full suite pass; graph refresh reports 2,665 nodes, 5,329 edges and 173 communities. Historical T-F1 remains failed and was not rescored. No new live pair or efficacy claim.
+
 ## VCR308 — Feasibility cohort completed; no repeatable triage benefit
 
 The fixed six-pair feasibility cohort is complete: four pairs completed, T-F1 failed its required observational gates, and T-F2 remained case-stopped. Recovery reused P-F1, P-F2 and T-F1 from hash-verified receipt/map copies; they were not rerun or rescored. Each replay was conservatively charged 360 seconds because original supervisor elapsed time was unavailable. The original manifest SHA-256 is `283bda79a7069ff454d5b6c92610f9113709918fa01bf50bcd88100d132e5cbd`; recovery inventory SHA-256 is `f31be0f7414e46d3c17abe80d45b44fca5ce9d111858fa602e319e1beeebbf15`.

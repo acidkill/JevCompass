@@ -67,10 +67,15 @@ def rank_payload(order=("integration", "unit"), status="remote-choice",
     return json.dumps(value)
 
 
+def prompt_is_treatment(prompt: str, suffix=None):
+    return prompt.endswith(runner.TREATMENT_RANKING if suffix is None else suffix)
+
+
 def arm_events(prompt: str, *, edit_before_rank=True, edit_after_rank=False,
                rank_after_focus=False, useful_marker=True, duplicate=False,
-               focused_exit=1, no_op_source_event=False, native_file_change_event=False):
-    treatment = runner.TREATMENT_RANKING in prompt
+               focused_exit=1, no_op_source_event=False, native_file_change_event=False,
+               treatment_prompt_suffix=None):
+    treatment = prompt_is_treatment(prompt, treatment_prompt_suffix)
     rows = []
     edit_cmd = "touch checkout/service.py" if no_op_source_event else "apply_patch -- checkout/service.py"
     rank_cmd = runner.RANK_COMMAND
@@ -416,7 +421,11 @@ class CrossLayerRunnerTests(unittest.TestCase):
         self.assertEqual(treatment["post_change_rank_phase_status"], "unscored")
         self.assertEqual(treatment["post_change_rank_phase_reason"], "source_not_changed_at_rank")
 
-    def setup_pair(self, temp: str):
+    def setup_pair(self, temp: str, treatment_prompt_suffix=None):
+        treatment_suffix = (
+            runner.TREATMENT_RANKING if treatment_prompt_suffix is None
+            else treatment_prompt_suffix
+        )
         root = Path(temp)
         auth_home = root / "auth"
         auth_home.mkdir()
@@ -446,43 +455,58 @@ class CrossLayerRunnerTests(unittest.TestCase):
                 "codex_home": env["CODEX_HOME"],
                 "openrouter_key": env.get("OPENROUTER_API_KEY"),
                 "network_option": "sandbox_workspace_write.network_access=true" in command,
-                "treatment": runner.TREATMENT_RANKING in prompt,
+                "treatment": prompt_is_treatment(prompt, treatment_suffix),
             })
             return FakeProcess(prompt)
 
         return auth_home, output, calls, popen
 
-    def execute_mock_pair(self, *, key_opt_in=False, missing_source_event=False, unchanged_at_rank=False, no_op_source_event=False, native_file_change_event=False, validation_exit=0):
+    def execute_mock_pair(self, *, key_opt_in=False, missing_source_event=False,
+                          unchanged_at_rank=False, no_op_source_event=False,
+                          native_file_change_event=False, validation_exit=0,
+                          treatment_prompt_suffix=None,
+                          track_post_change_rank_phase=True):
         with tempfile.TemporaryDirectory() as temp:
-            auth, output, calls, popen = self.setup_pair(temp)
+            auth, output, calls, popen = self.setup_pair(temp, treatment_prompt_suffix)
             saved = {}
+            suffix = (
+                runner.TREATMENT_RANKING if treatment_prompt_suffix is None
+                else treatment_prompt_suffix
+            )
 
             def fake_collect(process, *, started, timeout, preserve_on_failure=False,
                              fixture=None, before_source=None, observation=None):
+                treatment = prompt_is_treatment(process.prompt, suffix)
                 result = arm_events(
                     process.prompt,
-                    edit_before_rank=not (missing_source_event and runner.TREATMENT_RANKING in process.prompt),
+                    edit_before_rank=not (missing_source_event and treatment),
                     focused_exit=0,
-                    no_op_source_event=no_op_source_event and runner.TREATMENT_RANKING in process.prompt,
-                    native_file_change_event=native_file_change_event and runner.TREATMENT_RANKING in process.prompt,
+                    no_op_source_event=no_op_source_event and treatment,
+                    native_file_change_event=native_file_change_event and treatment,
+                    treatment_prompt_suffix=suffix,
                 )
-                if runner.TREATMENT_RANKING in process.prompt:
+                if treatment:
                     observation["rank_source_snapshot_observed"] = True
                     observation["rank_source_snapshot_changed"] = not unchanged_at_rank
                     observation["rank_source_snapshot_ms"] = 4.0
-                saved[runner.TREATMENT_RANKING in process.prompt] = result
+                saved[treatment] = result
                 return result
 
             completed_process_run = runner.subprocess.CompletedProcess([], validation_exit, "", "")
-            with mock.patch.dict(os.environ, {"CODEX_HOME": str(auth)}, clear=False), \
-                 mock.patch.dict(os.environ, {"OPENROUTER_API_KEY": "OPENROUTER_SECRET"}, clear=False), \
-                 mock.patch.object(runner.subprocess, "Popen", side_effect=popen), \
-                 mock.patch.object(runner, "_collect_events_live", side_effect=fake_collect), \
-                 mock.patch.object(runner.subprocess, "run", return_value=completed_process_run):
+            with (
+                mock.patch.dict(os.environ, {"CODEX_HOME": str(auth)}, clear=False),
+                mock.patch.dict(os.environ, {"OPENROUTER_API_KEY": "OPENROUTER_SECRET"}, clear=False),
+                mock.patch.object(runner.subprocess, "Popen", side_effect=popen),
+                mock.patch.object(runner, "_collect_events_live", side_effect=fake_collect),
+                mock.patch.object(runner.subprocess, "run", return_value=completed_process_run),
+            ):
                 receipt = runner.run_pair(
                     codex="/fake/codex", model="gpt-5.6", reasoning_effort="high",
                     seed=3, output_dir=output, timeout=15,
                     allow_openrouter_key=key_opt_in,
+                    track_post_change_rank_phase=track_post_change_rank_phase,
+                    **({"treatment_prompt_suffix": treatment_prompt_suffix}
+                       if treatment_prompt_suffix is not None else {}),
                 )
             output_evidence = {
                 "receipt": (output / "receipt.json").read_text(encoding="utf-8"),
@@ -495,6 +519,17 @@ class CrossLayerRunnerTests(unittest.TestCase):
                 "arm_map_present": (output / "arm-map.json").is_file(),
             }
             return receipt, output_evidence, calls
+
+    def test_explicit_profile_tracks_target_suffix_and_not_baseline(self):
+        target_suffix = "\\n\\nTARGET_RANKING profile requests rank after the source change."
+        receipt, _, calls = self.execute_mock_pair(
+            treatment_prompt_suffix=target_suffix,
+            track_post_change_rank_phase=True,
+        )
+        self.assertEqual(receipt["status"], "completed", receipt.get("quality_gate_failures"))
+        self.assertEqual(sum(prompt_is_treatment(call["prompt"], target_suffix) for call in calls), 1)
+        phases = [arm["post_change_rank_phase_status"] for arm in receipt["arms"].values()]
+        self.assertCountEqual(phases, ["verified", "not_applicable"])
 
     def test_pair_isolated_and_only_completed_when_post_change_phase_verified(self):
         receipt, output, calls = self.execute_mock_pair()
