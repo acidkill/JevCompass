@@ -1,3 +1,8 @@
+## VCR277-A — Autonomous enriched pair failed adherence gate
+
+- Run `bb4555c0fa4f45158cffb60dc6db87ba`: treatment first, autonomous baseline second. Both source artifacts and focused/full/independent checks pass; immutable files preserved. Treatment post-edit rank phase verified, but agent ran integration first despite returned unit-first order. Pair failed `treatment_choice_not_followed`.
+- Completion treatment 28,414.46 ms vs baseline 22,226.83 ms (6,187.63 ms later; not a compliant efficacy comparison). Provider abstained for insufficient confidence: 477.55 ms, 501 input/34 output tokens, USD 0.000021042. No useful error observed; Codex billing unknown. No threshold relaxation or historical rescoring.
+
 ## VCR276-A — Autonomous enriched test-order profile implemented
 
 - Thin runner stages an enriched copy of reviewed fixture files, verifies SHA-256 evidence, and provides identical overlapping coverage targets to both arms. Baseline independently chooses either candidate; treatment ranks after editing. Scoped prompt parameters preserve legacy defaults without new global mutation.
