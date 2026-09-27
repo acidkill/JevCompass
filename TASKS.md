@@ -1,3 +1,7 @@
+## VCR324 — Local test-order audit
+
+Reviewed the roster candidates against existing local dominance rules. Both checks are direct, but the faster unit check targets internal behavior while integration also targets the changed public contract. Curated target metadata is not exhaustive coverage evidence, so timing alone cannot establish dominance. No production rule or confidence threshold changed. VCR323 remains a failed, abstained pair excluded from efficacy comparisons; its latency does not justify forcing a local or remote choice. Mandatory checks remain unchanged. The audit checkpoint was confirmed in smem.
+
 ## VCR325 — Proportionate validation guidance
 
 Bundled coding and focused-test skills now permit the exact required full suite directly when verified local timings show it is cheap, covers the change, and no separate focused command is required. This avoids prescribing duplicate subsets or ranking a locally settled validation path. Other mandatory checks and frozen experiment gates remain unchanged; VCR323 stays failed. Twelve existing skill/package tests passed. This is prospective workflow guidance, not a measured speedup or a production installation update.
