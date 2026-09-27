@@ -24,7 +24,7 @@ The CLI accepts only allowlisted kinds, signals, and strategy IDs; it takes no p
 
 ## After editing: rank focused checks only when their order is genuinely unclear
 
-Read the project’s test instructions and CI to identify the exact mandatory checks. Select a focused check from the changed behavior and its existing tests. If multiple materially different focused checks remain plausible and you have verified the coarse metadata, you may rank them with `tests rank`. Replace the illustrative commands below with real local commands. Put the repository’s actual required command in `required`; it is returned unchanged and still has to be run.
+Read the project’s test instructions and CI to identify the exact mandatory checks. When verified local timings show that the complete required suite is already cheap and covers the change, and no separate focused check is required, run the exact full suite directly and skip ranking its subsets. Keep every separately required validation step. This does not alter frozen experiment gates or justify reclassifying earlier results. Select a focused check from the changed behavior and its existing tests. If multiple materially different focused checks remain plausible and you have verified the coarse metadata, you may rank them with `tests rank`. Replace the illustrative commands below with real local commands. Put the repository’s actual required command in `required`; it is returned unchanged and still has to be run.
 
 ```json
 {
