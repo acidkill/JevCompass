@@ -1227,3 +1227,10 @@ One prospective pair ran from merged `ef2f127e053e5f00d4b2fc66705d7421a5fdca5e`,
 Both source-only repairs passed the immutable oracle, and tests/protected evidence were unchanged. Both task outcomes remain incomplete because mandatory agent command observations were missing. Treatment acknowledgment was invalid, no bridge request occurred, and measured Jev transport calls were zero. The overall receipt is incomplete with failed task acceptance and delivery. Agent exit zero and independent oracle pass do not replace the missing gates. No speed, ranking, quality or native delivery benefit is established.
 
 The retained private events show test invocations that differ from the frozen required argv: focused tests used module invocation rather than the configured discovery command, and the baseline full suite omitted the configured verbosity flag. Simple Bash wrappers were already supported; their presence does not establish the cause of missing observations. Combined command exits cannot prove individual checks. Future trials must expose exact mandatory commands symmetrically to both agents; wrapper hardening is a separate prospective improvement. These findings do not explain every missing gate or acknowledgment, and do not rescore this frozen result. Raw events remain private.
+
+
+## VCR404 — Symmetric mandatory-command visibility
+
+Future repair-profile trials expose exact standalone validation commands to both baseline and treatment before treatment-specific advice instructions. The initial focused check precedes edits; post-edit focused, full-suite and diff checks remain mandatory. Optional initial-failure triage stays optional. Default and non-repair prompts remain unchanged. Historical trials are not rescored or rerun.
+
+Two new symmetry/compatibility tests, nine profile tests and fifteen triage tests pass. Graph refreshed (3439 nodes, 6944 edges, 239 communities). The concurrent shell-parser patch still has a separate diagnostic test failure and is excluded from this commit. Hosted CI on this isolated change is required before merge. No coding benefit or native-host delivery is claimed.
