@@ -170,7 +170,7 @@ class ContractTriagePairTests(unittest.TestCase):
             })
             return FakeProcess(command[-1])
 
-        def collect(process, *, started, timeout, preserve_on_failure=False):
+        def collect(process, *, started, timeout, preserve_on_failure=False, max_tokens=None, event_observer=None):
             treatment = process.prompt != runner.BASE_PROMPT
             lines, times, _ = arm_events(
                 treatment=treatment, include_evidence=evidence,
@@ -323,8 +323,10 @@ class ContractTriagePairTests(unittest.TestCase):
             with mock.patch.object(
                 runner, "_event_receipts", side_effect=KeyError("synthetic optional parser"),
             ):
-                with self.assertRaisesRegex(KeyError, "synthetic optional parser"):
-                    self._run_pair(temp)
+                receipt, _, _ = self._run_pair(temp)
+            self.assertNotEqual(receipt["status"], "completed")
+            self.assertTrue(all(arm["failure"] == "event_parser_error"
+                                for arm in receipt["arms"].values()))
             snapshot = output / "arm-a-agent-measurement.json"
             self.assertTrue(snapshot.is_file())
             self.assertEqual(stat.S_IMODE(snapshot.stat().st_mode), 0o600)

@@ -34,6 +34,7 @@ from pilot_receipts import (
     build_agent_measurement_receipt, parse_codex_json_events, parse_choice_receipt,
 )
 import pilot_triage_pair as triage_common
+import pilot_profile_triage_bridge as profile_bridge
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -347,6 +348,19 @@ def load_case_profile(path: Path) -> CaseProfile:
     )
 
 
+def _profile_bridge_spec(profile: CaseProfile) -> profile_bridge.ProfileTriageSpec:
+    hypotheses = list(profile.triage_hypotheses)
+    for identifier in profile.triage_accepted_ids:
+        if identifier not in hypotheses:
+            hypotheses.append(identifier)
+    return profile_bridge.ProfileTriageSpec(
+        failure_kinds=profile.triage_kinds,
+        hypotheses=tuple(hypotheses),
+        allowed_observations=profile.triage_observations,
+        rank_hypotheses=profile.rank_hypotheses,
+    )
+
+
 def _case_treatment_prompt(profile: CaseProfile, advice_policy: str) -> str:
     evidence_paths = ", ".join(profile.evidence_files.values())
     triage_command = shlex.join(_triage_argv(1, profile))
@@ -479,8 +493,11 @@ def _strict_json(text: str) -> Any:
     return json.loads(text, object_pairs_hook=pairs)
 
 
-def _validated_triage(payload: Any, focused_exit: int,
-                      profile: CaseProfile | None = None) -> dict[str, Any]:
+def _validated_triage(
+    payload: Any, focused_exit: int, profile: CaseProfile | None = None,
+    accepted_statuses: tuple[str, ...] | None = None,
+    bridge_decision_receipt: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     if (not isinstance(payload, str)
             or len(payload.encode("utf-8")) > triage_common.MAX_TRIAGE_OUTPUT_BYTES):
         return {"status": "unscored", "candidate_ids": []}
@@ -491,7 +508,10 @@ def _validated_triage(payload: Any, focused_exit: int,
     if not isinstance(value, dict) or value.get("executed") is not False:
         return {"status": "unscored", "candidate_ids": []}
     allowed_ids = profile.triage_accepted_ids if profile else TRIAGE_IDS
-    accepted_statuses = profile.triage_accepted_statuses if profile else ("no-remote-choice",)
+    accepted_statuses = (
+        accepted_statuses if accepted_statuses is not None else
+        profile.triage_accepted_statuses if profile else ("no-remote-choice",)
+    )
     parsed = parse_choice_receipt(
         value, choice_type="triage", candidate_ids=allowed_ids,
     )
@@ -503,6 +523,22 @@ def _validated_triage(payload: Any, focused_exit: int,
         or value.get("test_failed") is not True
     ):
         return {"status": "unscored", "candidate_ids": []}
+    if parsed.get("status") == "remote-choice":
+        remote_confirmed = (
+            isinstance(bridge_decision_receipt, dict)
+            and bridge_decision_receipt.get("status") == "remote-choice"
+            and bridge_decision_receipt.get("observed_exit_status") == focused_exit
+            and bridge_decision_receipt.get("test_failed") is True
+            and bridge_decision_receipt.get("executed") is False
+            and bridge_decision_receipt.get("decision_reason") == "accepted"
+            and bridge_decision_receipt.get("diagnostic_choice_id") == parsed["candidate_ids"][0]
+            and bridge_decision_receipt.get("diagnostic_step_ids") == parsed["candidate_ids"]
+            and bridge_decision_receipt.get("diagnostic_selection_source") in {
+                "cached_preferred_next_step", "remote_preferred_next_step",
+            }
+        )
+        if not remote_confirmed:
+            return {"status": "unscored", "candidate_ids": []}
     parsed["hypothesis_order"] = []
     parsed["hypothesis_ranking_status"] = "not_established"
     if profile is not None and profile.rank_hypotheses:
@@ -544,6 +580,8 @@ def _event_receipts(
     lines: Iterable[str], event_times: list[float], started: float,
     *, advice_policy: str = "legacy-required-step",
     profile: CaseProfile | None = None,
+    accepted_triage_statuses: tuple[str, ...] | None = None,
+    profile_bridge_receipt: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], str | None]:
     lines = list(lines)
     pending: dict[str, tuple[str, str | None]] = {}
@@ -696,7 +734,15 @@ def _event_receipts(
                     if callable(usage_fn):
                         triage_usage = usage_fn(output)
                     if code == 0:
-                        triage_choice = _validated_triage(output, focused_exits[0], profile)
+                        bridge_decision = (
+                            profile_bridge_receipt.get("decision")
+                            if isinstance(profile_bridge_receipt, dict) else None
+                        )
+                        triage_choice = _validated_triage(
+                            output, focused_exits[0], profile,
+                            accepted_statuses=accepted_triage_statuses,
+                            bridge_decision_receipt=bridge_decision,
+                        )
                         if not triage_choice.get("candidate_ids"):
                             triage_output_status = "invalid_output"
                         elif profile is None:
@@ -739,6 +785,26 @@ def _event_receipts(
         "codex_billing_estimate": None,
         "event_count": len(list(lines)) if isinstance(lines, list) else None,
     }
+    if profile_bridge_receipt is not None:
+        decision = profile_bridge_receipt.get("decision")
+        if not isinstance(decision, dict):
+            decision = {}
+        result["profile_triage_bridge"] = profile_bridge_receipt
+        result["provider_transport_call_count"] = decision.get(
+            "provider_transport_call_count", 0
+        )
+        result["decision_usage_status"] = decision.get(
+            "decision_usage_status", "not_invoked"
+        )
+        result["decision_usage"] = decision.get("decision_usage")
+        result["diagnostic_choice_id"] = decision.get("diagnostic_choice_id")
+        result["diagnostic_selection_source"] = decision.get(
+            "diagnostic_selection_source", "none"
+        )
+        result["hypothesis_ranking_status"] = decision.get(
+            "hypothesis_ranking_status", "not_established"
+        )
+        result["hypothesis_order"] = decision.get("hypothesis_order", [])
     if profile is not None and profile.outcome_mode == "repair":
         result["agent_git_diff_check_invocation_observed"] = git_diff_check_invoked
         result["agent_git_diff_check_exit_codes"] = git_diff_check_exits
@@ -781,6 +847,10 @@ def _run_arm(
     measurement_path: Path | None = None,
     advice_policy: str = "legacy-required-step",
     profile: CaseProfile | None = None,
+    profile_bridge_spec: profile_bridge.ProfileTriageSpec | None = None,
+    accepted_triage_statuses: tuple[str, ...] | None = None,
+    allow_network: bool = False,
+    max_tokens: int | None = None,
 ) -> tuple[dict[str, Any], str | None]:
     (home / ".codex").mkdir(mode=0o700, parents=True, exist_ok=True)
     measurement_path = measurement_path or (home / ".codex" / "agent-measurement.json")
@@ -789,32 +859,134 @@ def _run_arm(
     )
     env.pop("OPENROUTER_API_KEY", None)
     started = time.monotonic()
+    bridge = None
+    bridge_receipt_path: Path | None = None
+    bridge_summary: dict[str, Any] | None = None
+    typed_bridge_receipt: dict[str, Any] | None = None
+    process = None
     try:
-        process = subprocess.Popen(
-            common._cli_command(
-                codex, model, reasoning_effort, prompt,
-                allow_network=False,
-            ),
-            cwd=fixture, env=env, stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        if profile_bridge_spec is not None:
+            if not treatment or profile is None:
+                raise ValueError("profile bridge is treatment-only and requires a case profile")
+            bridge_receipt_path = measurement_path.with_name(
+                measurement_path.stem + "-profile-triage.json"
+            )
+            bridge = profile_bridge.ProfileTriageBridge(
+                profile_bridge_spec, receipt_path=bridge_receipt_path,
+            )
+            with bridge:
+                shim_path = profile_bridge.write_python_shim(
+                    home / "profile-triage-bridge", bridge,
+                )
+                env["PATH"] = os.pathsep.join(
+                    item for item in (str(shim_path), env.get("PATH", "")) if item
+                )
+                process = subprocess.Popen(
+                    common._cli_command(
+                        codex, model, reasoning_effort, prompt,
+                        allow_network=allow_network,
+                    ),
+                    cwd=fixture, env=env, stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                )
+                focused_ids: set[str] = set()
+                focused_seen = False
+
+                def observe(event: dict[str, Any]) -> None:
+                    nonlocal focused_seen
+                    event_type = event.get("type")
+                    item = _item(event)
+                    if item is None:
+                        return
+                    event_id = item.get("id")
+                    if not isinstance(event_id, str):
+                        return
+                    if event_type == "item.started" and _focused(item, profile):
+                        focused_ids.add(event_id)
+                    elif (event_type == "item.completed" and event_id in focused_ids
+                          and not focused_seen):
+                        focused_seen = True
+                        code = item.get("exit_code")
+                        output = item.get("aggregated_output")
+                        if not isinstance(output, str):
+                            output = item.get("output")
+                        confirmed = (
+                            isinstance(code, int) and not isinstance(code, bool)
+                            and code != 0 and _matches_useful_failure(output, profile)
+                        )
+                        bridge.observe_focused_failure(
+                            code if isinstance(code, int) and not isinstance(code, bool) else 0,
+                            failure_confirmed=confirmed,
+                        )
+
+                lines, times, failure = core._collect_events(
+                    process, started=started, timeout=timeout,
+                    preserve_on_failure=True, max_tokens=max_tokens,
+                    event_observer=observe,
+                )
+                bridge_summary = bridge.receipt()
+        else:
+            process = subprocess.Popen(
+                common._cli_command(
+                    codex, model, reasoning_effort, prompt,
+                    allow_network=allow_network,
+                ),
+                cwd=fixture, env=env, stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            )
+            lines, times, failure = core._collect_events(
+                process, started=started, timeout=timeout,
+                preserve_on_failure=True, max_tokens=max_tokens,
+            )
+    except Exception:
+        if process is not None:
+            try:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait()
+            except (OSError, subprocess.SubprocessError):
+                pass
+        if bridge is not None:
+            bridge_summary = bridge.receipt()
+        failed = _empty_arm(
+            "profile_bridge_setup_failed" if profile_bridge_spec else "codex_unavailable"
         )
-        lines, times, failure = core._collect_events(
-            process, started=started, timeout=timeout, preserve_on_failure=True,
-        )
-    except OSError:
-        return _empty_arm("codex_unavailable"), None
+        failed["profile_triage_bridge"] = bridge_summary
+        return failed, None
 
     ended = time.monotonic()
     wall_ms = round((ended - started) * 1000, 2)
     measurement = build_agent_measurement_receipt(
         lines, times, started, ended, process.returncode, failure,
     )
-    # Write this bounded, redacted record before the optional task-specific
-    # event interpretation so a parser error cannot erase early measurements.
+    # Preserve the bounded event measurement before task-specific parsing.
     common._private_write(
         measurement_path,
         (json.dumps(measurement, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8"),
     )
+
+    if bridge_receipt_path is not None and bridge_receipt_path.is_file():
+        try:
+            if bridge_receipt_path.stat().st_size <= profile_bridge.MAX_RESPONSE_BYTES:
+                loaded = _strict_json(bridge_receipt_path.read_text(encoding="utf-8"))
+                if isinstance(loaded, dict):
+                    typed_bridge_receipt = loaded
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            typed_bridge_receipt = None
+
+    bridge_metadata = {}
+    if bridge_summary is not None:
+        decision = bridge_summary.get("decision")
+        if isinstance(decision, dict):
+            bridge_metadata = {
+                "provider_transport_call_count": decision.get("provider_transport_call_count", 0),
+                "decision_usage_status": decision.get("decision_usage_status", "not_invoked"),
+                "decision_usage": decision.get("decision_usage"),
+                "diagnostic_choice_id": decision.get("diagnostic_choice_id"),
+                "diagnostic_selection_source": decision.get("diagnostic_selection_source", "none"),
+                "hypothesis_order": decision.get("hypothesis_order", []),
+                "hypothesis_ranking_status": decision.get("hypothesis_ranking_status", "not_established"),
+            }
 
     if failure is not None:
         failed = _empty_arm(failure)
@@ -822,11 +994,31 @@ def _run_arm(
         failed["cli_exit_code"] = process.returncode
         failed["agent_measurement"] = measurement
         failed["event_count"] = len(lines)
+        if bridge_summary is not None:
+            failed["profile_triage_bridge"] = bridge_summary
+            failed["profile_triage_typed_receipt"] = typed_bridge_receipt
+            failed.update(bridge_metadata)
         return failed, None
 
-    observed, answer = _event_receipts(
-        lines, times, started, advice_policy=advice_policy, profile=profile,
-    )
+    try:
+        observed, answer = _event_receipts(
+            lines, times, started, advice_policy=advice_policy, profile=profile,
+            accepted_triage_statuses=accepted_triage_statuses,
+            profile_bridge_receipt=bridge_summary,
+        )
+    except Exception:
+        failed = _empty_arm("event_parser_error")
+        failed.update({
+            "completion_ms": wall_ms if wall_ms <= MAX_TIMEOUT * 1000 else None,
+            "cli_exit_code": process.returncode,
+            "agent_measurement": measurement,
+            "event_count": len(lines),
+            "profile_triage_bridge": bridge_summary,
+            "profile_triage_typed_receipt": typed_bridge_receipt,
+            **bridge_metadata,
+        })
+        return failed, None
+
     result = {
         "cli_status": "completed" if process.returncode == 0 else "failed",
         "failure": None if process.returncode == 0 else "cli_exit_nonzero",
@@ -835,6 +1027,10 @@ def _run_arm(
         "agent_measurement": measurement,
         **observed,
     }
+    if bridge_summary is not None:
+        result["profile_triage_bridge"] = bridge_summary
+        result["profile_triage_typed_receipt"] = typed_bridge_receipt
+        result.update(bridge_metadata)
     return result, answer
 
 
@@ -993,6 +1189,9 @@ def run_pair(
     output_dir: Path, fixture_source: Path = FIXTURE,
     advice_policy: str = "legacy-required-step",
     case_profile: CaseProfile | None = None,
+    remote_profile_triage: bool = False,
+    accepted_remote_statuses: tuple[str, ...] = (),
+    max_tokens: int | None = None,
 ) -> dict[str, Any]:
     """Run both local-only CLI arms and save private blind artifacts/receipts."""
     if case_profile is not None:
@@ -1008,6 +1207,24 @@ def run_pair(
         raise ValueError("model and reasoning effort must be simple identifiers")
     if not isinstance(advice_policy, str) or advice_policy not in ADVICE_POLICIES:
         raise ValueError("invalid advice policy")
+    if type(remote_profile_triage) is not bool:
+        raise ValueError("remote_profile_triage must be boolean")
+    if remote_profile_triage:
+        if case_profile is None:
+            raise ValueError("remote profile triage requires a validated case profile")
+        allowed_remote_statuses = {"remote-choice", "no-remote-choice"}
+        if (not isinstance(accepted_remote_statuses, tuple)
+                or not accepted_remote_statuses
+                or len(set(accepted_remote_statuses)) != len(accepted_remote_statuses)
+                or any(value not in allowed_remote_statuses for value in accepted_remote_statuses)):
+            raise ValueError("explicit supervisor acceptance statuses are required")
+    elif accepted_remote_statuses:
+        raise ValueError("accepted remote statuses require explicit remote profile triage")
+    if max_tokens is not None and (
+        isinstance(max_tokens, bool) or not isinstance(max_tokens, int)
+        or not 1 <= max_tokens <= core.MAX_EVENT_TOKEN_BUDGET
+    ):
+        raise ValueError("max_tokens is outside the supported event-token budget")
     if not _verify_codex_version(codex):
         raise ValueError("Codex CLI 0.157.0 is required")
 
@@ -1081,6 +1298,7 @@ def run_pair(
             )
             return receipt
 
+        bridge_spec = _profile_bridge_spec(case_profile) if remote_profile_triage else None
         arms: dict[str, dict[str, Any]] = {}
         answers: dict[str, str | None] = {}
         for true_arm in order:
@@ -1100,6 +1318,13 @@ def run_pair(
                                else "legacy-required-step"),
                 measurement_path=output_dir / f"{label}-agent-measurement.json",
                 profile=case_profile,
+                profile_bridge_spec=bridge_spec if true_arm == "treatment" else None,
+                accepted_triage_statuses=(
+                    accepted_remote_statuses
+                    if remote_profile_triage and true_arm == "treatment" else None
+                ),
+                allow_network=remote_profile_triage,
+                max_tokens=max_tokens,
             )
             if repair_profile:
                 arms[label].setdefault("agent_git_diff_check_invocation_observed", False)
@@ -1300,8 +1525,13 @@ def run_pair(
             "outcome_mode": case_profile.outcome_mode if case_profile else "legacy_contract_triage",
             "decision_scope": (
                 "local_fixture_triage_no_remote_choice" if case_profile is None
-                else "case_profile_local_triage_remote_unavailable"
+                else "case_profile_profile_bridge_remote_possible"
+                if remote_profile_triage else "case_profile_local_triage_remote_unavailable"
             ),
+            "remote_profile_triage_enabled": remote_profile_triage,
+            "accepted_remote_statuses": list(accepted_remote_statuses),
+            "network_access_enabled_for_both_arms": remote_profile_triage,
+            "observed_token_budget": max_tokens,
             "task_outcome_acceptance_status": (
                 "passed" if case_profile and case_profile.outcome_mode == "repair"
                 and repair_task_correctness else "failed" if case_profile and case_profile.outcome_mode == "repair"
@@ -1325,6 +1555,9 @@ def run_pair(
                     "agent_measurement_captured": (
                         output_dir / f"{label}-agent-measurement.json"
                     ).is_file(),
+                    "profile_triage_typed_receipt_captured": (
+                        output_dir / f"{label}-agent-measurement-profile-triage.json"
+                    ).is_file(),
                 }
                 for label in ("arm-a", "arm-b")
             },
@@ -1336,7 +1569,8 @@ def run_pair(
                 "advice_policy": advice_policy,
                 "decision_scope": (
                     "local_fixture_triage_no_remote_choice" if case_profile is None
-                    else "case_profile_local_triage_remote_unavailable"
+                    else "case_profile_profile_bridge_remote_possible"
+                    if remote_profile_triage else "case_profile_local_triage_remote_unavailable"
                 ),
                 "task_correctness_status": "passed" if task_correctness else "failed",
                 "protocol_delivery_status": delivery_status,
@@ -1364,6 +1598,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--advice-policy", choices=ADVICE_POLICIES,
                         default="legacy-required-step",
                         help="nonbinding is an opt-in profile; legacy remains the default")
+    parser.add_argument("--remote-profile-triage", action="store_true",
+                        help="opt in to a treatment-only local bridge for a validated profile")
+    parser.add_argument("--accept-profile-triage-status", action="append",
+                        choices=("remote-choice", "no-remote-choice"), default=[],
+                        help="explicit supervisor acceptance status (repeat as needed)")
+    parser.add_argument("--max-tokens", type=int,
+                        help="observed completed-turn token cap; not a provider-side limit")
     parser.add_argument("--output-dir", type=Path, required=True,
                         help="new private directory for blind receipts and artifacts")
     args = parser.parse_args(argv)
@@ -1380,6 +1621,9 @@ def main(argv: list[str] | None = None) -> int:
             timeout=args.timeout, seed=args.seed, output_dir=args.output_dir,
             advice_policy=args.advice_policy,
             case_profile=load_case_profile(args.case_profile) if args.case_profile else None,
+            remote_profile_triage=args.remote_profile_triage,
+            accepted_remote_statuses=tuple(args.accept_profile_triage_status),
+            max_tokens=args.max_tokens,
         )
     except (OSError, ValueError, RuntimeError):
         print(json.dumps({"status": "failed", "failure": "runner_setup_failed"}))
