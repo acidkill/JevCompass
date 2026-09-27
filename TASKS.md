@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-257-A — pretask strategy accounting
+
+Strategy results and CLI now retain validated provider usage, including uncertain paid responses. Local singleton choices never request API; unknown cost stays null and legacy answers-only clients remain supported. Offline accounting tests pass. Matched strategy receipts and genuinely unresolved outcome comparison remain pending; no benefit claim.
+
 ### VCR-256-O — live timing verification
 
 Complete-summary timing recognized in a fresh keyless boundary pair: baseline first successful contract13.361s/completion18.770s, treatment15.162s/20.418s. Both preserved frozen files and passed required/independent validation; local contract choice. No relevant failure observed. This verifies successful-check timing for this host/run, not general delivery or benefit. Raw events not retained; historical nulls remain null.

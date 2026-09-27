@@ -2,6 +2,10 @@
 
 ## Status
 
+### VCR-257-A strategy measurement gap (2026-09-27)
+
+Audit found strategy API usage was discarded although test-order and triage retained it. Strategy results/CLI now expose validated numeric-only input/output tokens and optional cost even on abstention. Local resolved cases make no request. This closes an accounting prerequisite; matched runner aggregation, useful-action scoring and Desktop comparison are not complete. Stop repeating the locally obvious boundary task to search for a favorable result.
+
 ### VCR-256-O live timing confirmation (2026-09-27)
 
 Fresh keyless seed256 pair on unchanged boundary fixture: baseline first successful relevant contract13,361.24ms, completion18,770.37ms,73,546 input/63,232 cached/527 output tokens; treatment15,162.00ms,20,418.01ms,104,200 input/95,488 cached/541 output. Both selected contract and passed focused, required and independent suites with immutable files intact. Local ranking returned no-remote-choice; reported0ms latency remains an event-resolution artifact and usage incomplete/null. No relevant failure was observed. Complete-summary success timing is verified in this live host/run; broader output variants remain unproven. Treatment first check was1,800.76ms later and completion1,647.64ms later: no speed benefit. Codex billing and blind quality remain unknown. Receipts `/tmp/jev-boundary-timing-20260927-01`; previous missing timestamps are not retroactively filled.

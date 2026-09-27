@@ -10,7 +10,9 @@ from enum import Enum
 import math
 from typing import Iterable, Literal
 
-from .decisions import DecisionsClient, DecisionsError
+from .decisions import DecisionUsage, DecisionsClient, DecisionsError
+
+_USAGE_CLIENT_TYPE = DecisionsClient
 
 
 class TaskKind(str, Enum):
@@ -61,6 +63,7 @@ class StrategyResult:
 
     recommendations: tuple[StrategyRecommendation, ...]
     status: Literal["remote-choice", "no-remote-choice"]
+    usage: DecisionUsage | None = None
 
 
 _CATALOG = (
@@ -199,6 +202,19 @@ def _remote_choice(
     return strategy_id
 
 
+class _MeteredAnswers:
+    """Preserve validated provider usage even when choice validation abstains."""
+
+    def __init__(self, client):
+        self.client = client
+        self.usage = None
+
+    def decide(self, state, questions):
+        response = self.client.decide_with_usage(state, questions)
+        self.usage = response.usage
+        return response.answers
+
+
 def choose_strategies(
     task_kind: TaskKind | str,
     signals: Iterable[TaskSignal | str],
@@ -219,10 +235,13 @@ def choose_strategies(
     if not ranked:
         return StrategyResult((), "no-remote-choice")
 
+    usage = None
     status: Literal["remote-choice", "no-remote-choice"] = "no-remote-choice"
     if len(ranked) >= 2 and ranked[0][1] - ranked[1][1] <= _SIMILAR_EVIDENCE_GAP:
         decision_client = client if client is not None else DecisionsClient()
-        selected = _remote_choice(ranked, kind, signal_set, decision_client)
+        metered = _MeteredAnswers(decision_client) if isinstance(decision_client, _USAGE_CLIENT_TYPE) else None
+        selected = _remote_choice(ranked, kind, signal_set, metered or decision_client)
+        usage = metered.usage if metered is not None else None
         if selected is not None:
             ranked.sort(key=lambda item: (item[0].id != selected, -item[1], item[0].priority))
             status = "remote-choice"
@@ -231,4 +250,4 @@ def choose_strategies(
         StrategyRecommendation(id=strategy.id, rationale=strategy.rationale)
         for strategy, _score in ranked[:2]
     )
-    return StrategyResult(recommendations, status)
+    return StrategyResult(recommendations, status, usage)
