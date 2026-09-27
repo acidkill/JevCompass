@@ -1792,3 +1792,9 @@ The runner now exposes --retain-private-events to retain bounded raw CLI events 
 Added a synthetic source-only repair fixture with immutable contracts, history, a legacy golden and a consumer path. Three offline guards verify the seeded focused/full failure, independent acceptance of the tenant-aware repair, and rejection of source or evidence tampering. Diagnostic action IDs and causal hypotheses remain distinct.
 
 The current contract resolves the apparent legacy conflict on ordinary inspection. This fixture is a local-resolution/abstention control, not evidence of a genuinely unresolved remote choice, native delivery or advisor benefit. No paid comparison was launched. Oracle SHA-256: `212bd0339054ed8af8017adfca84f3154ae019b11138638317a3865accd99e78`.
+
+## VCR401 — Completed assistant-message delivery measurement
+
+The shared event reducer now ignores assistant item.started/item.updated draft lifecycle events when measuring message delivery. A completed assistant message remains eligible; a tool executed before completion still makes subsequent acknowledgment late. Two synthetic lifecycle tests and 63 existing collector tests pass. This prevents an unfinished message from poisoning or prematurely satisfying a delivery gate.
+
+The missing VCR396 acknowledgment cannot be attributed to this issue without its raw events. Historical outcomes remain unchanged. This correction concerns prospective measurement, not advisor efficacy or native Desktop delivery.
