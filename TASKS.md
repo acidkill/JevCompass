@@ -15,6 +15,10 @@ Changes go through a focused branch and pull request. Merge only after all requi
 
 ## Task list
 
+### VCR-267-A — native edit-event compatibility
+
+Cross-layer runner now recognizes bounded completed native file_change events without requiring shell start/exit fields. Target and allowed change-kind checks, duplicate guards and path-free counters retain the changed-source snapshot gate. Failed/unrelated/empty changes do not qualify. Seventeen focused and537 full tests pass; graph refreshed2125nodes4165edges. No live call, no VCR-266-A rescoring, no efficacy claim. Observation of a rank-start receipt remains distinct from atomic command execution.
+
 ### VCR-266-C — pretask integration transport audit
 
 Read-only source/contract audit found no documented Codex hook field for caller-verified resolved_strategy. Do not invent one or infer verified resolution from prompt text. Current supported source path is the single explicit strategy command for unresolved substantial tasks; already resolved agent decisions proceed directly. Python callers can pass verified eligible enum evidence without constructing a decision client, but this is not automatic native hook delivery. Published0.1.22 lacks the experimental strategy CLI. No automatic hook change or efficacy claim follows from this audit.

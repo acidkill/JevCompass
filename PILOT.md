@@ -12,6 +12,10 @@ Overall acceptance remains **not established**. Source delivery, transport and g
 
 Agent billing remains unknown in these comparisons; provider-reported Jev cost, when present, is only one cost component. Native fresh Desktop delivery and the broader cross-host acceptance gates remain open. The local retry pair is complete and retained, including its failed baseline quality gate. The dependency-guidance runner produced the failed VCR-265-A comparison below; the post-change cross-layer runner remains under preparation. No new pair should be inferred from fixture tests or timing metadata.
 
+### VCR-267-A native edit-event compatibility (2026-09-27)
+
+The comparison runner now accepts a bounded completed native file_change item with a recognized change kind and matching target, even without a command start or exit code. It deduplicates IDs and records only path-free shape counters. Failed/unrelated/empty items do not satisfy the gate, and an actual changed-byte supervisor snapshot remains required. Seventeen focused tests and537 full tests pass; this verifies parser guards, not live host coverage or measurable benefit. Historical VCR-266-A remains failed because raw events were not retained. A fresh run is required for new compatibility evidence; first-tool timing remains a separate measurement gap.
+
 ### VCR-266-C pretask overhead audit (2026-09-27)
 
 A read-only audit recommends avoiding a separate selector when the agent has already determined its strategy. The existing source API can return caller-verified eligible resolved_strategy locally without constructing a client; however, current Codex hook contracts do not transport this verified enum. Automatic delivery cannot be implemented by inventing event fields or inferring verified evidence from prompt text. Retain the explicit source command only for unresolved substantial choices and proceed directly for resolved decisions. This is an integration limitation and next-action finding, not measured performance improvement. Published0.1.22 does not include the source strategy CLI.
