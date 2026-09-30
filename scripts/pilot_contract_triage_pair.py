@@ -144,6 +144,7 @@ class CaseProfile:
     outcome_mode: str
     oracle_script: Path
     oracle_sha256: str
+    triage_diagnostic_costs: dict[Any, Any] | None = None
 
 
 def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -274,12 +275,12 @@ def load_case_profile(path: Path) -> CaseProfile:
                    for value in failure_markers)):
         raise ValueError("invalid case-profile failure signature")
     triage = raw["triage"]
-    if not isinstance(triage, dict) or set(triage) != {
-        "kinds", "hypotheses", "accepted_ids", "accepted_statuses", "observations",
-        "rank_hypotheses",
-    }:
+    if not isinstance(triage, dict) or set(triage) not in (
+        {"kinds", "hypotheses", "accepted_ids", "accepted_statuses", "observations", "rank_hypotheses"},
+        {"kinds", "hypotheses", "accepted_ids", "accepted_statuses", "observations", "rank_hypotheses", "diagnostic_costs"},
+    ):
         raise ValueError("invalid case-profile triage")
-    from jevcompass.triage import FailureKind, HypothesisId
+    from jevcompass.triage import DiagnosticCost, FailureKind, HypothesisId
     kinds, hypotheses, accepted = (triage[key] for key in ("kinds", "hypotheses", "accepted_ids"))
     statuses = triage["accepted_statuses"]
     observations = triage["observations"]
@@ -319,6 +320,16 @@ def load_case_profile(path: Path) -> CaseProfile:
     rank_hypotheses = triage["rank_hypotheses"]
     if type(rank_hypotheses) is not bool:
         raise ValueError("invalid case-profile ranking opt-in")
+    raw_costs = triage.get("diagnostic_costs", {})
+    if (not isinstance(raw_costs, dict) or len(raw_costs) > len(hypotheses)
+            or any(not isinstance(key, str) or key not in hypotheses for key in raw_costs)):
+        raise ValueError("invalid case-profile diagnostic costs")
+    try:
+        diagnostic_costs = {
+            HypothesisId(key): DiagnosticCost(value) for key, value in raw_costs.items()
+        }
+    except (TypeError, ValueError) as exc:
+        raise ValueError("invalid case-profile diagnostic costs") from exc
     allow_remote = False
     outcome = raw["outcome_mode"]
     if outcome not in {"contract_triage", "repair"}:
@@ -345,7 +356,7 @@ def load_case_profile(path: Path) -> CaseProfile:
         case_id, fixture, prompt, source_file, test_file, focused_command,
         safe_evidence, safe_markers, tuple(failure_markers), tuple(kinds),
         tuple(hypotheses), tuple(accepted), tuple(statuses), safe_observations,
-        rank_hypotheses, outcome, oracle_script, expected_hash,
+        rank_hypotheses, outcome, oracle_script, expected_hash, diagnostic_costs,
     )
 
 def _case_base_prompt(profile: CaseProfile | None) -> str:
@@ -353,6 +364,17 @@ def _case_base_prompt(profile: CaseProfile | None) -> str:
     if profile is None:
         return BASE_PROMPT
     prompt = profile.task_prompt
+    costs = profile.triage_diagnostic_costs or {}
+    if costs:
+        declarations = ", ".join(
+            f"{hypothesis.value}={cost.value}"
+            for hypothesis, cost in costs.items()
+        )
+        prompt += (
+            "\n\nCaller-declared relative diagnostic check effort (shared with both arms): "
+            f"{declarations}. These declarations describe next-check effort only; "
+            "they are not evidence of causal likelihood."
+        )
     if profile.outcome_mode != "repair":
         return prompt
 
@@ -385,6 +407,10 @@ def _profile_bridge_spec(
             profile.triage_observations if include_observations else {}
         ),
         rank_hypotheses=profile.rank_hypotheses,
+        diagnostic_costs={
+            hypothesis.value: cost.value
+            for hypothesis, cost in (profile.triage_diagnostic_costs or {}).items()
+        },
     )
 
 
@@ -420,6 +446,11 @@ def _case_treatment_prompt(
             "never pass file contents, paths, diagnostics, or source text to triage. "
             "Triage is optional: skip it when local evidence resolves the choice. "
             f"If you invoke triage, use this exact command: {triage_command}. "
+        )
+    if profile.triage_diagnostic_costs:
+        guidance += (
+            "Caller-declared relative check effort may guide diagnostic next-step ordering only; "
+            "it is not evidence of causal likelihood and must not be used to skip required checks. "
         )
     if profile.outcome_mode == "repair":
         guidance += (
@@ -487,8 +518,9 @@ def _triage_argv(
             candidates.append("confirm_behavior_contract")
         for hypothesis in candidates:
             suffix.extend(("--hypothesis", hypothesis))
-        if profile.rank_hypotheses:
-            suffix.append("--rank-hypotheses")
+        for hypothesis, cost in (profile.triage_diagnostic_costs or {}).items():
+            suffix.extend(("--diagnostic-cost", f"{hypothesis.value}={cost.value}"))
+        # Observation flags precede --rank-hypotheses to match command_for() and the shim.
         if include_observations:
             observation_flags = {
                 "import": "--import-observation",
@@ -498,6 +530,8 @@ def _triage_argv(
             for category, values in profile.triage_observations.items():
                 for value in values:
                     suffix.extend((observation_flags[category], value))
+        if profile.rank_hypotheses:
+            suffix.append("--rank-hypotheses")
         suffix.append("--json")
     return [*TRIAGE_PREFIX, str(exit_code), *suffix]
 

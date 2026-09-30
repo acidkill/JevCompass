@@ -1253,3 +1253,10 @@ Six API tests, including changed-cost cache invalidation, three new CLI integrat
 ## VCR407 — Coding-skill guidance for diagnostic costs
 
 The bundled English coding workflow explains optional caller-verified relative check costs, omission of unverified estimates, direct execution of decisive local checks and separation from causal ranking. It preserves required test execution and local fallback. This documents the merged API/CLI without claiming measured benefit or changing the published release. Nine skill-pack tests and three coding-workflow tests pass. Hosted CI remains required before merge.
+
+
+## VCR408 — Diagnostic costs wired into profile triage trials
+
+Case profiles may declare caller-verified relative diagnostic costs for supplied hypothesis IDs. Both arms receive the same cost disclosure and the treatment arm is told costs may guide next-check ordering only, are never causal-likelihood evidence, and never waive required checks. The validated plain-string costs flow through the bridge spec, the exact triage command, the intercepted shim request, and the supervisor bridge into the production triage call, so cost-bearing requests stay bridge-counted instead of silently falling back to the real CLI. Profiles without costs keep identical prompts, commands, requests, and decision state. The supervisor command now places observation flags before `--rank-hypotheses`, matching the bridge command and generated shim, so exact rank-plus-observation triage requests are intercepted instead of silently falling back to the real interpreter.
+
+Ten new wiring tests plus updated doubles cover loader accept/reject, equal-arm disclosure, supervisor argv construction, spec validation, bridge request matching and forwarding, shim interception without fallback, and rank-plus-observation command order. The full 858-test suite passes locally (43.1 s) with `git diff --check` clean. Hosted CI remains required before merge. No trial was run and no speed or quality benefit is claimed.

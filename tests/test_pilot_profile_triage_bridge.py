@@ -75,6 +75,7 @@ def request_for(**overrides):
         "hypotheses": ["timeout_contention", "timeout_nonterminating"],
         "observations": {"timeout": []},
         "rank_hypotheses": True,
+        "diagnostic_costs": {},
     }
     value.update(overrides)
     return value
@@ -188,7 +189,7 @@ class ProfileTriageBridgeTests(unittest.TestCase):
                 status, body = post(bridge.url, {
                     "observed_exit_status": 1, "failure_kinds": ["timeout"],
                     "hypotheses": ["timeout_nonterminating"], "observations": {},
-                    "rank_hypotheses": True,
+                    "rank_hypotheses": True, "diagnostic_costs": {},
                 })
             response, receipt = json.loads(body), json.loads(path.read_text())
             self.assertEqual(status, 200)
