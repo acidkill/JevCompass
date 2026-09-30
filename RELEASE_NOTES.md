@@ -1,40 +1,46 @@
-# Unreleased supplemental P09 coding pilot (no package release)
+# JevCompass v0.1.23
+
+Publishes the three explicit coding-decision commands (pretask strategy, post-change test order, ambiguous-failure triage) with verified-evidence local routing, bounded decision reasons and selection provenance, opt-in hypothesis ranking, caller-verified diagnostic-cost metadata, the opt-in typed-decision cache, and the fifth bundled skill `jevcompass-coding-workflow`; the opt-in installer now offers five skills. The full change list with evidence boundaries is in [CHANGELOG.md](CHANGELOG.md). The seven "Included in v0.1.23" sections below were written while these changes were unreleased: their statements about the then-published distribution describe v0.1.22 and earlier, and their evidence limits continue to apply. Local verification at the release revision: 858 offline Python tests on Linux with `git diff --check` clean; the release pull request and the publish workflow re-run the full suite on Python 3.11 with exact-tag distribution checks. Registry receipts (Trusted Publishing run, artifact digests, fresh install) are recorded in [TASKS.md](TASKS.md) and [PILOT.md](PILOT.md) after publication. No speed, quality, or cost benefit is claimed; macOS runtime and fresh Desktop prompt delivery remain unverified.
+
+---
+
+# Included in v0.1.23 — supplemental P09 coding pilot
 
 The source-only P09 fixture removes README test-runner guidance and adds local unittest CI; it does not change the default 20-case bank. Two blinded source pairs tied on authored quality, but their substring detector cannot establish exact standalone CI invocation, equivalence or chains after raw events were discarded. A controlled probe identified Codex CLI's `bash -lc` wrapper. The corrected source parser recognizes only that simple wrapper or a bare command, and records exact CI and unverbose equivalent suite separately without retaining command text. A fresh pair tied on blind code quality: treatment ran exact CI, baseline the equivalent suite; advised treatment took 55.60 s versus 29.38 s. No speed or cost benefit is established. See [PILOT.md](PILOT.md).
 
 ---
 
-# Unreleased coding test-signal relevance (no package release)
+# Included in v0.1.23 — coding test-signal relevance
 
 The source advisor omits duplicate focused-test and runner suggestions when a coding task gives an exact test command, except when the task expressly asks to choose tests. The unittest candidate now covers Python coding only when local CI unambiguously requires unittest. A randomized source P01 negative control returned no advice (4.49 ms), both arms passed blind quality and unittest; treatment 16.97 s versus baseline 22.24 s does not demonstrate recommendation benefit. Frozen score SHA-256: `a701e203b86a0c4e2b3be69b3815baeac5646ad9ad684c58da758b2c2600ebef`.
 
 ---
 
-# Unreleased compact-advice experiment (default unchanged)
+# Included in v0.1.23 — compact-advice experiment (default unchanged)
 
 An opt-in `JEVCOMPASS_ADVICE_STYLE=compact` option consolidates repeated context instructions for controlled pilots. One randomized P01 pair tied on blind authored quality and successful unittest in both arms; compact treatment advice arrived before first tool but took 21.24 s versus 18.50 s baseline, with 71,592 versus 69,164 input tokens. The frozen blind score SHA-256 is `7fd6e333abaa5e41b1cc50b93edfe970740cbeed665ee89e1bc3a3ae816aae61`. There is no established speed or billing-cost benefit; the published default remains unchanged.
 
 ---
 
-# Unreleased CLI efficiency telemetry (no new package release)
+# Included in v0.1.23 — CLI efficiency telemetry
 
 The pilot runner now records privacy-safe, bounded root-turn `turn.completed` token counters and full Codex process elapsed time in blind v2 receipts; old v1 receipts remain readable. Cached input and reasoning output are subsets of input and output. A fresh installed-v0.1.22 keyless P08 pair tied on authored quality and recognized successful unittest in both arms; advised treatment took 28.18 s versus 35.07 s baseline, with 71,558 versus 84,762 input tokens (uncached input differed by −148). This one pair is not a causal speed or billing-cost result. An initial P01/P03 simple-task pair had incomplete required-check evidence. A revised randomized repeat with equal bundled skills tied on blind authored quality and confirmed the required command passed in all four arms (score SHA `2b34b161...`). P01 local advice reached treatment before its first tool, but treatment took 20.60 s versus 13.79 s baseline and used 70,734 versus 54,925 input tokens. P03 treatment abstained and took 15.57 s versus 18.10 s baseline, with 54,517 versus 68,752 input tokens. Neither pair demonstrates an advice-driven speed or cost benefit. An in-session Desktop prompt exposed advice ID `44d672d6` before the primary agent's next tool, matched to a 74.85 ms local metric; fresh-session delivery remains open. See [PILOT.md](PILOT.md) for scoring and limits.
 
 ---
 
-# Unreleased P08 receipt correction (no new package release)
+# Included in v0.1.23 — P08 receipt correction
 
 P08 blind receipts now retain allowlisted scaffold presence and observed unittest exit while dropping command content. In a fresh installed-v0.1.22 keyless CLI surrogate pair, both arms authored coherent packages and had recognized successful unittest exits; treatment reported local `exec_command`/`git` advice before first tool (`project-setup/local`, 10.46 ms). The blind quality scores were frozen before mapping (SHA-256 `d438a21996ab95d3cf39bf80902fe5915f10f01d165da1868f5b9e22a781b723`). This is a check-preservation observation, not a demonstrated speed/quality improvement or a Desktop P08 result. The published distribution is unchanged.
 
 ---
 
-# Unreleased pilot harness evidence (no new package release)
+# Included in v0.1.23 — pilot harness evidence
 
 The CLI runner now includes a P08 project-scaffold surrogate in an isolated fixture with a three-file blind export and prospective unittest-exit observation. The planned P08 Desktop case remains open. On installed v0.1.22, a keyless randomized CLI pair tied on blind authored-package quality; treatment reported `exec_command`/`git` advice before first tool (`project-setup/local`, 8.11 ms). The original receipt did not assess test completion, and this small pair does not prove speed or quality benefit. The product distribution and hooks are unchanged. See [PILOT.md](PILOT.md).
 
 ---
 
-# Unreleased pilot harness clarification (no new package release)
+# Included in v0.1.23 — pilot harness clarification
 
 P07 now explicitly requests an authored `STATUS_API.md` while retaining its `api-design/python` preflight label. This changes the synthetic case wording, so older P07 pair scores remain historical. An unpublished API-contract skill prototype received local advice in two equal-profile source trials: the first produced no file in either arm, while the revised blind pair produced a valid baseline contract and no treatment file. Its catalog and bundled-skill edits were removed; the shipped package, hook configuration and optional two-skill installer remain as in v0.1.22. No speed, quality, or remote Jev benefit is claimed. See [PILOT.md](PILOT.md).
 

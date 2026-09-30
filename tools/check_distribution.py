@@ -45,11 +45,9 @@ def check(archive: Path, source_root: Path = PROJECT_ROOT) -> None:
         for path in package_root.iterdir()
         if path.is_file() and (path.suffix == ".py" or path.name == "catalog_data.json")
     }
-    for name in ("jevcompass-focused-tests", "jevcompass-regression-review"):
-        path = package_root / "bundled_skills" / name / "SKILL.md"
-        assert path.is_file(), f"missing bundled skill: {name}"
-        relative = path.relative_to(package_root).as_posix()
-        expected_package[f"jevcompass/{relative}"] = path.read_bytes()
+    for skill_path in sorted((package_root / "bundled_skills").glob("*/SKILL.md")):
+        relative = skill_path.relative_to(package_root).as_posix()
+        expected_package[f"jevcompass/{relative}"] = skill_path.read_bytes()
     package_prefix = "src/jevcompass/" if is_sdist else "jevcompass/"
     actual_package = {name: data for name, data in files.items()
                       if name.startswith(package_prefix)}
