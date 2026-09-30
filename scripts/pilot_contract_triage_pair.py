@@ -520,8 +520,7 @@ def _triage_argv(
             suffix.extend(("--hypothesis", hypothesis))
         for hypothesis, cost in (profile.triage_diagnostic_costs or {}).items():
             suffix.extend(("--diagnostic-cost", f"{hypothesis.value}={cost.value}"))
-        if profile.rank_hypotheses:
-            suffix.append("--rank-hypotheses")
+        # Observation flags precede --rank-hypotheses to match command_for() and the shim.
         if include_observations:
             observation_flags = {
                 "import": "--import-observation",
@@ -531,6 +530,8 @@ def _triage_argv(
             for category, values in profile.triage_observations.items():
                 for value in values:
                     suffix.extend((observation_flags[category], value))
+        if profile.rank_hypotheses:
+            suffix.append("--rank-hypotheses")
         suffix.append("--json")
     return [*TRIAGE_PREFIX, str(exit_code), *suffix]
 

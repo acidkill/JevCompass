@@ -343,6 +343,48 @@ class ProfileDiagnosticCostTests(unittest.TestCase):
             receipt = json.loads((private / "decision.json").read_text())
             self.assertEqual(receipt["provider_transport_call_count"], 1)
 
+    def test_rank_observation_command_order_is_intercepted_not_fallback(self):
+        self.profile_data["triage"]["rank_hypotheses"] = True
+        self.write_profile()
+        profile = self.load()
+        spec = runner._profile_bridge_spec(profile)
+        observed = {group: list(values)
+                    for group, values in profile.triage_observations.items()}
+        command = command_for(spec, 1, observed)
+        self.assertEqual(command, tuple(runner._triage_argv(1, profile)))
+        argv = runner._triage_argv(1, profile)
+        self.assertLess(argv.index("--assertion-observation"),
+                        argv.index("--rank-hypotheses"))
+        self.assertLess(argv.index("--rank-hypotheses"), argv.index("--json"))
+
+        factory = lambda: DecisionsClient(
+            api_key="SUPERVISOR_ONLY_SECRET",
+            transport=reply_transport(),
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            private = Path(temporary) / "private"
+            private.mkdir(mode=0o700)
+            bridge = ProfileTriageBridge(
+                spec, receipt_path=private / "decision.json", client_factory=factory,
+            )
+            with bridge:
+                self.assertTrue(bridge.observe_focused_failure(1, failure_confirmed=True))
+                bin_dir = write_python_shim(private, bridge)
+                child_env = {
+                    "PATH": str(bin_dir) + os.pathsep + os.environ.get("PATH", ""),
+                    "HOME": str(private), "PYTHONPATH": str(ROOT / "src"),
+                }
+                child = subprocess.run(
+                    [str(bin_dir / "python"), *command[1:]],
+                    cwd=ROOT, env=child_env, stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                    timeout=4, check=False,
+                )
+                self.assertEqual(child.returncode, 0, child.stderr)
+                self.assertEqual(bridge.receipt()["request_count"], 1)
+                self.assertNotIn("SUPERVISOR_ONLY_SECRET",
+                                 child.stdout + child.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
