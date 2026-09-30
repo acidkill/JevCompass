@@ -9,7 +9,7 @@ separately; this module does not claim localhost-only egress.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 import math
 import os
@@ -63,9 +63,10 @@ class ProfileTriageSpec:
     hypotheses: tuple[str, ...]
     allowed_observations: Mapping[str, tuple[str, ...]]
     rank_hypotheses: bool = False
+    diagnostic_costs: Mapping[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        from jevcompass.triage import FailureKind, HypothesisId
+        from jevcompass.triage import DiagnosticCost, FailureKind, HypothesisId
 
         if (not self.failure_kinds or not self.hypotheses
                 or any(not isinstance(value, str) for value in self.failure_kinds)
@@ -80,6 +81,15 @@ class ProfileTriageSpec:
             raise ValueError("invalid profile triage enum contract")
         if type(self.rank_hypotheses) is not bool:
             raise ValueError("rank_hypotheses must be boolean")
+        # Plain strings only: these values are embedded verbatim in the shim.
+        if not isinstance(self.diagnostic_costs, Mapping):
+            raise ValueError("invalid profile diagnostic costs")
+        allowed_costs = {item.value for item in DiagnosticCost}
+        for hypothesis, cost in self.diagnostic_costs.items():
+            if (type(hypothesis) is not str or type(cost) is not str
+                    or hypothesis not in self.hypotheses
+                    or cost not in allowed_costs):
+                raise ValueError("invalid profile diagnostic costs")
         if not isinstance(self.allowed_observations, Mapping):
             raise ValueError("invalid profile observation allowlist")
         for group, values in self.allowed_observations.items():
@@ -322,7 +332,7 @@ class ProfileTriageBridge:
     def _validated_request(self, request: Any, observed_exit: int) -> dict[str, Any]:
         if not isinstance(request, dict) or set(request) != {
             "observed_exit_status", "failure_kinds", "hypotheses", "observations",
-            "rank_hypotheses",
+            "rank_hypotheses", "diagnostic_costs",
         }:
             raise ValueError("invalid enum-only request")
         if (type(request["observed_exit_status"]) is not int
@@ -343,12 +353,21 @@ class ProfileTriageBridge:
                     or len(set(values)) != len(values)):
                 raise ValueError("invalid observation enum")
             observations[group] = tuple(values)
-        return {"observations": observations}
+        raw_costs = request["diagnostic_costs"]
+        if (not isinstance(raw_costs, dict)
+                or any(type(key) is not str or type(value) is not str
+                       for key, value in raw_costs.items())
+                or raw_costs != dict(self.spec.diagnostic_costs)):
+            raise ValueError("invalid diagnostic cost request")
+        return {
+            "observations": observations,
+            "diagnostic_costs": dict(raw_costs),
+        }
 
     def _decide(self, args: dict[str, Any], observed_exit: int):
         from jevcompass.decisions import DecisionsClient
         from jevcompass.triage import (
-            CATALOG, AssertionObservation, FailureKind, HypothesisId,
+            CATALOG, AssertionObservation, DiagnosticCost, FailureKind, HypothesisId,
             ImportObservation, TriageDecisionReason, TimeoutObservation,
             TriageResult, triage_failure,
         )
@@ -367,13 +386,20 @@ class ProfileTriageBridge:
             enum_groups[group][1]: tuple(enum_groups[group][0](value) for value in values)
             for group, values in args["observations"].items()
         }
+        diagnostic_costs = {
+            HypothesisId(key): DiagnosticCost(value)
+            for key, value in args["diagnostic_costs"].items()
+        }
+        triage_options = dict(triage_observations)
+        if diagnostic_costs:
+            triage_options["diagnostic_costs"] = diagnostic_costs
         result = triage_failure(
             tuple(FailureKind(value) for value in self.spec.failure_kinds),
             tuple(HypothesisId(value) for value in self.spec.hypotheses),
             observed_exit,
             client=client,
             rank_hypotheses=self.spec.rank_hypotheses,
-            **triage_observations,
+            **triage_options,
         )
         if not isinstance(result, TriageResult) or result.observed_exit_status != observed_exit:
             raise ValueError("invalid production triage result")
@@ -510,6 +536,8 @@ def command_for(spec: ProfileTriageSpec, exit_status: int,
         args.extend(("--kind", kind))
     for hypothesis in spec.hypotheses:
         args.extend(("--hypothesis", hypothesis))
+    for hypothesis, cost in spec.diagnostic_costs.items():
+        args.extend(("--diagnostic-cost", f"{hypothesis}={cost}"))
     for group in ("import", "assertion", "timeout"):
         values = tuple(observed.get(group, ()))
         allowed = set(spec.allowed_observations.get(group, ()))
@@ -534,6 +562,7 @@ def write_python_shim(directory: Path, bridge: ProfileTriageBridge,
     bindir.mkdir(mode=0o700, parents=True, exist_ok=True)
     shim = bindir / "python"
     groups = {key: list(value) for key, value in bridge.spec.allowed_observations.items()}
+    costs = dict(bridge.spec.diagnostic_costs)
     source = f'''#!/usr/bin/env python3
 import json, os, sys
 from urllib.request import Request, urlopen
@@ -543,6 +572,7 @@ KINDS = {list(bridge.spec.failure_kinds)!r}
 HYPOTHESES = {list(bridge.spec.hypotheses)!r}
 OBSERVATIONS = {groups!r}
 RANK = {bridge.spec.rank_hypotheses!r}
+COSTS = {costs!r}
 FLAGS = {dict(_OBSERVATION_FLAGS)!r}
 ARGS = sys.argv[1:]
 def fallback():
@@ -564,6 +594,18 @@ try:
     if tail[:len(expected)] != expected:
         fallback()
     tail = tail[len(expected):]
+    supplied_costs = {{}}
+    while tail and tail[0] == "--diagnostic-cost":
+        if len(tail) < 2:
+            fallback()
+        name, separator, level = tail[1].partition("=")
+        if (not separator or name not in COSTS or level != COSTS[name]
+                or name in supplied_costs):
+            fallback()
+        supplied_costs[name] = level
+        tail = tail[2:]
+    if supplied_costs != COSTS:
+        fallback()
     observations = {{group: [] for group in OBSERVATIONS}}
     while tail and tail[0] != "--json" and tail[0] != "--rank-hypotheses":
         if len(tail) < 2:
@@ -585,7 +627,7 @@ try:
     body = json.dumps({{
         "observed_exit_status": code, "failure_kinds": KINDS,
         "hypotheses": HYPOTHESES, "observations": observations,
-        "rank_hypotheses": RANK,
+        "rank_hypotheses": RANK, "diagnostic_costs": supplied_costs,
     }}, separators=(",", ":")).encode()
     req = Request(URL, data=body, headers={{"Content-Type": "application/json"}}, method="POST")
     with urlopen(req, timeout=2.0) as response:

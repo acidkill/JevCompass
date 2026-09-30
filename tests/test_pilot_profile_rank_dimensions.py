@@ -50,6 +50,7 @@ class ProfileRankDimensionsTests(unittest.TestCase):
             triage_hypotheses=("assertion_behavior_regression", "assertion_expectation_drift"),
             triage_accepted_ids=("assertion_behavior_regression", "confirm_behavior_contract"),
             rank_hypotheses=True, triage_observations={},
+            triage_diagnostic_costs={},
         )
         argv = runner._triage_argv(1, profile)
         self.assertIn("confirm_behavior_contract", argv)

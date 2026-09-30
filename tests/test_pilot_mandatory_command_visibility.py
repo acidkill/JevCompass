@@ -37,6 +37,7 @@ class MandatoryCommandVisibilityTests(unittest.TestCase):
             triage_accepted_ids=(),
             rank_hypotheses=False,
             triage_observations={},
+            triage_diagnostic_costs={},
         )
 
     def test_exact_standalone_commands_are_shared_before_treatment_extras(self):
@@ -64,6 +65,7 @@ class MandatoryCommandVisibilityTests(unittest.TestCase):
         contract_profile = SimpleNamespace(
             task_prompt="Inspect and preserve the original failure.",
             outcome_mode="contract_triage",
+            triage_diagnostic_costs={},
         )
         self.assertEqual(runner._case_base_prompt(contract_profile), contract_profile.task_prompt)
 
