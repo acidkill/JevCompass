@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jevcompass"
-version = "0.1.22"
+version = "0.1.23"
 description = "Privacy-first tool and skill recommendations for Codex Desktop and CLI, powered by Jev"
 readme = "README.md"
 license = "Apache-2.0"
@@ -25,7 +25,7 @@ classifiers = [
 Homepage = "https://github.com/acidkill/JevCompass"
 Repository = "https://github.com/acidkill/JevCompass"
 Issues = "https://github.com/acidkill/JevCompass/issues"
-Changelog = "https://github.com/acidkill/JevCompass/blob/main/RELEASE_NOTES.md"
+Changelog = "https://github.com/acidkill/JevCompass/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 secure-store = ["keyring>=25"]
