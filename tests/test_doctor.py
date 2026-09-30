@@ -27,6 +27,25 @@ class DoctorTests(unittest.TestCase):
         self.assertEqual(ended.exception.code, 0)
         self.assertEqual(output.getvalue().strip(), f"JevCompass {expected}")
 
+    def test_doctor_recognizes_strategy_advice_prompt_hook_variant(self):
+        with tempfile.TemporaryDirectory() as directory:
+            codex_home = Path(directory) / "codex"
+            codex_home.mkdir()
+            (codex_home / "hooks.json").write_text(json.dumps({"hooks": {
+                "UserPromptSubmit": [{"hooks": [{
+                    "command": f"{advisor.hook_command()} --strategy-advice",
+                }]}],
+                "SubagentStart": [{"matcher": SUBAGENT_MATCHER, "hooks": [{"command": advisor.hook_command()}]}],
+            }}))
+            with mock.patch.dict(os.environ, {"CODEX_HOME": str(codex_home)}), \
+                    mock.patch.object(cli, "model_status", return_value="available"), \
+                    mock.patch.object(cli, "catalog_snapshot", return_value=([{"id": "exec_command"}], {"curated_entries": 1, "available_tools": 1, "available_skills": 0,
+                        "configured_mcp_servers": 0, "discovered_skills": 0, "unavailable_entries": 0})):
+                result = cli.doctor()
+        self.assertEqual(result["hooks_json"]["registered_advisory_hooks"],
+                         ["UserPromptSubmit", "SubagentStart"])
+        self.assertTrue(result["hooks_json"]["ok"])
+
     def test_doctor_separates_registered_hooks_from_safe_observed_metric(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

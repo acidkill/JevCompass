@@ -17,6 +17,7 @@ from .decisions import DecisionsClient, DecisionsError, model_status
 from .installer import (
     SPAWN_ADVICE_MATCHER,
     SUBAGENT_MATCHER,
+    _has_strategy_advice_flag,
     _is_legacy_gate,
     _is_product_hook,
     install,
@@ -171,6 +172,8 @@ def doctor(*, test_jev: bool = False) -> dict[str, Any]:
         registered = []
         for event_name in ("UserPromptSubmit", "SubagentStart"):
             if any(handler.get("command") == hook_command
+                   or (event_name == "UserPromptSubmit"
+                       and _has_strategy_advice_flag(handler.get("command")))
                    for group in hooks.get(event_name, [])
                    if event_name != "SubagentStart" or group.get("matcher") == SUBAGENT_MATCHER
                    for handler in group.get("hooks", [])):
